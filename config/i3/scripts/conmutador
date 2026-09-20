@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Prepara el conmutador de ventanas al estilo Windows.
+#
+# Usa skippy-xd, que dibuja una previsualizacion en vivo del contenido de
+# cada ventana apoyandose en el compositor. Su "modo pivot" es justo el
+# comportamiento de Windows: mantienes Alt, Tab avanza, sueltas y confirma.
+#
+# alttab queda como reserva: funciona igual de bien para cambiar de ventana
+# pero solo enseña el ICONO de la aplicacion, no su contenido.
+#
+# Este script solo arranca el demonio. Las combinaciones de teclas estan en
+# el config de i3, que es quien las lanza.
+
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/conmutador.log"
+CFGDIR="$HOME/.config/skippy-xd"
+CFG="$CFGDIR/skippy-xd.rc"
+
+echo "=== $(date '+%F %T') ===" >> "$LOG"
+
+if command -v skippy-xd >/dev/null; then
+    # Partimos de la configuracion que trae el propio paquete y solo
+    # cambiamos los colores: asi no dependemos de que yo acierte con los
+    # nombres de los ajustes, que varian entre versiones.
+    if [ ! -f "$CFG" ]; then
+        mkdir -p "$CFGDIR"
+        for origen in /etc/xdg/skippy-xd.rc \
+                      /usr/share/skippy-xd/skippy-xd.rc \
+                      /usr/share/doc/skippy-xd/skippy-xd.rc; do
+            [ -f "$origen" ] && { cp "$origen" "$CFG"; echo "base: $origen" >> "$LOG"; break; }
+        done
+        [ -f "$CFG" ] || { : > "$CFG"; echo "base: ninguna, fichero vacio" >> "$LOG"; }
+
+        # Colores Sigilo sobre las claves que existan
+        sed -i \
+          -e 's/^switchCycleDesktops[[:space:]]*=.*/switchCycleDesktops = true/' \
+          -e 's/^switchLayout[[:space:]]*=.*/switchLayout = compactrect/' \
+          -e 's/^distance[[:space:]]*=.*/distance = 16/' \
+          -e 's/^cornerRadius[[:space:]]*=.*/cornerRadius = 12/' \
+          -e 's/^exposeCycleDesktops[[:space:]]*=.*/exposeCycleDesktops = true/' \
+          -e 's/^\([[:space:]]*tint[[:space:]]*=\).*/\1 #070b09/' \
+          -e 's/^\([[:space:]]*background[[:space:]]*=\).*/\1 #070b09/' \
+          -e 's/^\([[:space:]]*border[[:space:]]*=\).*/\1 #3ee8a8/' \
+          -e 's/^\([[:space:]]*textColor[[:space:]]*=\).*/\1 #e7edea/' \
+          -e 's/^\([[:space:]]*font[[:space:]]*=\).*/\1 fixed-11:weight=bold/' \
+          "$CFG"
+        echo "config creada en $CFG" >> "$LOG"
+    fi
+
+    pkill -x alttab 2>/dev/null
+    pkill -f "skippy-xd --start-daemon" 2>/dev/null
+    sleep 0.3
+    skippy-xd --start-daemon >>"$LOG" 2>&1 &
+    sleep 1.2
+    if pgrep -f "skippy-xd" >/dev/null; then
+        echo "skippy-xd OK" >> "$LOG"
+        exit 0
+    fi
+    echo "skippy-xd no arrancó, se cae a alttab" >> "$LOG"
+    notify-send "Alt+Tab" "skippy-xd no arrancó; usando alttab (solo iconos).\nRevisa ~/.cache/conmutador.log"
+fi
+
+# ── reserva: alttab ────────────────────────────────────────────────────────
+command -v alttab >/dev/null || {
+    notify-send -u critical "Alt+Tab" "Ni skippy-xd ni alttab instalados.\nyay -S skippy-xd-git"; exit 1; }
+
+pkill -x alttab 2>/dev/null; sleep 0.3
+alttab -w 1 -d 1 -sc 0 -mk Alt_L -kk Tab -t 300x190 -i 64x64 \
+       -vp total -p center -s 2 \
+       -bg "#15201c" -fg "#e7edea" -frame "#3ee8a8" -inact "#26332e" \
+       -bc "#26332e" -bw 1 -b 1 \
+       -font "xft:JetBrains Mono:size=10" >>"$LOG" 2>&1 &
+echo "alttab de reserva arrancado" >> "$LOG"

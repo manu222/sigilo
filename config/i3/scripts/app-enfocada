@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Imprime la aplicación que tiene el foco, para la barra.
+
+Polybar solo sabe darte el *título* de la ventana, que es largo y cambia con
+lo que estés haciendo dentro del programa. Lo que interesa saber de un
+vistazo es qué aplicación es, y eso está en la clase de la ventana: corta,
+estable y previsible.
+
+No pregunta cada segundo: se suscribe a los eventos de i3 y solo escribe
+cuando el foco cambia de verdad.
+"""
+import i3ipc
+
+# La clase de la ventana suele ser el nombre del ejecutable. Aquí se traduce
+# a algo presentable; lo que no esté en la lista sale capitalizado tal cual.
+NOMBRES = {
+    "xfce4-terminal": "Terminal",
+    "thunar":         "Archivos",
+    "firefox":        "Firefox",
+    "brave-browser":  "Brave",
+    "chromium":       "Chromium",
+    "google-chrome":  "Chrome",
+    "code":           "VS Code",
+    "code-oss":       "VS Code",
+    "claude":              "Claude",
+    "com.anthropic.claude": "Claude",
+    "1password":      "1Password",
+    "pavucontrol":    "Sonido",
+    "nm-connection-editor": "Redes",
+    "gimp":           "GIMP",
+    "vlc":            "VLC",
+    "mpv":            "mpv",
+    "discord":        "Discord",
+    "telegram-desktop": "Telegram",
+    "spotify":        "Spotify",
+    "gedit":          "Editor",
+    "rofi":           "Lanzador",
+    "alttab":         "Cambiar",
+}
+
+LIMITE = 18          # por si aparece una clase larga inesperada
+
+
+# Palabras que no distinguen nada al final de un nombre de dominio invertido
+GENERICAS = {"app", "client", "desktop", "gui", "bin", "linux", "electron"}
+
+
+def presentable(clase):
+    """Convierte la clase en algo legible.
+
+    Muchas aplicaciones modernas se identifican con un dominio al reves
+    (com.anthropic.claude, org.gnome.Nautilus). De esos solo interesa el
+    ultimo tramo, y si ese tramo no dice nada, el anterior.
+    """
+    if "." in clase:
+        tramos = [t for t in clase.split(".") if t]
+        while len(tramos) > 1 and tramos[-1].lower() in GENERICAS:
+            tramos.pop()
+        clase = tramos[-1]
+    clase = clase.replace("-", " ").replace("_", " ")
+    return clase[0].upper() + clase[1:]
+
+
+def nombre(f):
+    if f is None or f.type == "workspace":
+        return "escritorio"
+    clase = (f.window_class or f.window_instance or "").strip()
+    if not clase:
+        return (f.name or "—")[:LIMITE]
+    legible = NOMBRES.get(clase.lower())
+    if legible is None:
+        legible = presentable(clase)
+    return legible[:LIMITE]
+
+
+def pinta(i3, _evento=None):
+    try:
+        print(nombre(i3.get_tree().find_focused()), flush=True)
+    except Exception:
+        print("—", flush=True)
+
+
+def main():
+    i3 = i3ipc.Connection()
+    for evento in ("window::focus", "window::close", "workspace::focus"):
+        i3.on(evento, pinta)
+    pinta(i3)
+    i3.main()
+
+
+if __name__ == "__main__":
+    main()

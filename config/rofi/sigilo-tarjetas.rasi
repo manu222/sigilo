@@ -1,0 +1,82 @@
+* {
+    bg:        #070b09;
+    bg-alt:    #0a0f0d;
+    surface:   #15201c;
+    line:      #26332e;
+    fg:        #e7edea;
+    fg-dim:    #94a3a0;
+    fg-muted:  #70837c;
+    accent-hi: #3ee8a8;
+
+    background-color: transparent;
+    text-color:       @fg-dim;
+    font:             "JetBrainsMono Nerd Font 11";
+}
+window {
+    background-color: @bg;
+    border:           1px;
+    border-color:     @line;
+    border-radius:    16px;
+    padding:          0;
+    width:            52em;
+    location:         center;
+    anchor:           center;
+}
+mainbox { children: [ "inputbar", "listview", "message" ]; spacing: 0; padding: 0; }
+
+inputbar {
+    background-color: @bg-alt;
+    border:           0 0 1px 0;
+    border-color:     @line;
+    padding:          1.1em 1.4em;
+    children:         [ "textbox-titulo" ];
+}
+textbox-titulo { content: "❖   sesión"; text-color: @fg; }
+
+/* Sin altura fija: el elemento crece hasta caber icono + etiqueta. */
+listview {
+    columns:      5;
+    lines:        1;
+    padding:      1.2em;
+    spacing:      0.7em;
+    scrollbar:    false;
+    fixed-height: false;
+    fixed-columns: true;
+}
+
+/* El icono es un PNG, no un caracter: rofi lo escala al tamano pedido y
+   no hay fuente de por medio que pueda faltar, cambiar o recortarlo. */
+element {
+    orientation:      vertical;
+    padding:          1.3em 0.4em 1em 0.4em;
+    spacing:          0.9em;
+    border-radius:    14px;
+    border:           1px;
+    border-color:     @line;
+    background-color: @bg-alt;
+    children:         [ "element-icon", "element-text" ];
+}
+element-icon {
+    size:             3.6em;
+    horizontal-align: 0.5;
+    background-color: transparent;
+}
+element-text {
+    horizontal-align: 0.5;
+    vertical-align:   0.5;
+    font:             "JetBrainsMono Nerd Font 10";
+}
+element normal.normal   { text-color: @fg-dim; }
+element selected.normal {
+    background-color: @surface;
+    border-color:     @accent-hi;
+    text-color:       @accent-hi;
+}
+
+message {
+    background-color: @bg-alt;
+    border:           1px 0 0 0;
+    border-color:     @line;
+    padding:          0.6em 1.3em;
+}
+textbox { text-color: @fg-muted; }

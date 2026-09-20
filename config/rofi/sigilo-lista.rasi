@@ -1,0 +1,76 @@
+* {
+    bg:        #070b09;
+    bg-alt:    #0a0f0d;
+    surface:   #15201c;
+    raise:     #1b2723;
+    line:      #26332e;
+    fg:        #e7edea;
+    fg-dim:    #94a3a0;
+    fg-muted:  #70837c;
+    accent:    #34d399;
+    accent-hi: #3ee8a8;
+    urgent:    #e0777d;
+
+    background-color: transparent;
+    text-color:       @fg-dim;
+    font:             "JetBrainsMono Nerd Font 11";
+}
+window {
+    background-color: @bg;
+    border:           1px;
+    border-color:     @line;
+    border-radius:    16px;
+    padding:          0;
+    location:         center;
+    anchor:           center;
+}
+
+window { width: 48em; }
+mainbox { children: [ "inputbar", "listview", "message" ]; spacing: 0; padding: 0; }
+
+inputbar {
+    background-color: @bg-alt;
+    border:           0 0 1px 0;
+    border-color:     @line;
+    padding:          1em 1.3em;
+    spacing:          0.8em;
+    children:         [ "textbox-sello", "prompt", "entry" ];
+}
+textbox-sello { content: "❖"; text-color: @accent-hi; vertical-align: 0.5; }
+prompt        { text-color: @fg;      vertical-align: 0.5; }
+entry {
+    text-color:        @fg;
+    placeholder:       "escribe para filtrar";
+    placeholder-color: @fg-muted;
+    cursor:            text;
+    vertical-align:    0.5;
+}
+
+listview {
+    lines: 9;  padding: 0.7em;  spacing: 0.2em;
+    scrollbar: false;  dynamic: true;
+}
+element {
+    padding:       0.7em 0.9em;
+    border-radius: 10px;
+    spacing:       0.8em;
+    border:        0 0 0 3px;
+    border-color:  transparent;
+}
+element normal.normal    { text-color: @fg-dim; }
+element alternate.normal { text-color: @fg-dim; background-color: @bg-alt; }
+element selected.normal  {
+    background-color: @surface;
+    text-color:       @accent-hi;
+    border-color:     @accent-hi;
+}
+element-icon { size: 1.3em; vertical-align: 0.5; }
+element-text { vertical-align: 0.5; }
+
+message {
+    background-color: @bg-alt;
+    border:           1px 0 0 0;
+    border-color:     @line;
+    padding:          0.6em 1.3em;
+}
+textbox { text-color: @fg-muted; }

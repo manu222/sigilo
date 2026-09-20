@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Capturas de pantalla para i3.
+#   captura full  -> pantalla completa
+#   captura sel   -> seleccion con el raton
+# Guarda el png en la carpeta de imagenes y ademas lo deja en el portapapeles.
+
+set -u
+DIR="$(xdg-user-dir PICTURES 2>/dev/null)"
+[ -z "$DIR" ] && DIR="$HOME/Pictures"
+mkdir -p "$DIR"
+FILE="$DIR/captura-$(date +%Y-%m-%d_%H-%M-%S).png"
+
+case "${1:-full}" in
+    sel)  scrot -s "$FILE" || exit 0 ;;
+    *)    scrot     "$FILE" || exit 1 ;;
+esac
+
+command -v xclip >/dev/null && xclip -selection clipboard -t image/png -i "$FILE"
+notify-send -i "$FILE" "Captura guardada" "$(basename "$FILE")"

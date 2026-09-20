@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Chuleta de atajos de i3.
+
+Lee el propio config, resuelve las variables, traduce los comandos de i3 a
+castellano y lo muestra en rofi agrupado por secciones. Al generarse del
+fichero real, nunca se queda desfasada.
+"""
+import html
+import os
+import re
+import subprocess
+
+CFG = os.path.expanduser("~/.config/i3/config")
+TEMA = os.path.expanduser("~/.config/rofi/sigilo-lista.rasi")
+
+C_TECLA, C_ACCION, C_SECCION = "#3ee8a8", "#94a3a0", "#c99d6b"
+
+TECLAS = {
+    "$mod": "❖", "$alt": "Alt", "Control": "Ctrl", "Shift": "Shift", "Return": "Intro", "Escape": "Esc",
+    "Print": "ImprPant", "minus": "-", "grave": "`", "space": "Espacio",
+    "Left": "←", "Right": "→", "Up": "↑", "Down": "↓", "Tab": "Tab",
+    "XF86AudioRaiseVolume": "Subir volumen", "XF86AudioLowerVolume": "Bajar volumen",
+    "XF86AudioMute": "Silenciar", "XF86AudioMicMute": "Silenciar micro",
+    "XF86AudioPlay": "Reproducir/Pausa", "XF86AudioNext": "Siguiente",
+    "XF86AudioPrev": "Anterior", "XF86MonBrightnessUp": "Subir brillo",
+    "XF86MonBrightnessDown": "Bajar brillo",
+}
+DIR = {"left": "la izquierda", "right": "la derecha", "up": "arriba", "down": "abajo",
+       "h": "la izquierda", "l": "la derecha", "k": "arriba", "j": "abajo"}
+
+# (patron, texto). El primero que encaje manda.
+REGLAS = [
+    (r"^kill$",                       "Cerrar la ventana"),
+    (r"^focus parent$",               "Seleccionar el grupo que la contiene"),
+    (r"^focus child$",                "Volver a la ventana suelta"),
+    (r"^focus (\w+)$",                lambda m: "Foco a " + DIR.get(m[1], m[1])),
+    (r"^move position center$",       "Centrar la ventana flotante"),
+    (r"^move (\w+)$",                 lambda m: "Mover la ventana a " + DIR.get(m[1], m[1])),
+    (r"^move scratchpad$",            "Apartar la ventana (el minimizar de i3)"),
+    (r"^scratchpad show$",            "Recuperar la ventana apartada"),
+    (r"^split vertical$",             "La siguiente ventana se abre debajo"),
+    (r"^split horizontal$",           "La siguiente ventana se abre al lado"),
+    (r"^layout tabbed$",              "Apilar en pestañas"),
+    (r"^layout stacking$",            "Apilar en lista"),
+    (r"^layout toggle split$",        "Volver al mosaico"),
+    (r"^fullscreen toggle$",          "Pantalla completa"),
+    (r"^floating toggle$",            "Soltar la ventana del mosaico"),
+    (r"^workspace back_and_forth$",   "Volver al escritorio anterior"),
+    (r"^workspace next$",             "Escritorio siguiente"),
+    (r"^workspace prev$",             "Escritorio anterior"),
+    (r"^workspace number \"?(\d+)\"?$",
+     lambda m: "Ir al escritorio %s" % m[1]),
+    (r"^move container to workspace number \"?(\d+)\"?$",
+     lambda m: "Llevar la ventana al escritorio %s" % m[1]),
+    (r"^resize shrink width.*",       "Estrechar"),
+    (r"^resize grow width.*",         "Ensanchar"),
+    (r"^resize shrink height.*",      "Encoger"),
+    (r"^resize grow height.*",        "Estirar"),
+    (r"^mode \"default\"$",           "Salir del modo"),
+    (r"^mode \"resize\"$",            "Modo redimensionar"),
+    (r"^mode .*salir.*|^mode \"?\s*\[L\].*",  "Menú de sesión"),
+    (r"^reload$",                     "Recargar la configuración"),
+    (r"^restart$",                    "Reiniciar i3 sin perder las ventanas"),
+    # cosas que se lanzan
+    (r"xfce4-terminal.*btop",         "Monitor del sistema"),
+    (r"xfce4-terminal.*nmtui",        "Redes en el terminal"),
+    (r"xfce4-terminal.*--maximize",   "Terminal maximizado"),
+    (r"xfce4-terminal",               "Abrir un terminal"),
+    (r"^firefox",                     "Abrir el navegador"),
+    (r"^thunar",                      "Abrir el gestor de archivos"),
+    (r"rofi -show drun",              "Lanzador de aplicaciones"),
+    (r"rofi -show window",            "Cambiar de ventana"),
+    (r"i3lock",                       "Bloquear la pantalla"),
+    (r"^xkill",                       "Matar una ventana a punta de ratón"),
+    (r"atajos",                       "Esta chuleta"),
+    (r"captura full",                 "Captura de pantalla completa"),
+    (r"captura sel",                  "Captura: seleccionar con el ratón"),
+    (r"volume_brightness.*volume_up",   "Subir el volumen"),
+    (r"volume_brightness.*volume_down", "Bajar el volumen"),
+    (r"volume_brightness.*volume_mute", "Silenciar"),
+    (r"volume_brightness.*brightness_up",   "Subir el brillo"),
+    (r"volume_brightness.*brightness_down", "Bajar el brillo"),
+    (r"amixer.*Capture toggle",       "Silenciar el micrófono"),
+    (r"playerctl play-pause",         "Reproducir o pausar"),
+    (r"playerctl next",               "Pista siguiente"),
+    (r"playerctl previous",           "Pista anterior"),
+    (r"systemctl suspend",            "Suspender el equipo"),
+    (r"systemctl reboot",             "Reiniciar el equipo"),
+    (r"systemctl poweroff",           "Apagar el equipo"),
+    (r"i3-msg exit",                  "Cerrar la sesión"),
+]
+
+
+def cargar():
+    variables, secciones, seccion, actual = {}, [], "Otros", []
+    modo = None
+    with open(CFG, encoding="utf-8") as fh:
+        for linea in fh:
+            linea = linea.rstrip("\n")
+            if re.match(r"^\s*}\s*$", linea) and modo:
+                modo = None
+                continue
+            m = re.match(r"^mode\s+(.+?)\s*\{\s*$", linea)
+            if m:
+                modo = "resize" if "resize" in m.group(1) else "sesión"
+                continue
+            m = re.match(r"^set\s+(\$\S+)\s+(.+)$", linea)
+            if m:
+                variables[m.group(1)] = m.group(2).strip()
+                continue
+            m = re.match(r"^#\s*\d+\.\s+(.+?)\s*$", linea)
+            if m:
+                if actual:
+                    secciones.append((seccion, actual))
+                seccion, actual = m.group(1).strip().capitalize(), []
+                continue
+            m = re.match(r"^\s*bindsym\s+(\S+)\s+(.+?)\s*$", linea)
+            if m:
+                actual.append((m.group(1), m.group(2), modo))
+    if actual:
+        secciones.append((seccion, actual))
+    return variables, secciones
+
+
+def expandir(txt, variables):
+    for _ in range(3):
+        for k in sorted(variables, key=len, reverse=True):
+            txt = txt.replace(k, variables[k])
+    return txt
+
+
+def tecla(t, variables):
+    partes = []
+    for p in t.split("+"):
+        partes.append(TECLAS.get("$" + p, TECLAS.get(p, variables.get("$" + p, p))))
+    return " + ".join(partes)
+
+
+def accion(a, variables):
+    a = expandir(a, variables)
+    a = re.sub(r"\s*,\s*mode\s+\"default\"\s*$", "", a)
+    limpio = re.sub(r"^exec\s+(--no-startup-id\s+)?", "", a).strip()
+    for patron, texto in REGLAS:
+        m = re.search(patron, limpio)
+        if m:
+            return texto(m) if callable(texto) else texto
+    return limpio
+
+
+def main():
+    variables, secciones = cargar()
+    filas = []
+    for nombre, binds in secciones:
+        vistos, cuerpo = set(), []
+        for t, a, modo in binds:
+            k, v = tecla(t, variables), accion(a, variables)
+            if modo:
+                k = "(modo %s)  %s" % (modo, k)
+            if (k, v) in vistos:
+                continue
+            vistos.add((k, v))
+            cuerpo.append('<span foreground="%s"><b>%s</b></span>%s<span foreground="%s">%s</span>'
+                          % (C_TECLA, html.escape(k), " " * max(2, 30 - len(k)),
+                             C_ACCION, html.escape(v)))
+        if not cuerpo:
+            continue
+        filas.append('<span foreground="%s"><b>  %s</b></span>'
+                     % (C_SECCION, html.escape(nombre.upper())))
+        filas += cuerpo
+        filas.append(" ")
+
+    texto = "\n".join(filas[:-1])
+    try:
+        subprocess.run(
+            ["rofi", "-dmenu", "-i", "-markup-rows", "-no-show-icons", "-no-custom",
+             "-p", "atajos", "-theme", TEMA, "-theme-str",
+             "window { width: 60em; } listview { lines: 22; }"],
+            input=texto, text=True, stdout=subprocess.DEVNULL)
+    except FileNotFoundError:
+        print(re.sub(r"<[^>]+>", "", texto))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Puente entre los botones nativos de las ventanas e i3.
+
+i3 descarta las peticiones de minimizar y maximizar: no tiene el concepto de
+ventana minimizada, y considera que en un mosaico una ventana ya ocupa todo
+el espacio que le toca. Las aplicaciones, sin embargo, siguen mandandolas.
+
+Este servicio las escucha y las traduce:
+
+    minimizar  ->  apartar al scratchpad   (se recupera con Mod + -)
+    maximizar  ->  pantalla completa
+
+Como funciona: las peticiones viajan como mensajes al escritorio raiz. Solo
+un programa puede reservarse el control de ese escritorio -- e i3 ya lo tiene
+--, pero *escuchar* lo que pasa por el si esta permitido a varios a la vez,
+que es justo lo que hace falta aqui.
+"""
+import os
+import sys
+import time
+
+try:
+    from Xlib import X, display
+    import i3ipc
+except ImportError as e:
+    sys.exit("Falta una dependencia (%s). Instala python-xlib y python-i3ipc." % e)
+
+ICONIC = 3          # el estado "minimizada" de toda la vida de X11
+
+
+def main():
+    d = display.Display()
+    root = d.screen().root
+
+    WM_CHANGE_STATE = d.intern_atom("WM_CHANGE_STATE")
+    NET_WM_STATE    = d.intern_atom("_NET_WM_STATE")
+    MAX_V           = d.intern_atom("_NET_WM_STATE_MAXIMIZED_VERT")
+    MAX_H           = d.intern_atom("_NET_WM_STATE_MAXIMIZED_HORZ")
+    MAXIMIZAR       = {MAX_V, MAX_H}
+
+    i3 = i3ipc.Connection()
+
+    # escuchar sin reservar: no le quitamos el control a i3
+    root.change_attributes(event_mask=X.SubstructureNotifyMask)
+    d.sync()
+
+    while True:
+        ev = d.next_event()
+        if ev.type != X.ClientMessage:
+            continue
+        try:
+            wid = ev.window.id
+        except AttributeError:
+            continue
+        fmt, datos = ev.data
+        if fmt != 32:
+            continue
+
+        if ev.client_type == WM_CHANGE_STATE and datos[0] == ICONIC:
+            i3.command('[id="%d"] move scratchpad' % wid)
+
+        elif ev.client_type == NET_WM_STATE:
+            # datos[1] y datos[2] son las dos propiedades que cambia el mensaje
+            if MAXIMIZAR & {datos[1], datos[2]}:
+                i3.command('[id="%d"] fullscreen toggle' % wid)
+
+
+if __name__ == "__main__":
+    # si i3 se reinicia, la conexion se cae: volvemos a levantarla
+    while True:
+        try:
+            main()
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print("botones-ventana: %s; reintentando" % e, file=sys.stderr)
+            time.sleep(2)

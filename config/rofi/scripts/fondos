@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Galeria de fondos en una sola fila con miniatura grande.
+# Los formatos que rofi no sabe leer (webp, avif) se convierten a una
+# miniatura png en cache la primera vez.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/fondos-miniaturas"
+mkdir -p "$CACHE"
+
+# La carpeta curada primero; si no existe todavia, la general.
+if [ -d "$HOME/Imágenes/fondos/seleccion" ]; then
+    DIRS=("$HOME/Imágenes/fondos/seleccion")
+else
+    DIRS=("$HOME/Imágenes/fondos" "$HOME/Imagenes/fondos" "$HOME/Pictures/fondos" "$HOME/.config/i3")
+fi
+rutas=()
+for d in "${DIRS[@]}"; do
+    [ -d "$d" ] || continue
+    while IFS= read -r -d '' f; do rutas+=("$f"); done < <(
+        find "$d" -maxdepth 1 -type f \
+             \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \
+                -o -iname '*.webp' -o -iname '*.avif' -o -iname '*.bmp' \) -print0 | sort -z)
+done
+
+[ ${#rutas[@]} -eq 0 ] && {
+    notify-send "Fondos" "No hay imágenes. Deja algunas en ~/Imágenes/fondos"; exit 0; }
+
+miniatura() {   # $1 ruta -> imprime la ruta que rofi debe pintar
+    local f="$1" ext="${1##*.}"
+    case "${ext,,}" in
+        png|jpg|jpeg|bmp) printf '%s' "$f"; return ;;
+    esac
+    local dest="$CACHE/$(printf '%s' "$f" | md5sum | cut -c1-16).png"
+    if [ ! -f "$dest" ] || [ "$f" -nt "$dest" ]; then
+        if command -v magick >/dev/null; then
+            magick "$f" -resize 600x600^ -gravity center -extent 600x600 "$dest" 2>/dev/null \
+                || { printf '%s' "$f"; return; }
+        else
+            printf '%s' "$f"; return
+        fi
+    fi
+    printf '%s' "$dest"
+}
+
+# OJO: las filas se escriben directas a la tubería, nunca a una variable.
+# Bash descarta el byte nulo al guardarlo en una variable, y ese byte es el
+# separador que le dice a rofi dónde empieza la ruta del icono.
+i=$( for f in "${rutas[@]}"; do
+         printf '%s\0icon\x1f%s\n' "$(basename "${f%.*}")" "$(miniatura "$f")"
+     done | rofi -dmenu -i -show-icons -format i -no-custom \
+        -theme ~/.config/rofi/sigilo-galeria.rasi -p "fondos" \
+        -mesg "<span foreground=\"$MUTE\">${#rutas[@]} fondos   ·   ←  →  para recorrer   ·   Intro lo aplica y lo deja fijado</span>" )
+[ -z "$i" ] && exit 0
+
+ruta="${rutas[$i]}"
+feh --bg-fill "$ruta"
+sed -i "s|^exec --no-startup-id feh --bg-fill .*|exec --no-startup-id feh --bg-fill '$ruta'|" \
+    "$HOME/.config/i3/config"
+notify-send -i "$ruta" "Fondo cambiado" "$(basename "$ruta")"

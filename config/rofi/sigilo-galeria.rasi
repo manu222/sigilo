@@ -1,0 +1,79 @@
+* {
+    bg:        #070b09;
+    bg-alt:    #0a0f0d;
+    surface:   #15201c;
+    raise:     #1b2723;
+    line:      #26332e;
+    fg:        #e7edea;
+    fg-dim:    #94a3a0;
+    fg-muted:  #70837c;
+    accent:    #34d399;
+    accent-hi: #3ee8a8;
+    urgent:    #e0777d;
+
+    background-color: transparent;
+    text-color:       @fg-dim;
+    font:             "JetBrainsMono Nerd Font 11";
+}
+window {
+    background-color: @bg;
+    border:           1px;
+    border-color:     @line;
+    border-radius:    16px;
+    padding:          0;
+    location:         center;
+    anchor:           center;
+}
+
+window { width: 92em; }
+mainbox { children: [ "inputbar", "listview", "message" ]; spacing: 0; padding: 0; }
+
+inputbar {
+    background-color: @bg-alt;
+    border:           0 0 1px 0;
+    border-color:     @line;
+    padding:          1em 1.3em;
+    spacing:          0.8em;
+    children:         [ "textbox-sello", "prompt", "entry" ];
+}
+textbox-sello { content: "❖"; text-color: @accent-hi; vertical-align: 0.5; }
+prompt        { text-color: @fg;      vertical-align: 0.5; }
+entry {
+    text-color:        @fg;
+    placeholder:       "filtrar fondos";
+    placeholder-color: @fg-muted;
+    cursor:            text;
+    vertical-align:    0.5;
+}
+
+listview {
+    columns: 6;  lines: 1;
+    padding: 1.1em;  spacing: 0.8em;
+    scrollbar: false;  fixed-height: false;  flow: horizontal;
+}
+element {
+    orientation:   vertical;
+    padding:       0.6em;
+    spacing:       0.6em;
+    border-radius: 14px;
+    border:        2px;
+    border-color:  @line;
+    background-color: @bg-alt;
+    children:      [ "element-icon", "element-text" ];
+}
+element-icon { size: 13em; border-radius: 10px; }
+element-text { horizontal-align: 0.5; font: "JetBrainsMono Nerd Font 9"; }
+element normal.normal   { text-color: @fg-muted; }
+element selected.normal {
+    background-color: @surface;
+    text-color:       @accent-hi;
+    border-color:     @accent-hi;
+}
+
+message {
+    background-color: @bg-alt;
+    border:           1px 0 0 0;
+    border-color:     @line;
+    padding:          0.6em 1.3em;
+}
+textbox { text-color: @fg-muted; }

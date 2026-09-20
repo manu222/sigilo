@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Pantalla de bloqueo.
+#
+# OJO con la deteccion: en Arch el paquete i3lock-color SUSTITUYE a i3lock y
+# su binario se sigue llamando "i3lock". No existe ningun ejecutable llamado
+# i3lock-color, asi que buscarlo por nombre siempre falla. Se comprueba por
+# capacidad: se le pregunta al binario si entiende las opciones de color.
+#
+# Se ejecuta sin separarse del terminal (--nofork) porque xss-lock necesita
+# seguir al proceso para saber cuando se ha desbloqueado.
+
+export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
+
+BIN=$(command -v i3lock-color || command -v i3lock) || {
+    notify-send -u critical "Bloqueo" "No hay ningún i3lock instalado"
+    exit 1; }
+
+# ¿entiende las opciones de aspecto?
+if "$BIN" --help 2>&1 | grep -q -- "--ring-color"; then
+    COLOR=si
+else
+    COLOR=no
+    notify-send -u critical "Bloqueo" \
+        "i3lock no admite colores.\nInstala la versión con estilo:\n  yay -S i3lock-color"
+fi
+
+if [ "$COLOR" = "no" ]; then
+    exec "$BIN" --nofork -c 070b09
+fi
+
+F="#070b09"; V="#0a0f0d"; M="#3ee8a8"; C="#6fc9c0"
+A="#c99d6b"; R="#e0777d"; T="#e7edea"; S="#94a3a0"
+
+exec "$BIN" --nofork \
+    --blur 6 \
+    --clock --indicator \
+    --radius 110 --ring-width 9 \
+    --inside-color="${V}dd"      --ring-color="${M}ff" \
+    --insidever-color="${V}dd"   --ringver-color="${C}ff" \
+    --insidewrong-color="${V}dd" --ringwrong-color="${R}ff" \
+    --line-uses-inside \
+    --keyhl-color="${A}ff"       --bshl-color="${R}ff" \
+    --separator-color="${F}00" \
+    --time-str="%H:%M"           --time-color="${T}ff" \
+    --time-font="JetBrains Mono" --time-size=44 \
+    --date-str="%A, %-d de %B"   --date-color="${S}ff" \
+    --date-font="JetBrains Mono" --date-size=15 \
+    --verif-text="comprobando"   --verif-color="${C}ff" \
+    --wrong-text="no es esa"     --wrong-color="${R}ff" \
+    --noinput-text=""            --lock-text="bloqueando" \
+    --lockfailed-text="no se pudo bloquear" \
+    --verif-font="JetBrains Mono" --wrong-font="JetBrains Mono" \
+    --pass-media-keys --pass-volume-keys --pass-power-keys

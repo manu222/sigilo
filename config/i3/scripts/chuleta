@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+"""Chuleta de atajos de i3, pintada a mano en el terminal.
+
+Se genera leyendo ~/.config/i3/config, asi que no se queda desfasada.
+Se abre en una ventana flotante y centrada con Super+F1.
+"""
+import html, os, re, shutil, sys
+
+CFG = os.environ.get("I3CFG", os.path.expanduser("~/.config/i3/config"))
+
+# ── paleta Sigilo ───────────────────────────────────────────────────────────
+BG      = (10, 15, 13)
+FG      = (231, 237, 234)
+DIM     = (148, 163, 160)
+MUTE    = (112, 131, 124)
+LINE    = (38, 51, 46)
+MINT    = (62, 232, 168)
+CYAN    = (111, 201, 192)
+SLATE   = (138, 169, 196)
+VIOLET  = (183, 154, 212)
+AMBER   = (201, 157, 107)
+OLIVE   = (184, 201, 160)
+RED     = (224, 119, 125)
+OSCURO  = (6, 19, 13)
+
+COLORES = [MINT, AMBER, SLATE, VIOLET, CYAN, OLIVE, RED]
+
+def f(c):  return "\x1b[38;2;%d;%d;%dm" % c
+def b(c):  return "\x1b[48;2;%d;%d;%dm" % c
+RST = "\x1b[0m"
+BOLD = "\x1b[1m"
+
+# ── fuente de bloques 5x7 para el titulo ────────────────────────────────────
+FUENTE = {
+ "A": ["01110","10001","10001","11111","10001","10001","10001"],
+ "T": ["11111","00100","00100","00100","00100","00100","00100"],
+ "J": ["00111","00010","00010","00010","10010","10010","01100"],
+ "O": ["01110","10001","10001","10001","10001","10001","01110"],
+ "S": ["01111","10000","10000","01110","00001","00001","11110"],
+ " ": ["00000"]*7,
+}
+
+def titulo(texto):
+    filas = []
+    for r in range(7):
+        linea = ""
+        for ch in texto:
+            pat = FUENTE.get(ch, FUENTE[" "])[r]
+            linea += "".join("██" if p == "1" else "  " for p in pat) + "  "
+        filas.append(linea.rstrip())
+    ancho = max(len(x) for x in filas)
+    out = []
+    for i, linea in enumerate(filas):
+        # degradado de menta a cian de arriba abajo
+        t = i / 6
+        c = tuple(int(MINT[k]*(1-t) + CYAN[k]*t) for k in range(3))
+        out.append(f(c) + BOLD + linea + RST)
+    return out, ancho
+
+# ── lectura del config ──────────────────────────────────────────────────────
+TECLAS = {
+    "$mod": "❖", "$alt": "Alt", "Control": "Ctrl", "Shift": "Shift", "Return": "Intro", "Escape": "Esc",
+    "Print": "ImprPant", "minus": "-", "grave": "`", "space": "Espacio",
+    "Left": "←", "Right": "→", "Up": "↑", "Down": "↓",
+    "XF86AudioRaiseVolume": "Vol +", "XF86AudioLowerVolume": "Vol -",
+    "XF86AudioMute": "Mute", "XF86AudioMicMute": "Mic",
+    "XF86AudioPlay": "Play", "XF86AudioNext": "Next", "XF86AudioPrev": "Prev",
+    "XF86MonBrightnessUp": "Brillo +", "XF86MonBrightnessDown": "Brillo -",
+}
+DIR = {"left":"a la izquierda","right":"a la derecha","up":"arriba","down":"abajo",
+       "h":"a la izquierda","l":"a la derecha","k":"arriba","j":"abajo"}
+
+REGLAS = [
+ (r"^kill$", "Cerrar la ventana"),
+ (r"^focus parent$", "Seleccionar el grupo"),
+ (r"^focus child$", "Volver a la ventana"),
+ (r"^focus (\w+)$", lambda m: "Foco " + DIR.get(m[1], m[1])),
+ (r"^move position center$", "Centrar la flotante"),
+ (r"^move scratchpad$", "Apartar (minimizar)"),
+ (r"^scratchpad show$", "Recuperar la apartada"),
+ (r"^move (\w+)$", lambda m: "Mover " + DIR.get(m[1], m[1])),
+ (r"^split vertical$", "Siguiente ventana debajo"),
+ (r"^split horizontal$", "Siguiente ventana al lado"),
+ (r"^layout tabbed$", "Apilar en pestañas"),
+ (r"^layout stacking$", "Apilar en lista"),
+ (r"^layout toggle split$", "Volver al mosaico"),
+ (r"^fullscreen toggle$", "Pantalla completa"),
+ (r"^floating toggle$", "Soltar del mosaico"),
+ (r"^workspace back_and_forth$", "Escritorio anterior"),
+ (r"^workspace next$", "Escritorio siguiente"),
+ (r"^workspace prev$", "Escritorio previo"),
+ (r"^workspace number \"?(\d+)\"?$", lambda m: "Ir al escritorio %s" % m[1]),
+ (r"^move container to workspace number \"?(\d+)\"?$", lambda m: "Llevar al escritorio %s" % m[1]),
+ (r"^resize shrink width", "Estrechar"), (r"^resize grow width", "Ensanchar"),
+ (r"^resize shrink height", "Encoger"),  (r"^resize grow height", "Estirar"),
+ (r"^mode \"default\"$", "Salir del modo"),
+ (r"^mode \"resize\"$", "Modo redimensionar"),
+ (r"^mode ", "Menu de sesion"),
+ (r"^reload$", "Recargar config"),
+ (r"^restart$", "Reiniciar i3"),
+ (r"xfce4-terminal.*btop", "Monitor del sistema"),
+ (r"xfce4-terminal.*nmtui", "Redes en terminal"),
+ (r"xfce4-terminal.*--maximize", "Terminal maximizado"),
+ (r"xfce4-terminal", "Abrir terminal"),
+ (r"^firefox", "Navegador"),
+ (r"^thunar", "Gestor de archivos"),
+ (r"rofi -show drun", "Lanzador de apps"),
+ (r"rofi -show window", "Cambiar de ventana"),
+ (r"i3lock", "Bloquear pantalla"),
+ (r"^xkill", "Matar ventana a ratón"),
+ (r"chuleta", "Esta chuleta"),
+ (r"atajos", "Esta chuleta"),
+ (r"captura full", "Captura completa"),
+ (r"captura sel", "Captura con selección"),
+ (r"volume_brightness.*volume_up", "Subir volumen"),
+ (r"volume_brightness.*volume_down", "Bajar volumen"),
+ (r"volume_brightness.*volume_mute", "Silenciar"),
+ (r"volume_brightness.*brightness_up", "Subir brillo"),
+ (r"volume_brightness.*brightness_down", "Bajar brillo"),
+ (r"amixer.*Capture toggle", "Silenciar micro"),
+ (r"playerctl play-pause", "Reproducir / pausa"),
+ (r"playerctl next", "Pista siguiente"),
+ (r"playerctl previous", "Pista anterior"),
+ (r"systemctl suspend", "Suspender"),
+ (r"systemctl reboot", "Reiniciar equipo"),
+ (r"systemctl poweroff", "Apagar"),
+ (r"i3-msg exit", "Cerrar sesion"),
+]
+
+def leer():
+    variables, secciones, sec, cur, modo = {}, [], "Otros", [], None
+    for linea in open(CFG, encoding="utf-8"):
+        linea = linea.rstrip("\n")
+        if modo and re.match(r"^\s*}\s*$", linea):
+            modo = None; continue
+        m = re.match(r"^mode\s+(.+?)\s*\{\s*$", linea)
+        if m:
+            modo = "resize" if "resize" in m.group(1) else "sesion"; continue
+        m = re.match(r"^set\s+(\$\S+)\s+(.+)$", linea)
+        if m: variables[m.group(1)] = m.group(2).strip(); continue
+        m = re.match(r"^#\s*\d+\.\s+(.+?)\s*$", linea)
+        if m:
+            if cur: secciones.append((sec, cur))
+            sec, cur = m.group(1).strip(), []
+            continue
+        m = re.match(r"^\s*bindsym\s+(\S+)\s+(.+?)\s*$", linea)
+        if m and not modo:
+            cur.append((m.group(1), m.group(2)))
+    if cur: secciones.append((sec, cur))
+    return variables, secciones
+
+def expandir(t, v):
+    for _ in range(3):
+        for k in sorted(v, key=len, reverse=True):
+            t = t.replace(k, v[k])
+    return t
+
+def k_bonita(t, v):
+    partes = []
+    for p in t.split("+"):
+        if p in TECLAS:            # $mod, Return, XF86...
+            partes.append(TECLAS[p])
+        elif p.startswith("$"):    # $left, $term... resueltas por el config
+            partes.append(TECLAS.get(v.get(p, p), v.get(p, p)))
+        else:
+            partes.append(TECLAS.get(p, p))
+    return " + ".join(partes)
+
+def a_bonita(a, v):
+    a = expandir(a, v)
+    a = re.sub(r"\s*,\s*mode\s+\"default\"\s*$", "", a)
+    limpio = re.sub(r"^exec\s+(--no-startup-id\s+)?", "", a).strip()
+    for pat, txt in REGLAS:
+        m = re.search(pat, limpio)
+        if m: return txt(m) if callable(txt) else txt
+    return limpio[:26]
+
+# ── maquetacion ─────────────────────────────────────────────────────────────
+ANCHO_COL = 46
+SEP = 3
+
+def pill(texto, color, ancho):
+    t = " %s " % texto.upper()
+    cuerpo = f(color) + "" + b(color) + f(OSCURO) + BOLD + t + RST + f(color) + "" + RST
+    visible = len(t) + 2
+    return cuerpo + " " * max(0, ancho - visible)
+
+def fila(accion, tecla, ancho):
+    libre = ancho - len(accion) - len(tecla)
+    if libre < 2:
+        accion = accion[:max(0, ancho - len(tecla) - 2)]
+        libre = ancho - len(accion) - len(tecla)
+    puntos = f(LINE) + "." * max(1, libre - 1) + RST
+    return f(DIM) + accion + " " + puntos + " " + f(MINT) + tecla + RST
+
+def bloque(nombre, binds, color, v):
+    out = [pill(nombre, color, ANCHO_COL)]
+    vistos = set()
+    for t, a in binds:
+        k, ac = k_bonita(t, v), a_bonita(a, v)
+        if (k, ac) in vistos: continue
+        vistos.add((k, ac))
+        out.append(fila(ac, k, ANCHO_COL))
+    out.append("")
+    return out
+
+def main():
+    v, secciones = leer()
+    bloques = []
+    for i, (nombre, binds) in enumerate(secciones):
+        if not binds: continue
+        nombre = re.sub(r"^(LO ESENCIAL:|LO ESENCIAL)\s*", "", nombre, flags=re.I)
+        bloques.append(bloque(nombre[:28], binds, COLORES[i % len(COLORES)], v))
+
+    # reparto en tres columnas equilibrando altura
+    total = sum(len(x) for x in bloques)
+    objetivo, cols, actual, alto = total/3, [], [], 0
+    for bl in bloques:
+        if actual and len(cols) < 2 and alto + len(bl)*0.5 > objetivo:
+            cols.append(actual); actual, alto = [], 0
+        actual += bl; alto += len(bl)
+    cols.append(actual)
+    while len(cols) < 3: cols.append([])
+    h = max(len(c) for c in cols)
+    for c in cols: c += [""] * (h - len(c))
+
+    cuerpo = []
+    for r in range(h):
+        trozos = []
+        for c in cols:
+            texto = c[r]
+            visible = len(re.sub(r"\x1b\[[0-9;]*m", "", texto))
+            trozos.append(texto + " " * max(0, ANCHO_COL - visible))
+        cuerpo.append((" " * SEP).join(trozos).rstrip())
+
+    tit, tw = titulo("ATAJOS")
+    interior = ANCHO_COL*3 + SEP*2
+    pad = max(0, (interior - tw)//2)
+
+    print()
+    for l in tit:
+        print("  " + " "*pad + l)
+    sub = "❖ = tecla Super   ·   ❖ + F1 para abrir   ·   cualquier tecla para cerrar"
+    print("  " + " "*max(0,(interior-len(sub))//2) + f(MUTE) + sub + RST)
+    print()
+    print("  " + f(LINE) + "─"*interior + RST)
+    print()
+    for l in cuerpo:
+        print("  " + l)
+
+if __name__ == "__main__":
+    main()

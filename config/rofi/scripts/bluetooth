@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Bluetooth: comprueba el servicio antes de nada, que en Arch viene apagado
+# de fabrica y sin eso bluetoothctl no tiene con quien hablar.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+TEMA=~/.config/rofi/sigilo-lista.rasi
+
+pregunta() {  # $1 texto  -> 0 si dice que si
+    r=$(printf 'No\nSí' | rofi -dmenu -no-custom -format i -theme "$TEMA" \
+        -theme-str 'listview { lines: 2; } window { width: 34em; }' -p "$1")
+    [ "$r" = "1" ]
+}
+
+command -v bluetoothctl >/dev/null || {
+    notify-send -u critical "Bluetooth" "Falta el paquete bluez-utils"; exit 1; }
+
+if ! systemctl is-active --quiet bluetooth; then
+    pregunta "el servicio bluetooth está parado, ¿lo arranco?" || exit 0
+    pkexec systemctl enable --now bluetooth || {
+        notify-send -u critical "Bluetooth" "No se pudo arrancar el servicio"; exit 1; }
+    sleep 2
+fi
+
+if [ "$(bluetoothctl show 2>/dev/null | awk '/Powered:/{print $2}')" != "yes" ]; then
+    pregunta "el adaptador está apagado, ¿lo enciendo?" || exit 0
+    bluetoothctl power on >/dev/null
+    sleep 1
+fi
+
+notify-send -t 5000 "Bluetooth" "Buscando dispositivos..."
+bluetoothctl --timeout 6 scan on >/dev/null 2>&1 &
+sleep 5
+
+mapfile -t crudas < <(bluetoothctl devices | sed 's/^Device //')
+if [ ${#crudas[@]} -eq 0 ]; then
+    notify-send "Bluetooth" "No se ve ningún dispositivo"; exit 0
+fi
+
+macs=(); filas=""
+for linea in "${crudas[@]}"; do
+    mac=${linea%% *}; nombre=${linea#* }
+    macs+=("$mac")
+    info=$(bluetoothctl info "$mac" 2>/dev/null)
+    clase=$(printf '%s' "$info" | awk -F': ' '/Icon:/{print $2}')
+    case "$clase" in
+        audio-headset|audio-headphones) ico="" ;;
+        audio-card)   ico="" ;;
+        input-mouse)  ico="" ;;
+        input-keyboard) ico="" ;;
+        phone)        ico="" ;;
+        computer)     ico="" ;;
+        *)            ico="" ;;
+    esac
+    if printf '%s' "$info" | grep -q "Connected: yes"; then
+        col="$MINT"; estado="<span foreground=\"$MINT\">conectado</span>"
+    elif printf '%s' "$info" | grep -q "Paired: yes"; then
+        col="$CYAN"; estado="<span foreground=\"$MUTE\">emparejado</span>"
+    else
+        col="$MUTE"; estado=""
+    fi
+    n=$(printf '%s' "$nombre" | esc)
+    filas+="<span foreground=\"$col\">$ico</span>  $n   $estado|"
+done
+
+i=$(printf '%s' "${filas%|}" | rofi -dmenu -sep '|' -markup-rows -i -format i \
+        -no-custom -theme "$TEMA" -p "bluetooth" \
+        -mesg "<span foreground=\"$MUTE\">Intro conecta o desconecta   ·   empareja solo la primera vez</span>")
+[ -z "$i" ] && exit 0
+mac="${macs[$i]}"
+
+if bluetoothctl info "$mac" | grep -q "Connected: yes"; then
+    bluetoothctl disconnect "$mac" >/dev/null && notify-send "Bluetooth" "Desconectado"
+else
+    bluetoothctl pair "$mac"  >/dev/null 2>&1
+    bluetoothctl trust "$mac" >/dev/null 2>&1
+    if bluetoothctl connect "$mac" >/dev/null 2>&1; then
+        notify-send "Bluetooth" "Conectado"
+    else
+        notify-send -u critical "Bluetooth" "No se pudo conectar"
+    fi
+fi

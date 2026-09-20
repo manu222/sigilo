@@ -1,0 +1,27 @@
+[Configuration]
+FontName=JetBrainsMono Nerd Font 10
+MiscAlwaysShowTabs=FALSE
+MiscBell=FALSE
+MiscBordersDefault=TRUE
+MiscCursorBlinks=FALSE
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
+MiscDefaultGeometry=90x26
+MiscInheritGeometry=FALSE
+MiscMenubarDefault=FALSE
+MiscMouseAutohide=TRUE
+MiscToolbarDefault=FALSE
+MiscConfirmClose=FALSE
+MiscScrollAlternateScreen=TRUE
+MiscShowUnsafePasteDialog=FALSE
+ScrollingUnlimited=TRUE
+ScrollingBar=TERMINAL_SCROLLBAR_NONE
+BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
+BackgroundDarkness=0.940000
+ColorForeground=#e7edea
+ColorBackground=#0a0f0d
+ColorCursor=#34d399
+ColorCursorForeground=#070b09
+ColorSelection=#1b2723
+ColorSelectionBackground=#8fd4b5
+ColorBold=#e7edea
+ColorPalette=#15201c;#e0777d;#34d399;#c99d6b;#8aa9c4;#b79ad4;#6fc9c0;#94a3a0;#556760;#f08b91;#3ee8a8;#dcae76;#9bbad6;#c8aae5;#7bdcd2;#e7edea

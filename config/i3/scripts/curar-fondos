@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Criba los fondos descargados y deja una selección acorde con Sigilo.
+
+Para cada imagen calcula el color medio y, a partir de él, luminosidad,
+saturación y tono. Se queda con las que cumplen:
+
+  · resolución suficiente para la pantalla
+  · oscuras (una imagen clara arruina un escritorio oscuro)
+  · y además una de estas tres familias:
+        - neutras: casi sin color, grises y negros
+        - frías:   verdes y azulados, el corazón de la paleta
+        - púrpura: violetas, que también están en el tema
+
+Las clasifica y copia a la carpeta de selección. No borra nada.
+"""
+import colorsys, os, shutil, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor
+
+BASE   = os.path.expanduser("~/Imágenes/fondos")
+DESTINO = os.path.join(BASE, "seleccion")
+EXT    = {".png", ".jpg", ".jpeg", ".webp", ".avif", ".bmp"}
+
+ANCHO_MIN, ALTO_MIN = 1920, 1080
+LUM_MAX   = 0.34          # por encima de esto ya no es un fondo oscuro
+NEUTRA    = 0.14          # saturación por debajo de la cual es un gris
+TOPE      = 140           # cuántas conservar como mucho
+
+FAMILIAS = {
+    "neutra":  None,                    # se decide por saturación
+    "fria":    (120, 215),              # verdes -> cian -> azul
+    "purpura": (245, 310),              # violetas y magentas
+}
+
+
+def medir(ruta):
+    """Devuelve (ancho, alto, r, g, b) con el color medio, o None."""
+    try:
+        salida = subprocess.run(
+            ["magick", "-define", "jpeg:size=256x256", ruta + "[0]",
+             "-resize", "256x256>",
+             "-format", "%w %h %[fx:mean.r] %[fx:mean.g] %[fx:mean.b]", "info:"],
+            capture_output=True, text=True, timeout=25)
+        if salida.returncode != 0:
+            return None
+        partes = salida.stdout.split()
+        if len(partes) < 5:
+            return None
+        # el ancho tras el resize no sirve: pedimos el original aparte
+        dim = subprocess.run(["magick", "identify", "-format", "%w %h", ruta + "[0]"],
+                             capture_output=True, text=True, timeout=15)
+        w, h = (int(x) for x in dim.stdout.split()[:2])
+        r, g, b = (float(x) for x in partes[2:5])
+        return w, h, r, g, b
+    except Exception:
+        return None
+
+
+def clasificar(w, h, r, g, b):
+    if w < ANCHO_MIN or h < ALTO_MIN:
+        return None, 0
+    hh, ll, ss = colorsys.rgb_to_hls(r, g, b)
+    if ll > LUM_MAX:
+        return None, 0
+    tono = hh * 360
+
+    if ss <= NEUTRA:
+        familia = "neutra"
+    elif FAMILIAS["fria"][0] <= tono <= FAMILIAS["fria"][1]:
+        familia = "fria"
+    elif FAMILIAS["purpura"][0] <= tono <= FAMILIAS["purpura"][1]:
+        familia = "purpura"
+    else:
+        return None, 0
+
+    # puntuación: cuanto más oscura y más resolución, mejor; y en las de
+    # color, premiamos algo de saturación para que no sean grises tristes
+    punt = (LUM_MAX - ll) * 3
+    punt += min(w / 3840, 1.0) * 0.5
+    if familia != "neutra":
+        punt += min(ss, 0.45) * 1.2
+    return familia, punt
+
+
+def main():
+    rutas = []
+    for raiz, dirs, ficheros in os.walk(BASE):
+        dirs[:] = [d for d in dirs if d not in (".git", "seleccion")]
+        for f in ficheros:
+            if os.path.splitext(f)[1].lower() in EXT:
+                rutas.append(os.path.join(raiz, f))
+
+    if not rutas:
+        sys.exit("No hay imágenes en %s" % BASE)
+    print("Analizando %d imágenes... (unos minutos)" % len(rutas), flush=True)
+
+    candidatas = []
+    hechas = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for ruta, datos in zip(rutas, pool.map(medir, rutas)):
+            hechas += 1
+            if hechas % 200 == 0:
+                print("  %d / %d" % (hechas, len(rutas)), flush=True)
+            if not datos:
+                continue
+            familia, punt = clasificar(*datos)
+            if familia:
+                candidatas.append((punt, familia, ruta))
+
+    candidatas.sort(reverse=True)
+    print("\n%d cumplen los criterios." % len(candidatas))
+
+    # reparto equilibrado: que no se llene todo de neutras
+    cupos = {"neutra": int(TOPE * 0.45), "fria": int(TOPE * 0.35), "purpura": int(TOPE * 0.20)}
+    elegidas, usados = [], {k: 0 for k in cupos}
+    for punt, familia, ruta in candidatas:
+        if usados[familia] < cupos[familia]:
+            elegidas.append((familia, ruta))
+            usados[familia] += 1
+
+    os.makedirs(DESTINO, exist_ok=True)
+    for f in os.listdir(DESTINO):
+        p = os.path.join(DESTINO, f)
+        if os.path.isfile(p):
+            os.remove(p)
+
+    for familia, ruta in elegidas:
+        nombre = "%s-%s" % (familia, os.path.basename(ruta))
+        shutil.copy2(ruta, os.path.join(DESTINO, nombre))
+
+    print("\nCopiadas a %s:" % DESTINO)
+    for k in ("neutra", "fria", "purpura"):
+        print("  %-8s %3d" % (k, usados[k]))
+    print("\nYa puedes abrir el selector con Super + Shift + F.")
+
+
+if __name__ == "__main__":
+    main()

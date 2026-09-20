@@ -1,0 +1,14 @@
+configuration {
+    modi:                "drun,run,window";
+    show-icons:          true;
+    icon-theme:          "Qogir-Dark";
+    drun-display-format: "{name}";
+    display-drun:        "";
+    display-run:         "";
+    display-window:      "";
+    drun-match-fields:   "name,generic,exec,categories,keywords";
+    sort:                true;
+    sorting-method:      "fzf";
+    terminal:            "xfce4-terminal";
+}
+@theme "~/.config/rofi/sigilo.rasi"

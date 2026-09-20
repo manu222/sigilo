@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Menu de sesion.
+#
+# Los iconos son PNG propios, no caracteres de una fuente. Motivo: los glifos
+# de la zona de uso privado se resuelven por cadena de reserva y no hay
+# garantia de que existan, de que respeten el color ni de que no se recorten.
+# Con un PNG el color va grabado y rofi solo tiene que escalarlo.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+
+ICO=~/.config/rofi/iconos
+
+fila() {   # $1 etiqueta  $2 fichero de icono
+    printf '%s\0icon\x1f%s/%s.png\n' "$1" "$ICO" "$2"
+}
+
+i=$( { fila "Bloquear"  bloquear
+       fila "Suspender" suspender
+       fila "Salir"     salir
+       fila "Reiniciar" reiniciar
+       fila "Apagar"    apagar
+     } | rofi -dmenu -show-icons -format i -no-custom \
+              -theme ~/.config/rofi/sigilo-tarjetas.rasi -p "" \
+              -mesg "<span foreground=\"$MUTE\">←  →  para elegir   ·   Intro confirma   ·   Esc cancela</span>" )
+[ -z "$i" ] && exit 0
+
+confirmar() {   # $1 pregunta  $2 texto del si
+    r=$(printf 'Cancelar\n%s' "$2" | rofi -dmenu -no-custom -format i \
+        -theme ~/.config/rofi/sigilo-lista.rasi \
+        -theme-str 'listview { lines: 2; } window { width: 34em; }' -p "$1")
+    [ "$r" = "1" ]
+}
+
+case "$i" in
+  0) ~/.config/i3/scripts/bloqueo & ;;
+  1) systemctl suspend ;;
+  2) confirmar "cerrar sesión"    "Sí, salir"     && i3-msg exit ;;
+  3) confirmar "reiniciar"        "Sí, reiniciar" && systemctl reboot ;;
+  4) confirmar "apagar el equipo" "Sí, apagar"    && systemctl poweroff ;;
+esac

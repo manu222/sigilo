@@ -1,0 +1,368 @@
+# ============================================================================
+#  i3 config — Manu (nitro)
+#  Mod = tecla Super (Windows)
+#  Ruta: ~/.config/i3/config
+#  Recargar cambios: Mod+Shift+C   |   Reiniciar i3: Mod+Shift+R
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# 1. VARIABLES
+#    Cambia aquí tus programas por defecto y se aplican en todo el fichero.
+# ----------------------------------------------------------------------------
+
+set $mod Mod4
+set $alt Mod1
+
+set $term       xfce4-terminal
+set $browser    firefox
+set $files      thunar
+set $launcher   rofi -show drun
+set $switcher   rofi -show window
+
+# Direcciones de movimiento (estilo vim)
+set $left   h
+set $down   j
+set $up     k
+set $right  l
+
+font pango:JetBrainsMono Nerd Font 10
+
+
+# ----------------------------------------------------------------------------
+# 2. COMPORTAMIENTO GENERAL
+# ----------------------------------------------------------------------------
+
+# El foco NO sigue al ratón: evita saltos de foco no deseados al mover el cursor
+focus_follows_mouse no
+
+# Mod + arrastrar con el ratón mueve ventanas flotantes
+floating_modifier $mod
+
+# Arrastrar con el raton tambien las ventanas en mosaico, no solo las
+# flotantes: Mod + boton izquierdo mueve, Mod + boton derecho redimensiona.
+tiling_drag modifier
+
+# Pulsar dos veces el número de un escritorio vuelve al anterior
+workspace_auto_back_and_forth yes
+
+# Bordes finos, sin barras de título (más espacio útil)
+default_border pixel 2
+# Borde grueso en las flotantes: es la superficie que se agarra con el raton
+default_floating_border pixel 5
+hide_edge_borders smart
+
+# Espaciado entre ventanas. Ponlo a 0 si prefieres el look clásico.
+# Sin separacion entre ventanas: se aprovecha toda la pantalla.
+gaps inner 0
+gaps outer 0
+# Hueco entre la barra y las ventanas: es el cuarto lado del margen
+# de la barra, que polybar por si solo no puede reservar.
+gaps top 72
+
+
+# ----------------------------------------------------------------------------
+# 3. LO ESENCIAL: ABRIR, CERRAR, LANZAR
+# ----------------------------------------------------------------------------
+
+bindsym $mod+Return         exec --no-startup-id $term
+# Alternativa de prueba, por si el problema es la tecla Enter
+bindsym $mod+t              exec --no-startup-id $term
+bindsym $mod+Shift+Return   exec --no-startup-id $term --maximize
+
+bindsym $mod+Shift+q        kill
+bindsym $alt+F4             kill
+
+bindsym $mod+d              exec --no-startup-id $launcher
+bindsym $mod+space          exec --no-startup-id $launcher
+
+# Accesos directos a aplicaciones concretas
+bindsym $mod+b              exec --no-startup-id $browser
+bindsym $mod+n              exec --no-startup-id $files
+bindsym $mod+Escape         exec --no-startup-id xkill
+
+# Menú de ventana con el ratón. Tres formas de sacarlo, para que no dependas
+# de acertar con el borde:
+#   · clic derecho sobre el borde o la barra de título
+#   · Mod + botón central en cualquier punto de la ventana
+# Y el botón central sobre el borde cierra directamente.
+# No se usa Mod + botón derecho porque esa combinación ya redimensiona.
+bindsym --border button3            exec --no-startup-id ~/.config/rofi/scripts/ventana
+bindsym --whole-window $mod+button2 exec --no-startup-id ~/.config/rofi/scripts/ventana
+bindsym --border button2            kill
+
+# Chuleta de atajos: se genera leyendo este mismo fichero
+bindsym $mod+F1             exec --no-startup-id ~/.config/i3/scripts/chuleta-ventana
+
+
+# ----------------------------------------------------------------------------
+# 4. CAMBIAR DE VENTANA
+# ----------------------------------------------------------------------------
+
+# Con vim keys
+bindsym $mod+$left          focus left
+bindsym $mod+$down          focus down
+bindsym $mod+$up            focus up
+bindsym $mod+$right         focus right
+
+# Con flechas (lo mismo, para cuando aún no tengas el hábito)
+bindsym $mod+Left           focus left
+bindsym $mod+Down           focus down
+bindsym $mod+Up             focus up
+bindsym $mod+Right          focus right
+
+# Alt+Tab y Mod+Tab: selector visual de ventanas, como en cualquier escritorio
+# Alt+Tab con previsualizacion en vivo. El "modo pivot" de skippy-xd es lo
+# que hace el comportamiento de Windows: mientras Alt siga pulsado, el
+# conmutador sigue abierto y cada Tab avanza.
+bindsym $alt+Tab            exec --no-startup-id skippy-xd --switch --pivot Alt_L --next
+bindsym $alt+Shift+Tab      exec --no-startup-id skippy-xd --switch --pivot Alt_L --prev
+
+# Expose: todas las ventanas repartidas por la pantalla, al estilo macOS.
+bindsym $mod+Shift+Tab      exec --no-startup-id skippy-xd --expose
+bindsym $mod+Tab            exec --no-startup-id $switcher
+
+# Volver al escritorio anterior
+bindsym $mod+grave          workspace back_and_forth
+
+# Padre / hijo (para seleccionar grupos enteros de ventanas)
+bindsym $mod+a              focus parent
+bindsym $mod+Shift+a        focus child
+
+
+# ----------------------------------------------------------------------------
+# 5. MOVER VENTANAS
+# ----------------------------------------------------------------------------
+
+bindsym $mod+Shift+$left    move left
+bindsym $mod+Shift+$down    move down
+bindsym $mod+Shift+$up      move up
+bindsym $mod+Shift+$right   move right
+
+bindsym $mod+Shift+Left     move left
+bindsym $mod+Shift+Down     move down
+bindsym $mod+Shift+Up       move up
+bindsym $mod+Shift+Right    move right
+
+# Centrar una ventana flotante
+bindsym $mod+c              move position center
+
+
+# ----------------------------------------------------------------------------
+# 6. DISPOSICIÓN Y TAMAÑO
+# ----------------------------------------------------------------------------
+
+# Cómo se abrirá la siguiente ventana
+bindsym $mod+v              split vertical
+bindsym $mod+Shift+v        split horizontal
+
+# Modos de organización
+bindsym $mod+w              layout tabbed
+bindsym $mod+s              layout stacking
+bindsym $mod+e              layout toggle split
+
+bindsym $mod+f              fullscreen toggle
+bindsym $mod+m              fullscreen toggle
+bindsym $mod+Shift+m        move scratchpad
+bindsym $mod+Shift+space    floating toggle
+
+# Modo redimensionar: pulsa Mod+R, ajusta, y Enter o Esc para salir
+mode "resize" {
+    bindsym $left           resize shrink width  4 px or 4 ppt
+    bindsym $down           resize grow   height 4 px or 4 ppt
+    bindsym $up             resize shrink height 4 px or 4 ppt
+    bindsym $right          resize grow   width  4 px or 4 ppt
+
+    bindsym Left            resize shrink width  4 px or 4 ppt
+    bindsym Down            resize grow   height 4 px or 4 ppt
+    bindsym Up              resize shrink height 4 px or 4 ppt
+    bindsym Right           resize grow   width  4 px or 4 ppt
+
+    bindsym Return          mode "default"
+    bindsym Escape          mode "default"
+    bindsym $mod+r          mode "default"
+}
+bindsym $mod+r              mode "resize"
+
+# Ventana de usar y tirar: la escondes y la recuperas donde estés
+# El equivalente a minimizar: Mod+Shift+- aparta la ventana, Mod+- la recupera.
+bindsym $mod+Shift+minus    move scratchpad
+bindsym $mod+minus          scratchpad show
+
+
+# ----------------------------------------------------------------------------
+# 7. ESCRITORIOS
+# ----------------------------------------------------------------------------
+
+set $ws1  "1"
+set $ws2  "2"
+set $ws3  "3"
+set $ws4  "4"
+set $ws5  "5"
+set $ws6  "6"
+set $ws7  "7"
+set $ws8  "8"
+set $ws9  "9"
+set $ws10 "10"
+
+bindsym $mod+1 workspace number $ws1
+bindsym $mod+2 workspace number $ws2
+bindsym $mod+3 workspace number $ws3
+bindsym $mod+4 workspace number $ws4
+bindsym $mod+5 workspace number $ws5
+bindsym $mod+6 workspace number $ws6
+bindsym $mod+7 workspace number $ws7
+bindsym $mod+8 workspace number $ws8
+bindsym $mod+9 workspace number $ws9
+bindsym $mod+0 workspace number $ws10
+
+bindsym $mod+Shift+1 move container to workspace number $ws1
+bindsym $mod+Shift+2 move container to workspace number $ws2
+bindsym $mod+Shift+3 move container to workspace number $ws3
+bindsym $mod+Shift+4 move container to workspace number $ws4
+bindsym $mod+Shift+5 move container to workspace number $ws5
+bindsym $mod+Shift+6 move container to workspace number $ws6
+bindsym $mod+Shift+7 move container to workspace number $ws7
+bindsym $mod+Shift+8 move container to workspace number $ws8
+bindsym $mod+Shift+9 move container to workspace number $ws9
+bindsym $mod+Shift+0 move container to workspace number $ws10
+
+# Saltar al siguiente / anterior escritorio
+bindsym $mod+Control+Right  workspace next
+bindsym $mod+Control+Left   workspace prev
+
+
+# ----------------------------------------------------------------------------
+# 8. SESIÓN
+# ----------------------------------------------------------------------------
+
+bindsym $mod+Shift+c        reload
+bindsym $mod+Shift+r        restart
+bindsym $mod+Shift+x        exec --no-startup-id ~/.config/i3/scripts/bloqueo
+
+# Menú de apagado / reinicio / cerrar sesión
+bindsym $mod+Shift+e        exec --no-startup-id ~/.config/rofi/scripts/apagado
+bindsym $mod+Shift+w        exec --no-startup-id ~/.config/rofi/scripts/wifi
+bindsym $mod+Shift+b        exec --no-startup-id ~/.config/rofi/scripts/bluetooth
+bindsym $mod+Shift+f        exec --no-startup-id ~/.config/rofi/scripts/fondos
+bindsym $mod+p              exec --no-startup-id ~/.config/rofi/scripts/portapapeles
+
+
+# ----------------------------------------------------------------------------
+# 9. TECLAS MULTIMEDIA Y FUNCIÓN
+# ----------------------------------------------------------------------------
+
+# Script de EndeavourOS que ya tenias: sube/baja volumen y brillo y ademas
+# muestra el aviso en pantalla y refresca la barra.
+set $vb ~/.config/i3/scripts/volume_brightness.sh
+
+bindsym XF86AudioRaiseVolume  exec --no-startup-id $vb volume_up
+bindsym XF86AudioLowerVolume  exec --no-startup-id $vb volume_down
+bindsym XF86AudioMute         exec --no-startup-id $vb volume_mute
+bindsym XF86AudioMicMute      exec --no-startup-id amixer sset Capture toggle
+
+bindsym XF86AudioPlay         exec --no-startup-id playerctl play-pause
+bindsym XF86AudioNext         exec --no-startup-id playerctl next
+bindsym XF86AudioPrev         exec --no-startup-id playerctl previous
+
+bindsym XF86MonBrightnessUp   exec --no-startup-id $vb brightness_up
+bindsym XF86MonBrightnessDown exec --no-startup-id $vb brightness_down
+
+# Capturas de pantalla (scrot: nativo de X11, sin portales de por medio)
+bindsym Print                 exec --no-startup-id ~/.config/i3/scripts/captura full
+bindsym $mod+Shift+s          exec --no-startup-id ~/.config/i3/scripts/captura sel
+
+
+# ----------------------------------------------------------------------------
+# 10. REGLAS DE VENTANA
+#     Averigua la clase de una ventana con:  xprop | grep WM_CLASS
+# ----------------------------------------------------------------------------
+
+for_window [window_role="pop-up"]        floating enable
+for_window [window_role="bubble"]        floating enable
+for_window [window_type="dialog"]        floating enable
+for_window [window_type="menu"]          floating enable
+for_window [class="Pavucontrol"]         floating enable, resize set 800 600
+for_window [class="Blueman-manager"]     floating enable
+for_window [class="Nm-connection-editor"] floating enable
+for_window [class="Galculator"]          floating enable
+for_window [title="chuleta-i3"]          floating enable, border pixel 0, move position center
+
+# Sin escritorios fijos: cada aplicacion se abre donde estes.
+# Si alguna vez quieres fijar una, el formato es:  assign [class="firefox"] $ws2
+
+
+# ----------------------------------------------------------------------------
+# 11. COLORES  (paleta oscura tipo Tokyo Night)
+# ----------------------------------------------------------------------------
+
+# Paleta Sigilo Dark (la misma del tema de VS Code).
+# Todo en tono suave menos $c_focus, que marca la ventana activa.
+set $c_bg      #070b09
+set $c_alt     #0a0f0d
+set $c_line    #1a2320
+set $c_fg      #e7edea
+set $c_dim     #70837c
+set $c_accent  #34d399
+set $c_focus   #3ee8a8
+set $c_urgent  #e0777d
+
+#                       borde      fondo     texto   indicador  borde-hijo
+client.focused          $c_focus   $c_alt    $c_fg   $c_focus   $c_focus
+client.focused_inactive $c_line    $c_bg     $c_dim  $c_line    $c_line
+client.unfocused        $c_line    $c_bg     $c_dim  $c_line    $c_line
+client.urgent           $c_urgent  $c_urgent $c_bg   $c_urgent  $c_urgent
+client.background       $c_bg
+
+
+# ----------------------------------------------------------------------------
+# 12. BARRA
+#     La pinta Polybar, no i3. Su configuracion esta en
+#     ~/.config/polybar/config.ini y se lanza desde la seccion 13.
+#     La barra vieja de i3blocks sigue en config.bak por si la quieres de vuelta.
+
+
+# ----------------------------------------------------------------------------
+# 13. ARRANQUE AUTOMÁTICO
+# ----------------------------------------------------------------------------
+
+# Llavero del sistema: sin esto las aplicaciones no pueden guardar credenciales
+exec --no-startup-id gnome-keyring-daemon --start --components=secrets,pkcs11,ssh
+
+# Compositor: transparencias y evita el parpadeo al cambiar de ventana
+exec --no-startup-id picom -b --config ~/.config/picom.conf
+
+# Notificaciones: sin esto no ves el aviso de volumen ni el de brillo
+exec --no-startup-id dunst
+
+# Barra de estado
+exec_always --no-startup-id ~/.config/polybar/launch.sh
+
+# Alterna el sentido del corte segun la forma de la ventana: si es mas
+# ancha que alta, la siguiente se abre debajo, y al reves. Sin esto todo
+# se parte siempre igual y acabas con tiras finisimas.
+exec_always --no-startup-id autotiling
+
+# Historial del portapapeles, para recuperarlo con Mod+P
+exec_always --no-startup-id greenclip daemon
+
+# Traduce los botones de minimizar y maximizar de las aplicaciones a algo
+# que i3 entienda. Ver el propio script para el porque.
+exec_always --no-startup-id ~/.config/i3/scripts/botones-ventana
+
+# Agente de autenticacion: los dialogos de contraseña de las apps graficas
+exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+
+# Autoarranque XDG: applet de red, 1Password, etc. (lee ~/.config/autostart)
+exec --no-startup-id dex --autostart --environment i3
+
+# Tema e iconos GTK
+exec_always --no-startup-id $HOME/.config/i3/scripts/import-gsettings
+
+# Fondo de pantalla
+exec --no-startup-id feh --bg-fill '/home/manu/Imágenes/fondos/seleccion/fria-a_cartoon_of_a_person_wearing_a_gas_mask.jpg'
+
+# Gestion de energia: a los 10 min bloquea y apaga la pantalla.
+# xss-lock tambien bloquea al suspender o cerrar la tapa.
+exec --no-startup-id xset s 600 dpms 620 620 620
+exec --no-startup-id xss-lock -- ~/.config/i3/scripts/bloqueo

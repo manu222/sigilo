@@ -1,0 +1,9 @@
+# Paquetes del AUR (y locales).
+# Instalar con:  yay -S --needed - < paquetes-aur.txt
+1password
+alttab
+claude-desktop
+nvidia-580xx-dkms
+nvidia-580xx-utils
+rofi-greenclip
+skippy-xd-git

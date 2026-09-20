@@ -1,0 +1,6 @@
+/* Aire dentro del terminal: el texto no va pegado al borde. */
+vte-terminal,
+VteTerminal {
+    padding: 12px;
+    -VteTerminal-inner-border: 12px;
+}

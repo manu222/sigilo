@@ -1,0 +1,136 @@
+# Starship - Sigilo Dark, version "powerline"
+# Segmentos encadenados que van de claro a oscuro de izquierda a derecha:
+# lo que siempre miras (usuario, maquina, ruta) va delante y con mas peso;
+# lo accesorio (versiones, duracion, hora) se apaga al final.
+
+add_newline = true
+command_timeout = 900
+
+format = """
+[](fg:#34d399)\
+$os\
+$username\
+[](fg:#34d399 bg:#1b2723)\
+$hostname\
+[](fg:#1b2723 bg:#15201c)\
+$directory\
+[](fg:#15201c bg:#101714)\
+$git_branch\
+$git_status\
+[](fg:#101714 bg:#0d1411)\
+$nodejs$python$golang$rust$docker_context\
+[](fg:#0d1411 bg:#0a0f0d)\
+$status\
+$cmd_duration\
+$time\
+[](fg:#0a0f0d)
+
+$character"""
+
+[os]
+disabled = false
+style = "bg:#34d399 fg:#06130d"
+format = "[$symbol]($style)"
+
+[os.symbols]
+EndeavourOS = " "
+Arch = " "
+Linux = " "
+
+[username]
+show_always = true
+style_user = "bg:#34d399 fg:#06130d"
+style_root = "bg:#e0777d fg:#070b09"
+format = "[$user ]($style)"
+
+[hostname]
+ssh_only = false
+style = "bg:#1b2723 fg:#8fd4b5"
+format = "[  $hostname ]($style)"
+
+[directory]
+style = "bg:#15201c fg:#3ee8a8"
+format = "[ $path ]($style)[$read_only]($read_only_style)"
+read_only = " "
+read_only_style = "bg:#15201c fg:#c99d6b"
+truncation_length = 3
+truncate_to_repo = true
+truncation_symbol = "…/"
+home_symbol = " ~"
+
+[directory.substitutions]
+"Documentos" = " "
+"Descargas"  = " "
+"Escritorio" = " "
+"Imagenes"   = " "
+"Musica"     = " "
+"Videos"     = " "
+"Proyectos"  = " "
+
+[git_branch]
+symbol = " "
+style = "bg:#101714 fg:#b79ad4"
+format = "[ $symbol$branch ]($style)"
+
+[git_status]
+style = "bg:#101714 fg:#c99d6b"
+format = "[($all_status$ahead_behind )]($style)"
+conflicted = " "
+ahead = "↑${count} "
+behind = "↓${count} "
+diverged = "↕ "
+up_to_date = ""
+untracked = "?${count} "
+stashed = "≡ "
+modified = "!${count} "
+staged = "+${count} "
+renamed = "»${count} "
+deleted = "✗${count} "
+
+[nodejs]
+symbol = " "
+style = "bg:#0d1411 fg:#b8c9a0"
+format = "[ $symbol$version ]($style)"
+
+[python]
+symbol = " "
+style = "bg:#0d1411 fg:#8aa9c4"
+format = "[ $symbol$version ]($style)"
+pyenv_version_name = false
+
+[golang]
+symbol = " "
+style = "bg:#0d1411 fg:#6fc9c0"
+format = "[ $symbol$version ]($style)"
+
+[rust]
+symbol = " "
+style = "bg:#0d1411 fg:#c99d6b"
+format = "[ $symbol$version ]($style)"
+
+[docker_context]
+symbol = " "
+style = "bg:#0d1411 fg:#8aa9c4"
+format = "[ $symbol$context ]($style)"
+
+[status]
+disabled = false
+style = "bg:#0a0f0d fg:#e0777d"
+format = "[ ✗$status ]($style)"
+map_symbol = false
+pipestatus = true
+
+[cmd_duration]
+min_time = 2000
+style = "bg:#0a0f0d fg:#94a3a0"
+format = "[  $duration ]($style)"
+
+[time]
+disabled = false
+style = "bg:#0a0f0d fg:#70837c"
+format = "[  $time ]($style)"
+time_format = "%H:%M"
+
+[character]
+success_symbol = "[❯](bold fg:#34d399)"
+error_symbol = "[❯](bold fg:#e0777d)"

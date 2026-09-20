@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Historial del portapapeles sobre greenclip, pero pintado a mano para que
+# no desentone: numero de orden, icono segun el tipo y el texto recortado.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+TEMA=~/.config/rofi/sigilo-lista.rasi
+
+command -v greenclip >/dev/null || {
+    notify-send -u critical "Portapapeles" "Falta greenclip (yay -S rofi-greenclip)"; exit 1; }
+
+mapfile -t entradas < <(greenclip print | grep -v '^[[:space:]]*$')
+if [ ${#entradas[@]} -eq 0 ]; then
+    notify-send "Portapapeles" "El historial está vacío"; exit 0
+fi
+
+filas=""
+n=0
+for e in "${entradas[@]}"; do
+    n=$((n+1))
+    case "$e" in
+        http://*|https://*)  ico=""; col="$CYAN" ;;
+        /*|~/*)              ico=""; col="$AMBER" ;;
+        *@*.*)               ico=""; col="$VIOLET" ;;
+        *)                   ico=""; col="$MUTE" ;;
+    esac
+    corto=$(printf '%s' "$e" | cut -c1-72 | esc)
+    [ ${#e} -gt 72 ] && corto="$corto…"
+    filas+="<span foreground=\"$MUTE\">$(printf '%2d' $n)</span>  <span foreground=\"$col\">$ico</span>  $corto|"
+done
+
+i=$(printf '%s' "${filas%|}" | rofi -dmenu -sep '|' -markup-rows -i -format i \
+        -no-custom -theme "$TEMA" -p "portapapeles" \
+        -mesg "<span foreground=\"$MUTE\">Intro lo copia al portapapeles   ·   escribe para buscar</span>")
+[ -z "$i" ] && exit 0
+
+printf '%s' "${entradas[$i]}" | xclip -selection clipboard
+notify-send -t 2500 "Portapapeles" "Copiado"

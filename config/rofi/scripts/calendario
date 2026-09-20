@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Calendario del mes al hacer clic derecho en la hora.
+#
+# Tres vias, de mejor a peor, para que siempre salga algo:
+#   1. gsimplecal, una ventanita de calendario de verdad
+#   2. una notificacion con el mes, si dunst admite texto monoespaciado
+#   3. una notificacion en texto plano
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/calendario.log"
+echo "=== $(date '+%F %T') ===" >> "$LOG"
+
+if command -v gsimplecal >/dev/null; then
+    echo "via: gsimplecal" >> "$LOG"
+    exec gsimplecal
+fi
+
+HOY=$(date '+%A, %-d de %B de %Y')
+HOY="${HOY^}"
+MES=$(cal 2>/dev/null | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+
+if [ -z "$MES" ]; then
+    echo "error: 'cal' no devolvio nada (falta el paquete util-linux?)" >> "$LOG"
+    notify-send -u critical "Calendario" "No se pudo generar el mes"
+    exit 1
+fi
+
+echo "via: notificacion" >> "$LOG"
+notify-send -u low -t 10000 "  $HOY" "<tt>$MES</tt>" 2>>"$LOG" \
+  || notify-send -u low -t 10000 "$HOY" "$MES" 2>>"$LOG" \
+  || { echo "error: notify-send fallo" >> "$LOG"; exit 1; }

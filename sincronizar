@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Copia la configuración viva de ~/.config al repositorio.
+#
+# Se usan copias y no enlaces simbólicos a propósito: algunos programas
+# (xfce4-terminal, btop) reescriben su fichero entero al guardar ajustes, y
+# eso convierte un enlace en un fichero normal sin avisar. Con copias, el
+# repositorio nunca se rompe solo; el precio es acordarse de ejecutar esto.
+
+set -uo pipefail
+REPO="$(cd "$(dirname "$0")" && pwd)"
+ORIGEN="$HOME/.config"
+DESTINO="$REPO/config"
+
+# Qué se guarda. Rutas relativas a ~/.config
+PIEZAS=(
+    i3
+    polybar
+    rofi
+    dunst/dunstrc
+    picom.conf
+    starship.toml
+    sigilo-shell.sh
+    fastfetch
+    btop/btop.conf
+    btop/themes
+    bat/themes
+    gtk-3.0/settings.ini
+    gtk-3.0/gtk.css
+    gtk-4.0/settings.ini
+    xfce4/terminal/terminalrc
+    skippy-xd/skippy-xd.rc
+)
+
+# Lo que nunca entra: cachés, copias de seguridad y basura de git
+EXCLUIR=(--exclude='.git' --exclude='*.bak' --exclude='*.viejo'
+         --exclude='*.pre-fix' --exclude='*.plano' --exclude='*.log'
+         --exclude='__pycache__' --exclude='*.sin-animaciones')
+
+echo "Sincronizando configuración -> repositorio"
+for pieza in "${PIEZAS[@]}"; do
+    src="$ORIGEN/$pieza"
+    if [ ! -e "$src" ]; then
+        printf '  %-34s (no existe, se omite)\n' "$pieza"
+        continue
+    fi
+    dst="$DESTINO/$pieza"
+    mkdir -p "$(dirname "$dst")"
+    if [ -d "$src" ]; then
+        rsync -a --delete "${EXCLUIR[@]}" "$src/" "$dst/"
+    else
+        cp -a "$src" "$dst"
+    fi
+    printf '  %-34s ok\n' "$pieza"
+done
+
+# ── lista de paquetes ─────────────────────────────────────────────────────
+echo
+echo "Anotando los paquetes instalados"
+{
+    echo "# Paquetes de los repositorios oficiales."
+    echo "# Instalar con:  sudo pacman -S --needed - < paquetes-oficiales.txt"
+    pacman -Qqen 2>/dev/null
+} > "$REPO/paquetes-oficiales.txt"
+{
+    echo "# Paquetes del AUR (y locales)."
+    echo "# Instalar con:  yay -S --needed - < paquetes-aur.txt"
+    pacman -Qqem 2>/dev/null
+} > "$REPO/paquetes-aur.txt"
+printf '  oficiales: %s\n  AUR:       %s\n' \
+    "$(($(wc -l < "$REPO/paquetes-oficiales.txt") - 2))" \
+    "$(($(wc -l < "$REPO/paquetes-aur.txt") - 2))"
+
+echo
+echo "Listo. Para guardar los cambios:"
+echo "    cd $REPO && git add -A && git commit -m 'actualizar configuración'"

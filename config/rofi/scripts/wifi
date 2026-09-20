@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Redes wifi con icono de senal segun potencia y candado si van cifradas.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+TEMA=~/.config/rofi/sigilo-lista.rasi
+
+nmcli device wifi rescan >/dev/null 2>&1 &
+sleep 1
+
+mapfile -t crudas < <(nmcli -t -f IN-USE,SIGNAL,SECURITY,SSID device wifi list \
+                      | awk -F: '$4 != ""' | sort -t: -k2 -rn | awk '!v[$0]++')
+
+if [ ${#crudas[@]} -eq 0 ]; then
+    notify-send "Wifi" "No se ve ninguna red"; exit 0
+fi
+
+ssids=(); filas=""
+for linea in "${crudas[@]}"; do
+    uso=${linea%%:*};    resto=${linea#*:}
+    senal=${resto%%:*};  resto=${resto#*:}
+    seg=${resto%%:*};    ssid=${resto#*:}
+    ssids+=("$ssid")
+
+    if   [ "$senal" -ge 70 ]; then ico=""; col="$MINT"
+    elif [ "$senal" -ge 40 ]; then ico=""; col="$CYAN"
+    else                           ico=""; col="$MUTE"; fi
+
+    if [ "$seg" = "" ] || [ "$seg" = "--" ]; then cand=""; else cand="<span foreground=\"$MUTE\"></span>"; fi
+    if [ "$uso" = "*" ]; then marca="<span foreground=\"$MINT\"></span> "; else marca="  "; fi
+
+    nombre=$(printf '%s' "$ssid" | esc)
+    filas+="${marca}<span foreground=\"${col}\">${ico}</span>  ${nombre}   <span foreground=\"$MUTE\">${senal}%</span> ${cand}|"
+done
+
+i=$(printf '%s' "${filas%|}" | rofi -dmenu -sep '|' -markup-rows -i -format i \
+        -no-custom -theme "$TEMA" -p "redes" \
+        -mesg "<span foreground=\"$MUTE\">Intro conecta o desconecta   ·   escribe para filtrar</span>")
+[ -z "$i" ] && exit 0
+ssid="${ssids[$i]}"
+
+if nmcli -t -f NAME connection show --active | grep -qxF "$ssid"; then
+    nmcli connection down id "$ssid" >/dev/null 2>&1 && notify-send "Wifi" "Desconectado de $ssid"
+    exit 0
+fi
+
+if nmcli -t -f NAME connection show | grep -qxF "$ssid"; then
+    salida=$(nmcli connection up id "$ssid" 2>&1)
+else
+    clave=$(rofi -dmenu -password -theme "$TEMA" \
+            -theme-str 'listview { lines: 0; } window { width: 32em; }' \
+            -p "clave" </dev/null)
+    if [ -n "$clave" ]; then
+        salida=$(nmcli device wifi connect "$ssid" password "$clave" 2>&1)
+    else
+        salida=$(nmcli device wifi connect "$ssid" 2>&1)
+    fi
+fi
+
+if printf '%s' "$salida" | grep -qi "successfully"; then
+    notify-send "Wifi" "Conectado a $ssid"
+else
+    notify-send -u critical "Wifi" "No se pudo conectar a $ssid"
+fi
