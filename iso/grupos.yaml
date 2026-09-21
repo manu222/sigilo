@@ -73,6 +73,10 @@
     - imagemagick
     - brightnessctl
     - playerctl
+    - cava
+    - mpv-mpris
+    - python-gobject
+    - python-cairo
     - pavucontrol
     - autotiling
     - python-i3ipc

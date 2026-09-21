@@ -170,7 +170,8 @@ bindsym $mod+s              layout stacking
 bindsym $mod+e              layout toggle split
 
 bindsym $mod+f              fullscreen toggle
-bindsym $mod+m              fullscreen toggle
+# Maximizar sin tapar la barra (❖+F sí es pantalla completa de verdad)
+bindsym $mod+m              exec --no-startup-id ~/.config/i3/scripts/ventanas maximizar
 bindsym $mod+Shift+m        move scratchpad
 bindsym $mod+Shift+space    floating toggle
 
@@ -366,6 +367,13 @@ exec_always --no-startup-id sh -c 'pgrep -x greenclip >/dev/null || exec greencl
 # Traduce los botones de minimizar y maximizar de las aplicaciones a algo
 # que i3 entienda. Ver el propio script para el porque.
 exec_always --no-startup-id ~/.config/i3/scripts/botones-ventana
+
+# Ninguna ventana flotante debajo de la barra: las recoloca si hace falta
+exec_always --no-startup-id ~/.config/i3/scripts/ventanas vigilar
+
+# Tarjeta con la canción que suena y su espectro, abajo en el escritorio.
+# Solo aparece cuando hay música; si ya está abierta no se duplica.
+exec_always --no-startup-id ~/.config/i3/scripts/musica-escritorio
 
 # Demonio del Alt+Tab con previsualización (skippy-xd). Sin él, Alt+Tab no hace nada.
 exec_always --no-startup-id ~/.config/i3/scripts/conmutador

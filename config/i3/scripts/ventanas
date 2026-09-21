@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Que ninguna ventana quede debajo de la barra.
+
+i3 respeta el hueco de la barra (gaps top 72) con las ventanas en mosaico,
+pero no con las flotantes ni con las que piden «maximizar»: esas pueden
+aparecer en lo alto de la pantalla y la barra las tapa. Este script lo
+arregla de dos maneras:
+
+  ventanas vigilar     Se queda escuchando a i3 (lo lanza el config). Cada
+                       vez que aparece una ventana flotante, o una pasa a
+                       flotar, comprueba que quepa en la zona útil (todo
+                       menos la franja de la barra). Si no cabe, la encoge
+                       lo justo y la centra en esa zona.
+
+  ventanas maximizar   Maximizar «de verdad»: la ventana ocupa toda la zona
+                       útil, por debajo de la barra. Si estaba en mosaico,
+                       se suelta para poder crecer. Llamarlo otra vez la
+                       deja como estaba (tamaño, posición, y al mosaico si
+                       venía de ahí). Lo usan ❖+M y el botón de maximizar
+                       de las apps (a través de botones-ventana).
+
+  ventanas maximizar ID [si|no|alternar]
+                       lo mismo, para la ventana con ese id de X11
+
+La pantalla completa de verdad (❖+F, F11 en un vídeo) lo tapa todo, barra
+incluida: para eso es. Como la barra no la gestiona i3, el propio
+«ventanas vigilar» la esconde mientras haya algo a pantalla completa en el
+escritorio que estás viendo, y la vuelve a sacar al salir o al cambiar a
+otro escritorio.
+"""
+import json, os, sys, time
+import i3ipc
+
+BARRA = 72            # el mismo número que «gaps top» en el config de i3
+MARGEN = 12           # aire alrededor de las flotantes que hay que recolocar
+ESTADO = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "ventanas-maximizadas.json")
+
+i3 = i3ipc.Connection()
+
+
+def zona_util(con):
+    """Rectángulo (x, y, ancho, alto) de la pantalla de la ventana, sin la barra."""
+    nodo = con
+    while nodo is not None and nodo.type != "output":
+        nodo = nodo.parent
+    r = nodo.rect if nodo is not None else next(o for o in i3.get_outputs() if o.active).rect
+    return r.x, r.y + BARRA, r.width, r.height - BARRA
+
+
+def flotante(con):
+    """El contenedor flotante que envuelve a la ventana, o None si está en mosaico."""
+    return con.parent if con.parent and con.parent.type == "floating_con" else None
+
+
+def cargar():
+    try:
+        return json.load(open(ESTADO))
+    except (OSError, ValueError):
+        return {}
+
+
+def guardar(d):
+    with open(ESTADO, "w") as f:
+        json.dump(d, f)
+
+
+def encajar(con):
+    """Si una flotante invade la barra o se sale por abajo, la encoge y la centra."""
+    if con.fullscreen_mode:
+        return
+    marco = flotante(con)
+    if marco is None:
+        return
+    x0, y0, w0, h0 = zona_util(con)
+    r = marco.rect
+    if r.y >= y0 and r.y + r.height <= y0 + h0:
+        return
+    ancho = min(r.width, w0 - 2 * MARGEN)
+    alto = min(r.height, h0 - 2 * MARGEN)
+    x = x0 + (w0 - ancho) // 2
+    y = y0 + (h0 - alto) // 2
+    i3.command(f'[con_id={con.id}] resize set {ancho} px {alto} px, move position {x} px {y} px')
+
+
+def maximizar(con, modo="alternar"):
+    """Ocupa la zona útil o vuelve a como estaba. modo: si, no o alternar
+    (las apps piden «maximizar», «desmaximizar» o «cambiar»)."""
+    guardado = cargar()
+    clave = str(con.window or con.id)
+    ya = clave in guardado
+    if (modo == "si" and ya) or (modo == "no" and not ya):
+        return
+    if ya:
+        antes = guardado.pop(clave)
+        guardar(guardado)
+        if antes["mosaico"]:
+            i3.command(f'[con_id={con.id}] floating disable')
+        else:
+            i3.command(f'[con_id={con.id}] resize set {antes["w"]} px {antes["h"]} px, '
+                       f'move position {antes["x"]} px {antes["y"]} px')
+        return
+    marco = flotante(con)
+    r = (marco or con).rect
+    guardado[clave] = {"mosaico": marco is None, "x": r.x, "y": r.y, "w": r.width, "h": r.height}
+    guardar(guardado)
+    if con.fullscreen_mode:
+        i3.command(f'[con_id={con.id}] fullscreen disable')
+    x0, y0, w0, h0 = zona_util(con)
+    i3.command(f'[con_id={con.id}] floating enable, border pixel 2, '
+               f'resize set {w0} px {h0} px, move position {x0} px {y0} px')
+
+
+def instancia_unica():
+    """i3 lo lanza en cada reinicio: la copia nueva cierra la anterior."""
+    ruta = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "ventanas-vigilar.pid")
+    try:
+        viejo = int(open(ruta).read().strip())
+        if viejo != os.getpid() and b"ventanas" in open(f"/proc/{viejo}/cmdline", "rb").read():
+            os.kill(viejo, 15)
+    except (OSError, ValueError):
+        pass
+    open(ruta, "w").write(str(os.getpid()))
+
+
+def vigilar():
+    """Revisa cada ventana nueva y cada una que pasa a flotar."""
+    def al_evento(_, e):
+        time.sleep(0.15)          # que la app termine de colocarse
+        con = i3.get_tree().find_by_id(e.container.id)
+        if con:
+            encajar(con)
+
+    i3.on(i3ipc.Event.WINDOW_NEW, al_evento)
+    i3.on(i3ipc.Event.WINDOW_FLOATING, al_evento)
+
+    # Pantalla completa de verdad (❖+F): la barra es una ventana que i3 no
+    # gestiona y se quedaría pintada encima. Se esconde mientras el
+    # escritorio visible tenga algo a pantalla completa y vuelve al salir.
+    for ev in (i3ipc.Event.WINDOW_FULLSCREEN_MODE, i3ipc.Event.WINDOW_FOCUS,
+               i3ipc.Event.WINDOW_CLOSE, i3ipc.Event.WINDOW_MOVE,
+               i3ipc.Event.WORKSPACE_FOCUS):
+        i3.on(ev, lambda *_: barra_segun_pantalla_completa())
+    barra_segun_pantalla_completa()
+    i3.main()
+
+
+barra_oculta = None     # None: todavía no se sabe, así la primera vez siempre actúa
+
+
+def barra_segun_pantalla_completa():
+    global barra_oculta
+    arbol = i3.get_tree()
+    foco = arbol.find_focused()
+    esc = foco.workspace() if foco else None
+    completa = any(c.fullscreen_mode == 2 for c in arbol.descendants()) or (
+        esc is not None and any(c.fullscreen_mode == 1 for c in esc.descendants()))
+    if completa != barra_oculta:
+        barra_oculta = completa
+        os.system("polybar-msg cmd %s >/dev/null 2>&1" % ("hide" if completa else "show"))
+
+
+if __name__ == "__main__":
+    orden = sys.argv[1] if len(sys.argv) > 1 else "vigilar"
+    if orden == "vigilar":
+        instancia_unica()
+        while True:           # si i3 se reinicia, la conexión se cae: se vuelve a levantar
+            try:
+                i3 = i3ipc.Connection()
+                barra_oculta = None
+                vigilar()
+            except Exception:
+                time.sleep(2)
+    elif orden == "maximizar":
+        arbol = i3.get_tree()
+        con = arbol.find_by_window(int(sys.argv[2])) if len(sys.argv) > 2 else arbol.find_focused()
+        modo = sys.argv[3] if len(sys.argv) > 3 else "alternar"
+        if con and con.type == "con":
+            maximizar(con, modo)

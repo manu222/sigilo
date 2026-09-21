@@ -1,0 +1,24 @@
+# cava para la píldora de música de la barra.
+# Pocas barras (8) y valores de 0 a 7, que son los ocho escalones de los
+# caracteres ▁▂▃▄▅▆▇█. Lo lanza polybar/scripts/musica solo mientras suena algo.
+
+[general]
+bars = 8
+framerate = 20
+autosens = 1
+
+[input]
+# PipeWire se hace pasar por PulseAudio: cava escucha lo que sale por los altavoces
+method = pulse
+source = auto
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 7
+bar_delimiter = 59
+frame_delimiter = 10
+
+[smoothing]
+noise_reduction = 70

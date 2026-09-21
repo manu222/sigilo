@@ -8,7 +8,7 @@ el espacio que le toca. Las aplicaciones, sin embargo, siguen mandandolas.
 Este servicio las escucha y las traduce:
 
     minimizar  ->  apartar al scratchpad   (se recupera con Mod + -)
-    maximizar  ->  pantalla completa
+    maximizar  ->  ocupar el escritorio por debajo de la barra (script «ventanas»)
 
 Como funciona: las peticiones viajan como mensajes al escritorio raiz. Solo
 un programa puede reservarse el control de ese escritorio -- e i3 ya lo tiene
@@ -16,6 +16,8 @@ un programa puede reservarse el control de ese escritorio -- e i3 ya lo tiene
 que es justo lo que hace falta aqui.
 """
 import os
+import signal
+import subprocess
 import sys
 import time
 
@@ -25,6 +27,7 @@ try:
 except ImportError as e:
     sys.exit("Falta una dependencia (%s). Instala python-xlib y python-i3ipc." % e)
 
+VENTANAS = os.path.expanduser("~/.config/i3/scripts/ventanas")
 ICONIC = 3          # el estado "minimizada" de toda la vida de X11
 
 
@@ -46,6 +49,8 @@ def instancia_unica():
 
 
 instancia_unica()
+# Los «ventanas maximizar» que se lanzan no se esperan: que el sistema los recoja solo
+signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
 
 def main():
@@ -82,8 +87,12 @@ def main():
 
         elif ev.client_type == NET_WM_STATE:
             # datos[1] y datos[2] son las dos propiedades que cambia el mensaje
+            # datos[0]: 0 quitar, 1 poner, 2 alternar. Maximizar ocupa el
+            # escritorio por debajo de la barra (script «ventanas»); la
+            # pantalla completa de verdad queda para ❖+F.
             if MAXIMIZAR & {datos[1], datos[2]}:
-                i3.command('[id="%d"] fullscreen toggle' % wid)
+                modo = {0: "no", 1: "si"}.get(datos[0], "alternar")
+                subprocess.Popen([VENTANAS, "maximizar", str(wid), modo])
 
 
 if __name__ == "__main__":

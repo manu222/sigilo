@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Visualizador de música pegado al escritorio.
+
+Una tarjeta abajo en el centro con la carátula, el título, el artista y 48
+barras que se mueven con el sonido, en degradado de menta a lila. Vive por
+debajo de todas las ventanas, encima del fondo de pantalla: se ve en los
+escritorios vacíos y en los huecos, y nunca tapa nada ni recibe clics.
+
+  · Aparece al empezar a sonar algo y se desvanece a los pocos segundos de
+    pausar o cerrar el reproductor.
+  · Sirve cualquier reproductor que hable MPRIS: Spotify, Firefox, Brave,
+    VLC y mpv (este último con el paquete mpv-mpris).
+  · El sonido lo mide cava (config en ~/.config/cava/escritorio), que solo
+    corre mientras hay música.
+
+Lo arranca i3 al iniciar sesión. Para quitarlo, comenta su línea en el
+config de i3.
+"""
+import hashlib, os, subprocess, sys, time, urllib.parse, urllib.request
+
+import cairo
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
+
+# ── medidas y colores (cámbialos aquí) ───────────────────────
+ANCHO, ALTO = 760, 176          # tamaño de la tarjeta
+MARGEN_ABAJO = 56               # distancia al borde inferior de la pantalla
+BARRAS = 48
+CARATULA = 96
+MENTA, LILA = (0x34 / 255, 0xd3 / 255, 0x99 / 255), (0xc8 / 255, 0xaa / 255, 0xe5 / 255)
+FONDO = (0x0b / 255, 0x10 / 255, 0x0e / 255, 0.78)
+TEXTO, TEXTO_SUAVE = (0.91, 0.93, 0.92), (0.58, 0.64, 0.63)
+
+CAVA_CONF = os.path.expanduser("~/.config/cava/escritorio")
+CACHE = os.path.expanduser("~/.cache/sigilo-caratulas")
+
+
+def reproductor():
+    """Datos del reproductor que suena (o el pausado si no suena ninguno)."""
+    try:
+        r = subprocess.run(["playerctl", "-a", "metadata", "--format",
+                            "{{playerName}}\t{{status}}\t{{artist}}\t{{title}}\t{{mpris:artUrl}}"],
+                           capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    filas = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 4]
+    for estado in ("Playing", "Paused"):
+        for f in filas:
+            if f[1] == estado:
+                return dict(zip(("nombre", "estado", "artista", "titulo", "arte"), f))
+    return None
+
+
+def caratula(url):
+    """Ruta local de la carátula: la usa tal cual si es un fichero y la
+    descarga a ~/.cache si es una URL (Spotify y el navegador dan URLs)."""
+    if not url:
+        return None
+    if url.startswith("file://"):
+        return urllib.parse.unquote(url[7:])
+    os.makedirs(CACHE, exist_ok=True)
+    destino = os.path.join(CACHE, hashlib.md5(url.encode()).hexdigest() + ".img")
+    if not os.path.exists(destino):
+        try:
+            # Con tiempo límite: la descarga para la animación mientras dura
+            with urllib.request.urlopen(url, timeout=3) as r, open(destino, "wb") as f:
+                f.write(r.read())
+        except Exception:
+            return None
+    return destino
+
+
+class Visualizador(Gtk.Window):
+    def __init__(self):
+        """Ventana sin marco, transparente, que no recibe clics."""
+        super().__init__(type=Gtk.WindowType.POPUP)
+        self.set_app_paintable(True)
+        self.set_visual(self.get_screen().get_rgba_visual())
+        self.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
+        self.set_default_size(ANCHO, ALTO)
+        geo = Gdk.Display.get_default().get_primary_monitor() or Gdk.Display.get_default().get_monitor(0)
+        r = geo.get_geometry()
+        self.move(r.x + (r.width - ANCHO) // 2, r.y + r.height - ALTO - MARGEN_ABAJO)
+        self.connect("draw", self.dibujar)
+
+        self.info = None
+        self.valores = [0.0] * BARRAS      # lo que se pinta (suavizado)
+        self.objetivo = [0.0] * BARRAS     # lo último que dijo cava
+        self.opacidad = 0.0                # para aparecer y desaparecer suave
+        self.cava = None
+        self.arte_ruta = None
+        self.arte = None
+        self.ultima_musica = 0
+
+        GLib.timeout_add(1000, self.revisar)
+        GLib.timeout_add(33, self.animar)          # ~30 fotogramas por segundo
+        GLib.timeout_add(3000, self.al_fondo)
+
+    # ── estado del reproductor ───────────────────────────────
+    def revisar(self):
+        """Cada segundo: qué suena, arrancar o parar cava, carátula."""
+        self.info = reproductor()
+        sonando = bool(self.info) and self.info["estado"] == "Playing"
+        if sonando:
+            self.ultima_musica = time.time()
+            if self.cava is None:
+                self.cava = subprocess.Popen(["cava", "-p", CAVA_CONF], stdout=subprocess.PIPE,
+                                             stderr=subprocess.DEVNULL, text=True, bufsize=1)
+                GLib.io_add_watch(self.cava.stdout, GLib.IO_IN | GLib.IO_HUP, self.leer_cava)
+        elif self.cava is not None:
+            self.cava.terminate()
+            self.cava = None
+            self.objetivo = [0.0] * BARRAS
+        if self.info:
+            ruta = caratula(self.info["arte"])
+            if ruta != self.arte_ruta:
+                self.arte_ruta = ruta
+                try:
+                    self.arte = GdkPixbuf.Pixbuf.new_from_file_at_scale(ruta, CARATULA, CARATULA, False) if ruta else None
+                except Exception:
+                    self.arte = None
+        return True
+
+    def leer_cava(self, fuente, condicion):
+        if condicion & GLib.IO_HUP or self.cava is None:
+            return False
+        linea = fuente.readline()
+        try:
+            self.objetivo = [int(x) / 100 for x in linea.strip().strip(";").split(";")][:BARRAS]
+        except ValueError:
+            pass
+        return True
+
+    def animar(self):
+        """Suaviza las barras y la opacidad, y muestra u oculta la ventana."""
+        visible = time.time() - self.ultima_musica < 4
+        self.opacidad += (1.0 if visible else -1.0) * 0.08
+        self.opacidad = min(max(self.opacidad, 0.0), 1.0)
+        for i, v in enumerate(self.objetivo):
+            # sube rápido y cae despacio, como un vúmetro
+            self.valores[i] += (v - self.valores[i]) * (0.6 if v > self.valores[i] else 0.18)
+        if self.opacidad > 0 and not self.get_visible():
+            self.show_all()
+            self.get_window().input_shape_combine_region(cairo.Region(), 0, 0)
+            self.al_fondo()
+        elif self.opacidad == 0 and self.get_visible():
+            self.hide()
+        if self.get_visible():
+            self.queue_draw()
+        return True
+
+    def al_fondo(self):
+        """Mantiene la tarjeta debajo de todo, pero encima del fondo animado."""
+        if self.get_visible():
+            self.get_window().lower()
+            try:
+                subprocess.run([os.path.expanduser("~/.config/i3/scripts/fondo"), "--al-fondo"],
+                               timeout=2, capture_output=True)
+            except Exception:
+                pass
+        return True
+
+    # ── dibujo ───────────────────────────────────────────────
+    def dibujar(self, _w, cr):
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+        a = self.opacidad
+
+        # tarjeta
+        self.redondeado(cr, 0, 0, ANCHO, ALTO, 20)
+        cr.set_source_rgba(*FONDO[:3], FONDO[3] * a)
+        cr.fill()
+
+        # carátula
+        x0 = 22
+        if self.arte:
+            cr.save()
+            self.redondeado(cr, x0, 20, CARATULA, CARATULA, 12)
+            cr.clip()
+            Gdk.cairo_set_source_pixbuf(cr, self.arte, x0, 20)
+            cr.paint_with_alpha(a)
+            cr.restore()
+        else:
+            self.redondeado(cr, x0, 20, CARATULA, CARATULA, 12)
+            cr.set_source_rgba(*LILA, 0.18 * a)
+            cr.fill()
+
+        # textos
+        tx = x0 + CARATULA + 20
+        info = self.info or {}
+        cr.select_font_face("Inter", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        cr.set_font_size(17)
+        cr.set_source_rgba(*TEXTO, a)
+        cr.move_to(tx, 50)
+        cr.show_text(self.recortar(cr, info.get("titulo", ""), ANCHO - tx - 24))
+        cr.select_font_face("Inter", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+        cr.set_font_size(13)
+        cr.set_source_rgba(*TEXTO_SUAVE, a)
+        cr.move_to(tx, 74)
+        cr.show_text(self.recortar(cr, info.get("artista", ""), ANCHO - tx - 24))
+        cr.set_font_size(11)
+        cr.set_source_rgba(*LILA, 0.8 * a)
+        cr.move_to(tx, 96)
+        estado = "en pausa" if info.get("estado") == "Paused" else "sonando"
+        cr.show_text(f"{info.get('nombre', '').split('.')[0]} · {estado}")
+
+        # barras: de graves (izquierda) a agudos, degradado menta -> lila
+        bx, by, bw, bh = tx, 108, ANCHO - tx - 24, 50
+        paso = bw / BARRAS
+        for i, v in enumerate(self.valores):
+            t = i / (BARRAS - 1)
+            color = tuple(MENTA[k] * (1 - t) + LILA[k] * t for k in range(3))
+            alto = max(3, v * bh)
+            self.redondeado(cr, bx + i * paso + 1, by + bh - alto, paso - 3, alto, 2)
+            cr.set_source_rgba(*color, (0.55 + 0.45 * v) * a)
+            cr.fill()
+
+    @staticmethod
+    def redondeado(cr, x, y, w, h, r):
+        r = min(r, w / 2, h / 2)
+        cr.new_sub_path()
+        cr.arc(x + w - r, y + r, r, -1.5708, 0)
+        cr.arc(x + w - r, y + h - r, r, 0, 1.5708)
+        cr.arc(x + r, y + h - r, r, 1.5708, 3.1416)
+        cr.arc(x + r, y + r, r, 3.1416, 4.7124)
+        cr.close_path()
+
+    @staticmethod
+    def recortar(cr, texto, ancho):
+        if cr.text_extents(texto).x_advance <= ancho:
+            return texto
+        while texto and cr.text_extents(texto + "…").x_advance > ancho:
+            texto = texto[:-1]
+        return texto + "…"
+
+
+def instancia_unica():
+    """Si ya hay uno abierto (i3 reiniciado), se cierra y queda este."""
+    ruta = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "musica-escritorio.pid")
+    try:
+        viejo = int(open(ruta).read().strip())
+        if viejo != os.getpid() and b"musica-escritorio" in open(f"/proc/{viejo}/cmdline", "rb").read():
+            os.kill(viejo, 15)
+    except (OSError, ValueError):
+        pass
+    open(ruta, "w").write(str(os.getpid()))
+
+
+if __name__ == "__main__":
+    instancia_unica()
+    Visualizador()
+    Gtk.main()

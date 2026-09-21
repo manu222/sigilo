@@ -106,6 +106,7 @@ REGLAS = [
  (r"^layout stacking$", "Apilar en lista"),
  (r"^layout toggle split$", "Volver al mosaico"),
  (r"^fullscreen toggle$", "Pantalla completa"),
+ (r"scripts/ventanas maximizar", "Maximizar sin tapar la barra"),
  (r"^floating toggle$", "Soltar del mosaico"),
  (r"^workspace back_and_forth$", "Escritorio anterior"),
  (r"^workspace next$", "Escritorio siguiente"),
@@ -288,7 +289,7 @@ CATEGORIAS = [
     "Cambiar de ventana", "Ventana anterior", "Ver todas las ventanas",
     "Lista de ventanas", "Mover el foco", "Seleccionar el grupo", "Volver a la ventana"]),
  ("Colocar ventanas", SLATE, [
-    "Pantalla completa", "Mover la ventana", "Soltar del mosaico",
+    "Maximizar sin tapar la barra", "Pantalla completa", "Mover la ventana", "Soltar del mosaico",
     "Apartar (minimizar)", "Recuperar la apartada", "Centrar la flotante",
     "Modo redimensionar", "Siguiente ventana al lado", "Siguiente ventana debajo",
     "Apilar en pestañas", "Apilar en lista", "Volver al mosaico",
@@ -321,6 +322,9 @@ EXTRA = [
     ("Monitor del sistema", "clic en cpu o ram"),
     ("Detalle de la batería", "clic en batería"),
     ("Fecha larga / calendario", "clic · derecho"),
+    ("Música: pausa / reanuda", "clic en la canción"),
+    ("Música: siguiente / anterior", "rueda encima"),
+    ("Ir al reproductor", "derecho en la canción"),
  ]),
  ("Visor de imágenes", SLATE, [
     ("A la papelera y siguiente", "Supr"),

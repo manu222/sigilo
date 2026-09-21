@@ -27,6 +27,7 @@ brightnessctl
 btop
 btrfs-progs
 cantarell-fonts
+cava
 cronie
 cryptsetup
 cups
@@ -162,6 +163,7 @@ mesa-utils
 metasploit
 modemmanager
 mpv
+mpv-mpris
 mtools
 nano
 nano-syntax-highlighting

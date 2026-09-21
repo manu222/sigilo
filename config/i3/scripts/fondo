@@ -4,6 +4,7 @@
 #   fondo <archivo>     imagen (png, jpg, webp…) o vídeo (mp4, webm, mkv, gif)
 #   fondo --restaurar   vuelve a poner el último (lo lanza i3 al arrancar)
 #   fondo --pausar      congela el vídeo en el fotograma actual / lo reanuda
+#   fondo --al-fondo    manda el vídeo debajo de todo (lo usa la tarjeta de música)
 #
 # Además, «fondo-vigia» lo pausa solo si hay una ventana a pantalla completa
 # o si el portátil va con batería.
@@ -49,6 +50,41 @@ subir_barra() {
     for w in $(xdotool search --class Polybar 2>/dev/null); do
         xdotool windowraise "$w" 2>/dev/null
     done
+}
+
+# Baja el vídeo de fondo al último puesto de la pila de ventanas. Lo usa
+# la tarjeta de música del escritorio (musica-escritorio): ella se pone
+# "al fondo" y luego pide que el vídeo quede todavía más abajo, para que
+# se vea por encima de él. Se hace con libX11 directamente porque xdotool
+# sabe subir ventanas pero no bajarlas.
+bajar_video() {
+    local w
+    w=$(xdotool search --name '^sigilo-fondo$' 2>/dev/null | head -1)
+    [ -n "$w" ] || return 0
+    python3 - "$w" <<'PY'
+import ctypes, sys
+x = ctypes.cdll.LoadLibrary("libX11.so.6")
+x.XOpenDisplay.restype = ctypes.c_void_p
+d = x.XOpenDisplay(None)
+if not d:
+    sys.exit(0)
+ul = ctypes.c_ulong
+raiz, padre, hijos, n = ul(), ul(), ctypes.POINTER(ul)(), ctypes.c_uint()
+w = int(sys.argv[1])
+# Se sube por la jerarquía hasta la ventana que cuelga de la raíz
+# (la que crea xwinwrap), que es la que hay que bajar.
+while True:
+    x.XQueryTree(ctypes.c_void_p(d), ul(w), ctypes.byref(raiz), ctypes.byref(padre),
+                 ctypes.byref(hijos), ctypes.byref(n))
+    if hijos:
+        x.XFree(hijos)
+    if padre.value in (0, raiz.value):
+        break
+    w = padre.value
+x.XLowerWindow(ctypes.c_void_p(d), ul(w))
+x.XFlush(ctypes.c_void_p(d))
+x.XCloseDisplay(ctypes.c_void_p(d))
+PY
 }
 
 # Copia del fondo para la pantalla de inicio de sesión. Esa pantalla no
@@ -109,6 +145,8 @@ case "${1:-}" in
             || rm -f "$MARCA" ;;
     --subir-barra)
         subir_barra ;;
+    --al-fondo)
+        bajar_video ;;
     "")
         echo "uso: fondo <archivo> | --restaurar | --pausar" ;;
     *)

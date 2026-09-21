@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Píldora de música para la barra.
+
+Mientras suena algo (Spotify, el navegador, VLC, mpv… cualquier cosa que
+hable MPRIS), enseña unas barritas que se mueven con el sonido y el título
+de la canción. En pausa, las barras se paran y el título se apaga. Si no hay
+nada abierto, la píldora desaparece.
+
+  clic           pausa / sigue
+  rueda          canción siguiente / anterior
+  clic derecho   salta a la ventana del reproductor
+
+Las barras salen de cava (config en ~/.config/cava/barra), que solo se
+arranca mientras hay música. Además deja su ancho aproximado en
+~/.cache/sigilo-musica.ancho para que los escritorios de la barra sepan
+cuánto sitio les queda.
+"""
+import os, select, subprocess, sys, time
+
+BLOQUES = "▁▂▃▄▅▆▇█"
+MAX_TITULO = 20
+# Degradado de menta a lila, una por barra
+COLORES = ["#34d399", "#4fd0a8", "#6bc9b8", "#86c0c8", "#9fb5d4", "#b3a9dc", "#c1a3e0", "#c8aae5"]
+PILDORA, IZQ, DER = "#15201c", "", ""
+ANCHO = os.path.expanduser("~/.cache/sigilo-musica.ancho")
+CAVA_CONF = os.path.expanduser("~/.config/cava/barra")
+
+# Nombre del reproductor en MPRIS -> clase de su ventana en i3
+CLASES = {"spotify": "Spotify", "firefox": "firefox", "brave": "Brave-browser",
+          "chromium": "Chromium", "vlc": "vlc", "mpv": "mpv"}
+
+
+def reproductor():
+    """(nombre, estado, artista, título) del reproductor que suena, o del
+    que está en pausa si no suena ninguno. None si no hay ninguno."""
+    try:
+        r = subprocess.run(["playerctl", "-a", "metadata", "--format",
+                            "{{playerName}}\t{{status}}\t{{artist}}\t{{title}}"],
+                           capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    filas = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 3]
+    for estado in ("Playing", "Paused"):
+        for f in filas:
+            if f[1] == estado:
+                return f
+    return None
+
+
+def limpio(t):
+    """Texto seguro para polybar: sin etiquetas %{…} y recortado."""
+    t = t.replace("%{", "% {").strip()
+    return t if len(t) <= MAX_TITULO else t[:MAX_TITULO - 1] + "…"
+
+
+def pildora(nombre, contenido):
+    base = nombre.split(".")[0]
+    clase = CLASES.get(base, base)
+    acciones = (f"%{{A1:playerctl -p {nombre} play-pause:}}"
+                f"%{{A4:playerctl -p {nombre} next:}}%{{A5:playerctl -p {nombre} previous:}}"
+                f"%{{A3:i3-msg -q [class=\"(?i){clase}\"] focus:}}")
+    return (f"{acciones}%{{B-}}%{{F{PILDORA}}}%{{T3}}{IZQ}%{{T-}}%{{B{PILDORA}}}%{{F-}} "
+            f"{contenido} %{{B-}}%{{F{PILDORA}}}%{{T3}}{DER}%{{T-}}%{{F-}}%{{A}}%{{A}}%{{A}}%{{A}} ")
+
+
+def barras(valores):
+    return "".join(f"%{{F{COLORES[i % 8]}}}{BLOQUES[min(max(v, 0), 7)]}" for i, v in enumerate(valores)) + "%{F-}"
+
+
+def apuntar_ancho(px):
+    try:
+        if px:
+            open(ANCHO, "w").write(str(px))
+        elif os.path.exists(ANCHO):
+            os.remove(ANCHO)
+    except OSError:
+        pass
+
+
+def main():
+    cava = None
+    ultimo_repaso = 0
+    info = None
+    valores = [0] * 8
+    while True:
+        ahora = time.time()
+        if ahora - ultimo_repaso > 1:            # el reproductor se mira una vez por segundo
+            info = reproductor()
+            ultimo_repaso = ahora
+            sonando = info is not None and info[1] == "Playing"
+            if sonando and cava is None:
+                cava = subprocess.Popen(["cava", "-p", CAVA_CONF], stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, text=True, bufsize=1)
+            elif not sonando and cava is not None:
+                cava.terminate(); cava = None
+                valores = [0] * 8
+
+        if info is None:
+            print("", flush=True); apuntar_ancho(0)
+            time.sleep(1); continue
+
+        nombre, estado, artista, titulo = info
+        texto = limpio(f"{titulo} · {artista}" if artista else titulo)
+        if cava is not None:
+            listo, _, _ = select.select([cava.stdout], [], [], 0.2)
+            if listo:
+                linea = cava.stdout.readline()
+                try:
+                    valores = [int(x) for x in linea.strip().strip(";").split(";")][:8]
+                except ValueError:
+                    pass
+            contenido = f"{barras(valores)}  %{{F#c9d3ce}}{texto}%{{F-}}"
+        else:
+            contenido = f"%{{F#70837c}}%{{T4}}\U000f03e4%{{T-}}  {texto}%{{F-}}"
+            time.sleep(0.5)
+        print(pildora(nombre, contenido), flush=True)
+        # 8 barras + separación + texto, a 8 px por carácter, más las tapas
+        apuntar_ancho(8 * (8 + 3 + len(texto)) + 60)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (BrokenPipeError, KeyboardInterrupt):
+        apuntar_ancho(0)

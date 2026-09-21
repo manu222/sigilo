@@ -34,6 +34,7 @@ PIEZAS=(
     sigilo
     gtk-4.0/gtk.css
     skippy-xd/skippy-xd.rc
+    cava
 )
 
 # Lo que nunca entra: cachés, copias de seguridad y basura de git

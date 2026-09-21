@@ -28,6 +28,13 @@ f = buscar(json.load(sys.stdin)) or {}
 nombre = (f.get("name") or "ventana")[:40]
 flota  = "si" if str(f.get("floating", "")).endswith("on") else "no"
 pantalla = "si" if f.get("fullscreen_mode") else "no"
+import os
+try:
+    maxim = json.load(open(os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "ventanas-maximizadas.json")))
+except Exception:
+    maxim = {}
+if str(f.get("window")) in maxim:
+    pantalla = "si"
 print("%s\t%s\t%s" % (nombre, flota, pantalla))
 ' 2>/dev/null) || estado=$'ventana\tno\tno'
 
@@ -54,7 +61,8 @@ i=$( { fila "Cerrar"                      cerrar
 case "$i" in
   0) i3-msg kill ;;
   1) i3-msg move scratchpad ;;
-  2) i3-msg fullscreen toggle ;;
+  # Maximizar ocupa el escritorio sin tapar la barra (ver i3/scripts/ventanas)
+  2) if [ "$pantalla" = si ] && i3-msg -t get_tree | grep -q '"fullscreen_mode":1'; then i3-msg fullscreen disable; else ~/.config/i3/scripts/ventanas maximizar; fi ;;
   3) i3-msg floating toggle ;;
   4) n=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10' | rofi -dmenu -no-custom -no-show-icons \
             -theme "$TEMA" -theme-str 'listview { lines: 5; } window { width: 26em; }' \
