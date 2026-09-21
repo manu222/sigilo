@@ -80,6 +80,7 @@ REGLAS = [
  (r"rofi/scripts/apagado", "Menú de sesión"),
  (r"rofi/scripts/wifi", "Redes wifi"),
  (r"rofi/scripts/bluetooth", "Bluetooth"),
+ (r"rofi/scripts/sonido", "Salida y micro de sonido"),
  (r"rofi/scripts/fondos", "Fondos de pantalla"),
  (r"scripts/fondo --pausar", "Pausar el fondo animado"),
  (r"rofi/scripts/portapapeles", "Portapapeles"),
@@ -300,7 +301,7 @@ CATEGORIAS = [
  ("Menús y utilidades", AMBER, [
     "Menú de utilidades", "Preguntar a la IA local", "Calculadora", "Emojis y símbolos",
     "Portapapeles", "Notificaciones", "Captura con selección", "Captura completa",
-    "Redes wifi", "Bluetooth", "Fondos de pantalla", "Pausar el fondo animado"]),
+    "Redes wifi", "Bluetooth", "Salida y micro de sonido", "Fondos de pantalla", "Pausar el fondo animado"]),
  ("Sistema", RED, ["Recargar config", "Reiniciar i3"]),
  ("Teclas multimedia", OLIVE, [
     "Subir volumen", "Bajar volumen", "Silenciar", "Silenciar micro",
@@ -316,7 +317,8 @@ EXTRA = [
     ("Ir a un escritorio", "clic en su número"),
     ("Preguntar a la IA", "clic en el robot"),
     ("Sacar el modelo de memoria", "derecho en robot"),
-    ("Silenciar / mezclador", "clic · derecho"),
+    ("Silenciar / elegir salida", "clic · derecho"),
+    ("Mezclador completo", "central en volumen"),
     ("Volumen y brillo", "rueda encima"),
     ("Wifi / nmtui", "clic · derecho en red"),
     ("Monitor del sistema", "clic en cpu o ram"),

@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""Elegir por dónde suena y por dónde se graba (❖+Shift+O, o clic derecho
+en el volumen de la barra).
+
+Enseña todas las salidas que hay ahora mismo: altavoces del portátil,
+auriculares por el jack, cascos bluetooth, la tele por HDMI… y debajo los
+micrófonos. La que está en uso sale en menta con una marca. Al elegir otra
+se convierte en la predeterminada y lo que ya estaba sonando se muda a ella
+sin tener que cerrar Spotify ni el navegador.
+
+Si una tarjeta está apagada (pasa con el HDMI de la NVIDIA, que viene sin
+perfil), aparece una fila para encenderla. Al final hay atajos al menú de
+bluetooth y al mezclador completo (pavucontrol).
+
+Todo va por pactl, que PipeWire entiende igual que PulseAudio.
+"""
+import os, re, subprocess, sys
+
+TEMA = os.path.expanduser("~/.config/rofi/sigilo-lista.rasi")
+BLUETOOTH = os.path.expanduser("~/.config/rofi/scripts/bluetooth")
+
+# Colores Sigilo (los mismos de comun.sh)
+MINT, DIM, MUTE, CYAN, VIOLET = "#3ee8a8", "#94a3a0", "#70837c", "#6fc9c0", "#b79ad4"
+NF = "JetBrainsMono Nerd Font Mono"
+
+# Iconos de Nerd Font (por código para que no se pierdan al copiar el fichero)
+ICO = {
+    "altavoz":    chr(0xF04C3),
+    "auriculares": chr(0xF02CB),
+    "bluetooth":  chr(0xF00B0),
+    "hdmi":       chr(0xF0379),
+    "micro":      chr(0xF036C),
+    "encender":   chr(0xF0425),
+    "mezclador":  chr(0xF062E),
+    "marca":      chr(0xF012C),
+}
+
+
+def pactl(*args):
+    # LC_ALL=C deja los rótulos de pactl en inglés (Name:, Ports:…), que es
+    # lo que se lee abajo. Los nombres de los dispositivos siguen en español
+    # porque los pone PipeWire, no pactl.
+    r = subprocess.run(["pactl", *args], capture_output=True, text=True,
+                       env={**os.environ, "LC_ALL": "C"})
+    return r.stdout
+
+
+# No se usa «pactl -f json»: con nombres que llevan tildes («Estéreo
+# analógico») su JSON escribe «(null)» en vez del nombre. La salida de
+# texto normal no tiene ese problema, así que se lee esa.
+RE_PROP = re.compile(r'^\t\t([\w.\-]+) = "(.*)"$')
+RE_PERFIL = re.compile(r'^\t\t(\S+): (.*) \(sinks: (\d+), sources: (\d+), priority: (\d+), available: (\w+)\)$')
+RE_PUERTO = re.compile(r'^\t\t(\S+): (.*) \((.*)\)$')
+
+
+def lista(que):
+    """Lee «pactl list sinks|sources|cards» y devuelve una lista de dicts."""
+    todos, d, seccion = [], None, None
+    for linea in pactl("list", que).splitlines():
+        if linea and not linea.startswith("\t"):          # «Sink #57», «Card #45»…
+            d = {"properties": {}, "ports": [], "profiles": {}}
+            todos.append(d)
+            continue
+        if d is None:
+            continue
+        if linea.startswith("\t") and not linea.startswith("\t\t"):
+            clave, _, valor = linea[1:].partition(":")
+            valor = valor.strip()
+            seccion = clave
+            if clave == "Name":
+                d["name"] = valor
+            elif clave == "Description":
+                d["description"] = valor
+            elif clave == "Active Port":
+                d["active_port"] = valor
+            elif clave == "Active Profile":
+                d["active_profile"] = valor
+            elif clave == "Monitor of Sink":
+                d["monitor_of_sink"] = valor
+            continue
+        if seccion == "Properties":
+            m = RE_PROP.match(linea)
+            if m:
+                d["properties"][m[1]] = m[2]
+        elif seccion == "Profiles":
+            m = RE_PERFIL.match(linea)
+            if m:
+                d["profiles"][m[1]] = {"description": m[2], "sinks": int(m[3]),
+                                       "priority": int(m[5]), "available": m[6] == "yes"}
+        elif seccion == "Ports":
+            m = RE_PUERTO.match(linea)
+            if m:
+                disp = "not available" if "not available" in m[3] else "available"
+                d["ports"].append({"name": m[1], "description": m[2], "availability": disp})
+    return [x for x in todos if "name" in x]
+
+
+def nombre_de(d):
+    """Nombre legible, con el nombre interno como último recurso."""
+    props = d.get("properties", {})
+    for v in (d.get("description"), props.get("node.description"),
+              props.get("device.description"), props.get("node.nick"), d.get("name")):
+        if v and v != "(null)":
+            return v
+    return "?"
+
+
+def esc(t):
+    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def icono(glifo, color):
+    return f'<span font_family="{NF}" foreground="{color}" size="{13*1024}">{glifo}</span>'
+
+
+def tipo(dispositivo, puerto):
+    """Qué icono le toca, mirando el bus y el nombre del puerto."""
+    props = dispositivo.get("properties", {})
+    nombre = (dispositivo.get("name", "") + " " + (puerto or "")).lower()
+    if props.get("device.bus") == "bluetooth" or "bluez" in nombre:
+        return "bluetooth"
+    if "hdmi" in nombre or "displayport" in nombre:
+        return "hdmi"
+    if "headphone" in nombre or "headset" in nombre:
+        return "auriculares"
+    return "altavoz"
+
+
+def opciones(dispositivos, defecto, es_salida):
+    """Una fila por dispositivo y puerto usable. Así los auriculares del
+    jack salen aparte aunque para el sistema sean la misma tarjeta."""
+    filas = []
+    for d in dispositivos:
+        # Los «monitor» son la copia de lo que suena en cada salida, no micros
+        if d.get("name", "").endswith(".monitor") or d.get("monitor_of_sink") not in (None, "n/a"):
+            continue
+        puertos = [p for p in d.get("ports", []) if p.get("availability") != "not available"]
+        if not puertos:
+            puertos = [None]
+        for p in puertos:
+            activo = d["name"] == defecto and (p is None or p["name"] == d.get("active_port"))
+            texto = nombre_de(d)
+            if p and len(puertos) > 1:
+                texto += f"  ·  {p.get('description', p['name'])}"
+            clase = tipo(d, p["name"] if p else "") if es_salida else "micro"
+            filas.append({
+                "texto": texto, "icono": ICO[clase], "activo": activo,
+                "accion": ("salida" if es_salida else "entrada", d["name"], p["name"] if p else None),
+            })
+    return filas
+
+
+def tarjetas_apagadas():
+    """Tarjetas cuyo perfil actual no da ninguna salida (HDMI sin activar)."""
+    filas = []
+    for c in lista("cards"):
+        perfiles = c.get("profiles", {})
+        actual = perfiles.get(c.get("active_profile"), {})
+        if actual.get("sinks", 0):
+            continue
+        buenos = [(v.get("priority", 0), k, v) for k, v in perfiles.items()
+                  if v.get("sinks", 0) and v.get("available", True)]
+        if not buenos:
+            continue
+        _, perfil, datos = max(buenos, key=lambda x: x[0])
+        nombre = nombre_de(c)
+        filas.append({"texto": f"Encender {nombre}  ·  {datos.get('description', perfil)}",
+                      "icono": ICO["encender"], "activo": False,
+                      "accion": ("perfil", c["name"], perfil)})
+    return filas
+
+
+def mudar(tipo_flujo, destino):
+    """Pasa lo que ya suena (o graba) al dispositivo nuevo."""
+    for linea in pactl("list", "short", tipo_flujo).splitlines():
+        ident = linea.split("\t")[0]
+        orden = "move-sink-input" if tipo_flujo == "sink-inputs" else "move-source-output"
+        subprocess.run(["pactl", orden, ident, destino], capture_output=True)
+
+
+def main():
+    salidas = opciones(lista("sinks"), pactl("get-default-sink").strip(), True)
+    entradas = opciones(lista("sources"), pactl("get-default-source").strip(), False)
+    extra = tarjetas_apagadas() + [
+        {"texto": "Bluetooth…", "icono": ICO["bluetooth"], "activo": False, "accion": ("bluetooth",)},
+        {"texto": "Mezclador completo", "icono": ICO["mezclador"], "activo": False, "accion": ("mezclador",)},
+    ]
+
+    filas, acciones = [], []
+    def seccion(titulo, elementos, color):
+        for e in elementos:
+            col = MINT if e["activo"] else color
+            marca = f'   {icono(ICO["marca"], MINT)}' if e["activo"] else ""
+            peso = "b" if e["activo"] else "span"
+            filas.append(f'{icono(e["icono"], col)}  <{peso}>{esc(e["texto"])}</{peso}>{marca}'
+                         f'   <span foreground="#556760" size="small">{titulo}</span>')
+            acciones.append(e["accion"])
+    seccion("salida", salidas, DIM)
+    seccion("entrada", entradas, VIOLET)
+    seccion("más", extra, CYAN)
+
+    if not filas:
+        subprocess.run(["notify-send", "-u", "critical", "Sonido", "No responde el servidor de sonido"])
+        return
+    r = subprocess.run(
+        ["rofi", "-dmenu", "-i", "-markup-rows", "-format", "i", "-no-custom", "-p", "sonido",
+         "-theme", TEMA, "-theme-str", f"window {{ width: 46em; }} listview {{ lines: {min(len(filas), 12)}; }}",
+         "-mesg", f'<span foreground="{MUTE}">Intro cambia por dónde suena o graba   ·   lo que ya suena se muda solo</span>'],
+        input="\n".join(filas), capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip():
+        return
+    accion = acciones[int(r.stdout.strip())]
+
+    if accion[0] == "salida":
+        _, nombre, puerto = accion
+        if puerto:
+            pactl("set-sink-port", nombre, puerto)
+        pactl("set-default-sink", nombre)
+        mudar("sink-inputs", nombre)
+    elif accion[0] == "entrada":
+        _, nombre, puerto = accion
+        if puerto:
+            pactl("set-source-port", nombre, puerto)
+        pactl("set-default-source", nombre)
+        mudar("source-outputs", nombre)
+    elif accion[0] == "perfil":
+        pactl("set-card-profile", accion[1], accion[2])
+        # Con el perfil puesto aparece la salida nueva: se vuelve a abrir
+        # el menú para poder elegirla directamente.
+        os.execv(sys.argv[0], sys.argv)
+    elif accion[0] == "bluetooth":
+        os.execv(BLUETOOTH, [BLUETOOTH])
+    elif accion[0] == "mezclador":
+        subprocess.Popen(["pavucontrol"], start_new_session=True)
+        return
+
+    elegido = next(f for f in salidas + entradas if f["accion"] == accion)
+    subprocess.run(["notify-send", "-a", "sonido", "Sonido",
+                    ("Ahora suena por " if accion[0] == "salida" else "Ahora graba con ") + elegido["texto"]])
+
+
+if __name__ == "__main__":
+    main()

@@ -256,6 +256,7 @@ bindsym $mod+Shift+x        exec --no-startup-id ~/.config/i3/scripts/bloqueo
 bindsym $mod+Shift+e        exec --no-startup-id ~/.config/rofi/scripts/apagado
 bindsym $mod+Shift+w        exec --no-startup-id ~/.config/rofi/scripts/wifi
 bindsym $mod+Shift+b        exec --no-startup-id ~/.config/rofi/scripts/bluetooth
+bindsym $mod+Shift+o        exec --no-startup-id ~/.config/rofi/scripts/sonido
 bindsym $mod+Shift+f        exec --no-startup-id ~/.config/rofi/scripts/fondos
 bindsym $mod+p              exec --no-startup-id ~/.config/rofi/scripts/portapapeles
 

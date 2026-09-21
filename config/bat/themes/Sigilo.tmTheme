@@ -1,39 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-  Tema Sigilo para bat (el «cat» con colores) y para los diff de git con delta.
-  Formato TextMate, el mismo que usan Sublime y VS Code. Si lo cambias,
-  vuelve a generar la caché:  bat cache -build
--->
 <plist version="1.0">
 <dict>
 	<key>name</key>
 	<string>Sigilo</string>
+	<key>comment</key>
+	<string>Tema Sigilo para bat (el cat con colores) y para los diff de git con delta. Formato TextMate, el mismo que usan Sublime y VS Code. Si lo cambias, vuelve a generar la caché con: bat cache --build</string>
 	<key>settings</key>
 	<array>
 		<dict>
-			<key>background</key>
-			<string>#0a0f0d</string>
-			<key>foreground</key>
-			<string>#e7edea</string>
-			<key>caret</key>
-			<string>#34d399</string>
-			<key>lineHighlight</key>
-			<string>#15201c</string>
-			<key>selection</key>
-			<string>#1b2723</string>
-			<key>selectionForeground</key>
-			<string>#f0f5f3</string>
-			<key>invisibles</key>
-			<string>#26332e</string>
-			<key>gutterForeground</key>
-			<string>#556760</string>
-			<key>gutter</key>
-			<string>#0a0f0d</string>
-			<key>findHighlight</key>
-			<string>#34d399</string>
-			<key>findHighlightForeground</key>
-			<string>#06130d</string>
+			<key>settings</key>
+			<dict>
+				<key>background</key>
+				<string>#0a0f0d</string>
+				<key>foreground</key>
+				<string>#e7edea</string>
+				<key>caret</key>
+				<string>#34d399</string>
+				<key>lineHighlight</key>
+				<string>#15201c</string>
+				<key>selection</key>
+				<string>#1b2723</string>
+				<key>selectionForeground</key>
+				<string>#f0f5f3</string>
+				<key>invisibles</key>
+				<string>#26332e</string>
+				<key>gutterForeground</key>
+				<string>#556760</string>
+				<key>gutter</key>
+				<string>#0a0f0d</string>
+				<key>findHighlight</key>
+				<string>#34d399</string>
+				<key>findHighlightForeground</key>
+				<string>#06130d</string>
+			</dict>
 		</dict>
 		<dict>
 			<key>name</key>

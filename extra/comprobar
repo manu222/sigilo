@@ -76,7 +76,7 @@ PY
 
 paso "Duplicados y restos"
 for p in greenclip dunst picom polybar; do n=$(pgrep -xc "$p"); [ "$n" -le 1 ] && ok "$p: $n copia" || mal "$p: $n copias"; done
-for s in botones-ventana escritorios app-enfocada fondo-vigia; do n=$(pgrep -fc "scripts/$s"); [ "$n" -le 1 ] && ok "$s: $n" || mal "$s: $n copias"; done
+for s in botones-ventana escritorios app-enfocada fondo-vigia "ventanas vigilar" musica-escritorio; do n=$(pgrep -fc "scripts/$s"); [ "$n" -le 1 ] && ok "$s: $n" || mal "$s: $n copias"; done
 h=$(pacman -Qdtq 2>/dev/null | wc -l); [ "$h" -eq 0 ] && ok "sin paquetes huérfanos" || ojo "$h huérfanos (limpiar los quita): $(pacman -Qdtq | tr '\n' ' ')"
 f=$(systemctl --failed --no-legend | wc -l); [ "$f" -eq 0 ] && ok "ningún servicio caído" || { mal "$f servicios caídos"; systemctl --failed --no-legend | sed 's/^/      /'; }
 fu=$(systemctl --user --failed --no-legend | wc -l); [ "$fu" -eq 0 ] && ok "ningún servicio de usuario caído" || { mal "$fu servicios de usuario caídos"; systemctl --user --failed --no-legend | sed 's/^/      /'; }
@@ -99,6 +99,17 @@ paso "Polybar: últimos errores"
 # Solo lo del último arranque de la barra, no el historial entero
 awk '/lanzamiento/{b=""} {b=b $0 "\n"} END{printf "%s", b}' ~/.cache/polybar.log 2>/dev/null \
     | grep -iE "error|warn" | grep -v "Root pixmap" | tail -8 | sed 's/^/  /' | grep . || ok "sin errores"
+# Caídas de la barra de hoy (las levanta launch.sh, pero conviene saberlo)
+c=$(awk -v hoy="$(date +%F)" 'index($0, hoy) {h=1} h' ~/.cache/polybar.log 2>/dev/null | grep -c "se cayó\|Assertion")
+[ "${c:-0}" -eq 0 ] && ok "la barra no se ha caído" || ojo "la barra se ha caído $c veces hoy (ver ~/.cache/polybar.log); launch.sh la vuelve a levantar"
+
+paso "Sonido"
+s=$(pactl get-default-sink 2>/dev/null)
+case "$s" in
+    ""|auto_null|"(null)") mal "sin salida de sonido real: systemctl --user restart wireplumber pipewire pipewire-pulse" ;;
+    # Se lee la salida de texto de pactl: su JSON pone «(null)» en los nombres con tildes
+    *) ok "sale por $(LC_ALL=C pactl list sinks | awk -v s="$s" '$1=="Name:"{n=$2} $1=="Description:" && n==s {sub(/^[ \t]*Description: /,""); print; exit}')" ;;
+esac
 
 paso "Resumen"
 [ $FALLOS -eq 0 ] && echo "  Todo en orden." || echo "  $FALLOS cosas que revisar. Informe en $LOG"

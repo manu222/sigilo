@@ -9,6 +9,12 @@ echo "=============== $(date '+%F %T') lanzamiento ===============" >> "$LOG"
 # reconectar con un i3 que ya no existe. Esperarla sin limite dejaba la
 # nueva sin arrancar nunca. Se le da un segundo y medio por las buenas y,
 # si sigue ahi, se la mata por las malas.
+# Primero el vigilante de abajo, para que no la resucite mientras se cierra
+VIGILANTE="${XDG_RUNTIME_DIR:-/tmp}/polybar-vigilante.pid"
+# (se comprueba que ese pid siga siendo este script y no otro proceso que
+# haya heredado el número)
+v=$(cat "$VIGILANTE" 2>/dev/null)
+[ -n "$v" ] && grep -qs launch.sh "/proc/$v/cmdline" && kill "$v" 2>/dev/null
 pkill -x polybar 2>/dev/null
 for _ in $(seq 15); do
     pgrep -x polybar >/dev/null || break
@@ -43,7 +49,31 @@ BL="$(ls -1 /sys/class/backlight 2>/dev/null | head -1)"
 
 export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
 
-polybar sigilo >>"$LOG" 2>&1 &
-
-# Si hay un fondo animado, la barra nueva tiene que quedar por encima de él
-( sleep 1.5; ~/.config/i3/scripts/fondo --subir-barra ) &
+# ── arrancar y vigilar ─────────────────────────────────────────────────────
+# El módulo de volumen de polybar se cae entero (y con él toda la barra)
+# si el servidor de sonido se reinicia o cambia de salida por debajo: sale
+# «Assertion 'o' failed … pa_operation_get_state» en el log. Por eso la
+# barra corre dentro de un bucle que la vuelve a levantar si muere sola.
+# Si la cierra este mismo script (recargar i3) sale limpia y el bucle
+# termina. El tope de 5 reinicios por minuto evita un bucle sin fin si el
+# fallo es de la configuración.
+(
+    echo $BASHPID > "$VIGILANTE"
+    trap 'kill "$hija" 2>/dev/null; exit 0' TERM
+    caidas=()
+    while true; do
+        polybar sigilo >>"$LOG" 2>&1 &
+        hija=$!
+        # Si hay un fondo animado, la barra tiene que quedar por encima de él
+        ( sleep 1.5; ~/.config/i3/scripts/fondo --subir-barra ) &
+        wait "$hija"; codigo=$?
+        [ "$codigo" -eq 0 ] && break
+        ahora=$(date +%s)
+        caidas=($(for t in "${caidas[@]}" "$ahora"; do [ $((ahora - t)) -lt 60 ] && echo "$t"; done))
+        echo "la barra se cayó (código $codigo), se vuelve a lanzar" >> "$LOG"
+        [ ${#caidas[@]} -ge 5 ] && { echo "demasiadas caídas seguidas, se deja parada" >> "$LOG"; break; }
+        sleep 1
+    done
+    rm -f "$VIGILANTE"
+) &
+disown
