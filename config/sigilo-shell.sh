@@ -268,6 +268,14 @@ if _hay fzf; then
     }
 fi
 
+# ── Mantenimiento de Sigilo ─────────────────────────────────
+# Atajos a los scripts de ~/dotfiles/extra para no tener que recordar rutas
+alias apps='~/dotfiles/extra/sigilo-apps'
+alias ordenar-apps='~/dotfiles/extra/organizar-apps'
+alias comprobar='~/dotfiles/extra/comprobar'
+alias rendimiento='sudo -v && ~/dotfiles/extra/medir-rendimiento'
+alias dotfiles='cd ~/dotfiles && ./sincronizar && git status -sb'
+
 # ── Chuleta ──────────────────────────────────────────────────
 # «comandos» la enseña aquí; la chuleta de ❖+F1 lee esta misma lista,
 # así que lo que se añada aquí aparece en los dos sitios.
@@ -314,6 +322,13 @@ comandos() {
     _fila "jwt"         "leer un token JWT"
     _fila "servir"      "web en la carpeta actual"
     _fila "extraer"     "descomprimir casi todo"
+    _fila "sigma"       "convertir reglas Sigma"
+    _grupo "sigilo"
+    _fila "apps"         "instalar apps con casillas"
+    _fila "ordenar-apps" "rehacer ~/Aplicaciones y el menú"
+    _fila "comprobar"    "revisar que todo funciona"
+    _fila "rendimiento"  "medir consumo del equipo"
+    _fila "dotfiles"     "copiar la config al repo"
     _grupo "kitty"
     _fila "Ctrl+Shift+T"     "pestaña nueva aquí"
     _fila "Ctrl+Shift+Intro" "dividir en horizontal"

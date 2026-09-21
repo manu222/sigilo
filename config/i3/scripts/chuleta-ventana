@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 # Abre la chuleta en una ventana flotante. i3 la centra por su titulo.
 # Con «/» se cierra y abre el buscador de atajos.
-exec "$HOME/.config/i3/scripts/terminal" --titulo chuleta-i3 --fuente 9.5 --tam 242x48 \
+exec "$HOME/.config/i3/scripts/terminal" --titulo chuleta-i3 --fuente 9 --tam 244x57 \
      -- bash -c "$HOME/.config/i3/scripts/chuleta; read -n1 -s k; [ \"\$k\" = / ] && setsid -f $HOME/.config/i3/scripts/chuleta --buscar"

@@ -306,6 +306,32 @@ CATEGORIAS = [
     "Subir brillo", "Bajar brillo", "Reproducir / pausa", "Pista siguiente", "Pista anterior"]),
 ]
 
+# Cosas que no son atajos de i3 pero conviene tener a mano: lo que hace
+# cada parte de la barra con el ratón y las teclas del visor de imágenes.
+# Si cambias algo en polybar/config.ini o en imv/config, actualízalo aquí.
+EXTRA = [
+ ("Barra (ratón)", CYAN, [
+    ("Menú de aplicaciones", "clic en Apps"),
+    ("Ir a un escritorio", "clic en su número"),
+    ("Preguntar a la IA", "clic en el robot"),
+    ("Sacar el modelo de memoria", "derecho en robot"),
+    ("Silenciar / mezclador", "clic · derecho"),
+    ("Volumen y brillo", "rueda encima"),
+    ("Wifi / nmtui", "clic · derecho en red"),
+    ("Monitor del sistema", "clic en cpu o ram"),
+    ("Detalle de la batería", "clic en batería"),
+    ("Fecha larga / calendario", "clic · derecho"),
+ ]),
+ ("Visor de imágenes", SLATE, [
+    ("A la papelera y siguiente", "Supr"),
+    ("Recuperar la última", "U"),
+    ("Anterior / siguiente", "← →"),
+    ("Pantalla completa", "F"),
+    ("Zoom / tamaño real", "+ − 0"),
+    ("Salir", "Q · Esc"),
+ ]),
+]
+
 FLECHAS = {"a la izquierda": "←", "abajo": "↓", "arriba": "↑", "a la derecha": "→"}
 
 
@@ -396,6 +422,12 @@ def buscar():
                          f"   <span foreground='#94a3a0'>{esc(teclas_txt(teclas, 3))}</span>"
                          f"   <span foreground='#556760' size='small'>{esc(nombre.lower())}</span>")
             acciones.append(("i3", cmd))
+    for nombre, color, grupo in EXTRA:
+        for d, k in grupo:
+            filas.append(f"<span foreground='{hexa(color)}'>●</span>  <b>{esc(d)}</b>"
+                         f"   <span foreground='#94a3a0'>{esc(k)}</span>"
+                         f"   <span foreground='#556760' size='small'>{esc(nombre.lower())}</span>")
+            acciones.append(("info", ""))
     for nombre, grupo in leer_shell():
         for cmdt, desc in grupo:
             filas.append(f"<span foreground='#c8aae5'>●</span>  <b>{esc(desc[0].upper() + desc[1:])}</b>"
@@ -427,6 +459,8 @@ def main():
     if "--buscar" in sys.argv:
         return buscar()
     bloques = [bloque_cat(n, c, filas) for n, c, filas in clasificar(recoger())]
+    for nombre, color, filas in EXTRA:
+        bloques.append(bloque_cat(nombre, color, [(d, [k], "") for d, k in filas]))
     for nombre, filas in leer_shell():
         bloques.append(bloque_shell(nombre, filas))
 
