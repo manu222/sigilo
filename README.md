@@ -19,8 +19,11 @@ localizar sin pensar.
 | Barra | Polybar | Módulos como píldoras, flotante y centrada |
 | Lanzador y menús | Rofi | Rejilla con iconos, galería de fondos, menús de red y sesión |
 | Compositor | picom | Transparencia en las ventanas sin foco, sombras y animaciones |
-| Terminal | xfce4-terminal + Starship | Prompt de dos líneas con git y duración |
-| Notificaciones | dunst | Con barra de progreso para volumen y brillo |
+| Terminal | kitty + Starship | Prompt de dos líneas con git y duración; colores por tipo de fichero en `ls` |
+| Notificaciones | dunst | Tarjetas con el borde según urgencia; volumen y brillo con barra |
+| Apps GTK | adw-gtk3 | Solo se cambian los colores con nombre; el tema pone las formas |
+| Iconos | Papirus recoloreado | Carpetas en menta con el dibujo interior en lila |
+| Cursor | Bibata Modern Classic | |
 | Conmutador | skippy-xd | Alt+Tab con previsualización en vivo |
 | Monitor | btop | Paleta completa |
 | Resaltado | bat | Tema `.tmTheme` propio |
@@ -58,6 +61,17 @@ Después, una línea en el `~/.bashrc`:
 ```bash
 [ -f ~/.config/sigilo-shell.sh ] && . ~/.config/sigilo-shell.sh
 ```
+
+Hay dos carpetas más que no copia `instalar.sh`:
+
+- `sistema/` toca cosas fuera de tu carpeta personal (GRUB, pantalla de
+  inicio de sesión, discos), así que cada script se lanza a mano con `sudo`,
+  comprueba lo que va a tocar y guarda copia antes.
+- `extra/iconos-sigilo.py` genera el tema de iconos en
+  `~/.local/share/icons/Sigilo` a partir de Papirus. No necesita `sudo`.
+
+El tema del navegador está en `config/sigilo/navegador`. En Brave o Chrome:
+extensiones, modo de desarrollador, «Cargar descomprimida» y esa carpeta.
 
 ## Atajos
 
@@ -120,6 +134,16 @@ completa, para que los botones de las aplicaciones hagan algo.
 **alttab no hace miniaturas.** Solo muestra el icono de la aplicación. Para
 previsualización en vivo del contenido hace falta skippy-xd, cuyo modo pivot
 (`--switch --pivot Alt_L --next`) reproduce el Alt+Tab de Windows.
+
+**Thunar ignora el CSS para pintar la selección.** Pide directamente el color
+con nombre `theme_selected_bg_color`, que adw-gtk3 enlaza al acento. Por
+mucho que escribas reglas `:selected`, los archivos seleccionados salen del
+color del acento hasta que redefines ese nombre.
+
+**Los iconos de carpeta se recolorean, no se dibujan.** Papirus trae cada
+carpeta con tres azules: la cara, la pestaña de atrás y el símbolo. El script
+los ordena por claridad y los cambia por dos mentas y un lila. Así sirve para
+cualquier tamaño y para las carpetas que Papirus añada en el futuro.
 
 ## Mantenimiento
 

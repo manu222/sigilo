@@ -58,7 +58,7 @@
     sticky_history = yes
     history_length = 30
     browser = /usr/bin/xdg-open
-    dmenu = /usr/bin/rofi -dmenu -p acción -theme ~/.config/rofi/themes/sigilo-lista.rasi
+    dmenu = /usr/bin/rofi -dmenu -p acción -theme ~/.config/rofi/sigilo-lista.rasi
     always_run_script = true
     title = Dunst
     class = Dunst

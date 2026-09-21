@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""Charla con el modelo local de Ollama, en el terminal y con colores Sigilo.
+
+  ia-chat                    abre la charla vacía
+  ia-chat "pregunta"         empieza preguntando eso
+
+Dentro:  /nuevo   olvida la conversación
+         /modelo  lista los modelos o cambia a otro (/modelo qwen3:4b)
+         /salir   (o Ctrl+D)
+Ctrl+C mientras responde corta la respuesta, no la charla.
+
+El modelo por defecto sale de $SIGILO_MODELO o, si no está, del primero
+que tenga Ollama instalado.
+"""
+import json, os, readline, sys, time, urllib.error, urllib.request
+
+API = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+if not API.startswith("http"):
+    API = "http://" + API
+
+def rgb(h, fondo=False):
+    h = h.lstrip("#")
+    return f"\033[{48 if fondo else 38};2;{int(h[0:2],16)};{int(h[2:4],16)};{int(h[4:6],16)}m"
+
+R = "\033[0m"; B = "\033[1m"; I = "\033[3m"
+MENTA, MENTA_V, TEXTO, SUAVE, TENUE = "#34d399", "#3ee8a8", "#dfe7e3", "#94a3a0", "#556760"
+LILA, LILA_C, AMBAR, ROJO, LINEA = "#8f7fb0", "#c8aae5", "#dcae76", "#e0777d", "#1f2b27"
+
+def api(ruta, datos=None, stream=False):
+    cuerpo = json.dumps(datos).encode() if datos is not None else None
+    req = urllib.request.Request(API + ruta, data=cuerpo,
+                                 headers={"Content-Type": "application/json"})
+    r = urllib.request.urlopen(req, timeout=300)
+    return r if stream else json.load(r)
+
+def modelos():
+    try:
+        return [m["name"] for m in api("/api/tags").get("models", [])]
+    except Exception:
+        return None
+
+# ── Markdown mínimo en streaming ─────────────────────────────
+class Pintor:
+    """Pinta negrita, `código`, bloques ``` y títulos según llegan los trozos."""
+    def __init__(self):
+        self.buf = ""; self.negrita = self.codigo = self.bloque = False
+        self.titulo = False; self.inicio = True; self.saltar_linea = False
+        self.en_think = self.tras_think = False
+
+    def estilo(self):
+        if self.bloque: return R + rgb(AMBAR)
+        s = R + rgb(TEXTO)
+        if self.titulo:  s = R + B + rgb(LILA_C)
+        if self.negrita: s += B + rgb("#f2f7f4")
+        if self.codigo:  s += rgb(AMBAR)
+        return s
+
+    def meter(self, texto, fin=False):
+        self.buf += texto
+        out = []
+        while self.buf:
+            b = self.buf
+            # Algunos modelos piensan en voz alta entre <think>…</think>
+            if self.en_think:
+                k = b.find("</think>")
+                if k < 0:
+                    self.buf = b[-8:] if not fin else ""
+                    break
+                self.buf = b[k + 8:]; self.en_think = False; self.tras_think = True; continue
+            if self.tras_think:
+                self.buf = b.lstrip("\n")
+                if not self.buf: break
+                self.tras_think = False; continue
+            if b.startswith("<think>"):
+                self.en_think = True; self.buf = b[7:]; continue
+            if "<think>".startswith(b) and not fin:
+                break
+            if self.saltar_linea:
+                k = b.find("\n")
+                if k < 0:
+                    self.buf = "" ; break
+                self.buf = b[k + 1:]; self.saltar_linea = False; self.inicio = True
+                out.append("\n"); continue
+            if self.inicio:
+                if not fin and len(b) < 3 and "```".startswith(b):
+                    break
+                if b.startswith("```"):
+                    self.bloque = not self.bloque; self.saltar_linea = True
+                    self.buf = b[3:]; out.append(self.estilo()); continue
+                if not self.bloque:
+                    if b[0] == "#":
+                        j = len(b) - len(b.lstrip("#"))
+                        if j == len(b) and not fin: break
+                        if b[j:j+1] == " ":
+                            self.titulo = True; self.buf = b[j+1:]
+                            out.append(self.estilo()); self.inicio = False; continue
+                    if b[:2] in ("- ", "* ") :
+                        out.append(rgb(LILA) + "  • " + self.estilo())
+                        self.buf = b[2:]; self.inicio = False; continue
+                    if len(b) < 2 and b in "-*" and not fin: break
+                else:
+                    out.append(rgb(LINEA) + "│ " + self.estilo())
+                self.inicio = False
+            c = b[0]
+            if c == "\n":
+                self.titulo = False; self.inicio = True
+                out.append(R + "\n" + self.estilo()); self.buf = b[1:]; continue
+            if not self.bloque:
+                if c == "*":
+                    if len(b) < 2 and not fin: break
+                    if b.startswith("**"):
+                        self.negrita = not self.negrita; self.buf = b[2:]
+                        out.append(self.estilo()); continue
+                if c == "`":
+                    if len(b) < 3 and not fin and b.strip("`") == "": break
+                    self.codigo = not self.codigo; self.buf = b[1:]
+                    out.append(self.estilo()); continue
+            out.append(c); self.buf = b[1:]
+        return "".join(out)
+
+# ── Charla ───────────────────────────────────────────────────
+def cabecera(modelo):
+    ancho = min(os.get_terminal_size().columns, 100)
+    print(f"\n  {rgb(LILA_C)}\U000f0674{R}  {B}{rgb(TEXTO)}{modelo}{R}"
+          f"{rgb(TENUE)}  ·  local, nada sale del equipo{R}")
+    print(f"  {rgb(LINEA)}{'─' * (ancho - 4)}{R}")
+    print(f"  {rgb(TENUE)}/nuevo  /modelo  /salir   ·   Ctrl+C corta la respuesta{R}\n")
+
+def responder(modelo, historial):
+    datos = {"model": modelo, "messages": historial, "stream": True, "think": False}
+    try:
+        r = api("/api/chat", datos, stream=True)
+    except urllib.error.HTTPError as e:
+        if e.code == 400:          # modelos o versiones que no aceptan "think"
+            datos.pop("think"); r = api("/api/chat", datos, stream=True)
+        else:
+            raise
+    p = Pintor(); texto = []; final = {}
+    sys.stdout.write("\n  " + rgb(TEXTO))
+    t0 = time.time(); primero = True
+    try:
+        for linea in r:
+            if not linea.strip(): continue
+            d = json.loads(linea)
+            trozo = d.get("message", {}).get("content", "")
+            if trozo:
+                if primero: primero = False
+                texto.append(trozo)
+                sys.stdout.write(p.meter(trozo).replace("\n", "\n  ")); sys.stdout.flush()
+            if d.get("done"): final = d
+        sys.stdout.write(p.meter("", fin=True) + R)
+    except KeyboardInterrupt:
+        sys.stdout.write(R + f"\n\n  {rgb(TENUE)}(cortado){R}")
+    finally:
+        r.close()
+    if final.get("eval_count") and final.get("eval_duration"):
+        vel = final["eval_count"] / (final["eval_duration"] / 1e9)
+        sys.stdout.write(f"\n\n  {rgb(LILA)}{final['eval_count']} tokens · {vel:.0f} t/s · "
+                         f"{time.time() - t0:.1f} s{R}")
+    print("\n")
+    return "".join(texto)
+
+def main():
+    lista = modelos()
+    if lista is None:
+        print(f"\n  {rgb(ROJO)}Ollama no responde.{R} Arráncalo con:"
+              f"  {rgb(AMBAR)}sudo systemctl start ollama{R}\n")
+        input(f"  {rgb(TENUE)}Enter para cerrar{R}"); return
+    if not lista:
+        print(f"\n  {rgb(AMBAR)}No hay modelos.{R} Prueba:  ollama pull qwen3:4b\n")
+        input(f"  {rgb(TENUE)}Enter para cerrar{R}"); return
+    modelo = os.environ.get("SIGILO_MODELO") or lista[0]
+    if modelo not in lista:
+        modelo = lista[0]
+    historial = []
+    cabecera(modelo)
+
+    pendiente = " ".join(sys.argv[1:]).strip()
+    avisos = f"\001{rgb(MENTA_V)}{B}\002❯\001{R}{rgb(TEXTO)}\002 "
+    while True:
+        if pendiente:
+            pregunta = pendiente; pendiente = ""
+            print(f"  {rgb(MENTA_V)}{B}❯{R} {rgb(TEXTO)}{pregunta}{R}")
+        else:
+            try:
+                pregunta = input("  " + avisos).strip()
+                sys.stdout.write(R)
+            except (EOFError, KeyboardInterrupt):
+                print(R); return
+        if not pregunta:
+            continue
+        if pregunta in ("/salir", "/q", "salir"):
+            return
+        if pregunta == "/nuevo":
+            historial.clear(); os.system("clear"); cabecera(modelo); continue
+        if pregunta.startswith("/modelo"):
+            partes = pregunta.split(maxsplit=1)
+            if len(partes) == 1:
+                for m in modelos() or []:
+                    marca = rgb(MENTA_V) + "●" if m == modelo else rgb(TENUE) + "○"
+                    print(f"  {marca}{R} {m}")
+                print()
+            elif partes[1] in (modelos() or []):
+                modelo = partes[1]; historial.clear(); os.system("clear"); cabecera(modelo)
+            else:
+                print(f"  {rgb(ROJO)}No tengo {partes[1]}{R}\n")
+            continue
+        historial.append({"role": "user", "content": pregunta})
+        try:
+            respuesta = responder(modelo, historial)
+        except Exception as e:
+            print(f"\n  {rgb(ROJO)}Error: {e}{R}\n"); historial.pop(); continue
+        if respuesta:
+            historial.append({"role": "assistant", "content": respuesta})
+        else:
+            historial.pop()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(R)

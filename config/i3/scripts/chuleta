@@ -103,6 +103,7 @@ REGLAS = [
  (r"(xfce4-terminal|terminal|kitty).*--max", "Terminal maximizado"),
  (r"(xfce4-terminal|scripts/terminal|kitty)", "Abrir terminal"),
  (r"^firefox", "Navegador"),
+ (r"scripts/ia$", "Preguntar a la IA local"),
  (r"^thunar", "Gestor de archivos"),
  (r"rofi -show drun", "Lanzador de apps"),
  (r"rofi -show window", "Cambiar de ventana"),

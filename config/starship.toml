@@ -34,9 +34,9 @@ style = "bg:#34d399 fg:#06130d"
 format = "[$symbol]($style)"
 
 [os.symbols]
-EndeavourOS = " "
-Arch = " "
-Linux = " "
+EndeavourOS = "󰊠 "
+Arch = "󰊠 "
+Linux = "󰊠 "
 
 [username]
 show_always = true

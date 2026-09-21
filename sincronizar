@@ -29,6 +29,8 @@ PIEZAS=(
     gtk-4.0/settings.ini
     xfce4/terminal/terminalrc
     kitty/kitty.conf
+    sigilo
+    gtk-4.0/gtk.css
     skippy-xd/skippy-xd.rc
 )
 

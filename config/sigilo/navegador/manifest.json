@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Sigilo",
+  "version": "1.0",
+  "description": "Tema oscuro Sigilo: verde casi negro, menta para lo activo y un toque lila.",
+  "theme": {
+    "colors": {
+      "frame":                          [10, 15, 13],
+      "frame_inactive":                 [10, 15, 13],
+      "frame_incognito":                [22, 17, 32],
+      "frame_incognito_inactive":       [22, 17, 32],
+      "toolbar":                        [17, 25, 22],
+      "toolbar_text":                   [231, 237, 234],
+      "toolbar_button_icon":            [148, 163, 160],
+      "tab_text":                       [231, 237, 234],
+      "tab_background_text":            [143, 127, 176],
+      "tab_background_text_inactive":   [112, 101, 138],
+      "bookmark_text":                  [183, 196, 191],
+      "omnibox_background":             [11, 16, 14],
+      "omnibox_text":                   [231, 237, 234],
+      "ntp_background":                 [10, 15, 13],
+      "ntp_text":                       [201, 211, 206],
+      "ntp_link":                       [62, 232, 168],
+      "ntp_header":                     [31, 43, 39],
+      "button_background":              [21, 32, 28, 0],
+      "control_button_background":      [10, 15, 13, 0]
+    },
+    "tints": {
+      "buttons": [0.44, 0.55, 0.62]
+    },
+    "properties": {
+      "ntp_background_alignment": "bottom"
+    }
+  }
+}

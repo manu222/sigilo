@@ -1,0 +1,108 @@
+/* ─────────────────────────────────────────────────────────────
+   Colores Sigilo para GTK 3 (adw-gtk3) y GTK 4 (libadwaita).
+   Solo redefine colores con nombre: la forma de los controles
+   la pone el tema. Menta para lo activo; lila para la selección
+   de texto y los enlaces visitados.
+   ───────────────────────────────────────────────────────────── */
+
+@define-color accent_color            #3ee8a8;
+@define-color accent_bg_color         #2ec28d;
+@define-color accent_fg_color         #06130d;
+
+@define-color destructive_color       #f08b91;
+@define-color destructive_bg_color    #c95f66;
+@define-color destructive_fg_color    #ffffff;
+@define-color success_color           #3ee8a8;
+@define-color success_bg_color        #2ec28d;
+@define-color success_fg_color        #06130d;
+@define-color warning_color           #dcae76;
+@define-color warning_bg_color        #b8864f;
+@define-color warning_fg_color        #140d05;
+@define-color error_color             #f08b91;
+@define-color error_bg_color          #c95f66;
+@define-color error_fg_color          #ffffff;
+
+@define-color window_bg_color         #0f1513;
+@define-color window_fg_color         #e7edea;
+@define-color view_bg_color           #0b100e;
+@define-color view_fg_color           #e7edea;
+@define-color headerbar_bg_color      #0a0f0d;
+@define-color headerbar_fg_color      #e7edea;
+@define-color headerbar_border_color  #1f2b27;
+@define-color headerbar_backdrop_color #0a0f0d;
+@define-color headerbar_shade_color   rgba(0, 0, 0, 0.5);
+@define-color sidebar_bg_color        #0c1210;
+@define-color sidebar_fg_color        #c9d3ce;
+@define-color sidebar_backdrop_color  #0c1210;
+@define-color sidebar_shade_color     rgba(0, 0, 0, 0.4);
+@define-color secondary_sidebar_bg_color #0e1412;
+@define-color card_bg_color           rgba(255, 255, 255, 0.035);
+@define-color card_fg_color           #e7edea;
+@define-color card_shade_color        rgba(0, 0, 0, 0.4);
+@define-color dialog_bg_color         #111916;
+@define-color dialog_fg_color         #e7edea;
+@define-color popover_bg_color        #111916;
+@define-color popover_fg_color        #e7edea;
+@define-color popover_shade_color     rgba(0, 0, 0, 0.5);
+@define-color thumbnail_bg_color      #15201c;
+@define-color thumbnail_fg_color      #e7edea;
+@define-color shade_color             rgba(0, 0, 0, 0.45);
+@define-color scrollbar_outline_color rgba(0, 0, 0, 0.5);
+
+/* Nombres antiguos de GTK 3. Thunar y otras apps de Xfce pintan la
+   selección leyendo estos colores directamente, no con reglas CSS. */
+@define-color theme_selected_bg_color     alpha(#c8aae5, 0.26);
+@define-color theme_selected_fg_color     #f2eefa;
+@define-color theme_unfocused_selected_bg_color alpha(#c8aae5, 0.18);
+@define-color theme_unfocused_selected_fg_color #e7edea;
+
+/* Selección de texto en lila, igual que en el terminal */
+selection,
+text selection,
+entry selection,
+textview text selection:focus {
+    background-color: alpha(#b79ad4, 0.38);
+    color: #f2eefa;
+}
+
+/* Enlaces */
+link, *:link, button.link { color: #3ee8a8; }
+*:visited, link:visited   { color: #c8aae5; }
+
+/* ── Elementos seleccionados en listas y cuadrículas ──────────
+   Lila pastel translúcido en vez del menta del acento: el verde
+   se queda para botones e interruptores, y los archivos
+   seleccionados no pesan tanto. */
+.view:selected,
+.view:selected:focus,
+.view .cell:selected,
+.view.cell:selected,
+.view:selected .cell,
+iconview:selected,
+treeview.view:selected,
+treeview.view:selected:focus,
+.sidebar row:selected,
+placessidebar row:selected,
+list row:selected,
+listview > row:selected,
+gridview > child:selected,
+columnview > listview > row:selected,
+.navigation-sidebar > row:selected {
+    background-color: alpha(#c8aae5, 0.24);
+    color: #f2eefa;
+}
+
+.view:selected:hover,
+iconview:selected:hover,
+gridview > child:selected:hover,
+listview > row:selected:hover,
+list row:selected:hover {
+    background-color: alpha(#c8aae5, 0.32);
+}
+
+/* Recuadro al seleccionar arrastrando */
+.rubberband,
+rubberband {
+    background-color: alpha(#c8aae5, 0.14);
+    border: 1px solid alpha(#c8aae5, 0.55);
+}
