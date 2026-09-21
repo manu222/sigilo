@@ -121,7 +121,7 @@ class Pintor:
 # ── Charla ───────────────────────────────────────────────────
 def cabecera(modelo):
     ancho = min(os.get_terminal_size().columns, 100)
-    print(f"\n  {rgb(LILA_C)}\U000f0674{R}  {B}{rgb(TEXTO)}{modelo}{R}"
+    print(f"\n  {rgb(LILA_C)}\U000f06a9{R}  {B}{rgb(TEXTO)}{modelo}{R}"
           f"{rgb(TENUE)}  ·  local, nada sale del equipo{R}")
     print(f"  {rgb(LINEA)}{'─' * (ancho - 4)}{R}")
     print(f"  {rgb(TENUE)}/nuevo  /modelo  /salir   ·   Ctrl+C corta la respuesta{R}\n")

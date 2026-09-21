@@ -1,25 +1,60 @@
 #!/usr/bin/env bash
-# Pregunta rápida al modelo local: una caja de rofi para escribir y la
-# respuesta en una ventana flotante donde se puede seguir la charla.
-# Enter sin escribir nada abre la charla vacía.
+# Pregunta rápida al modelo local.
+#   1. Eliges modelo (si solo hay uno, se salta). Arriba sale el último usado.
+#   2. Escribes la pregunta. Enter sin escribir abre la charla vacía.
+#   3. La respuesta sale en una ventana flotante donde se puede seguir.
 
-modelo=$(curl -s --max-time 1 http://127.0.0.1:11434/api/tags \
-         | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
-[ -n "$SIGILO_MODELO" ] && modelo=$SIGILO_MODELO
+API=http://127.0.0.1:11434
+ULTIMO="${XDG_CACHE_HOME:-$HOME/.cache}/sigilo-ia-modelo"
+TEMA=~/.config/rofi/sigilo-lista.rasi
+ROBOT=$'\U000f06a9'
 
-if [ -z "$modelo" ]; then
-    notify-send -a IA -i dialog-warning "IA local" "Ollama no responde o no tiene modelos."
-    exit 1
+# Filas: "nombre|tamaño|en memoria", el último usado primero
+filas=$(python3 - "$API" "$(cat "$ULTIMO" 2>/dev/null)" <<'PY'
+import json, sys, urllib.request
+api, ultimo = sys.argv[1], sys.argv[2]
+def get(r):
+    return json.load(urllib.request.urlopen(api + r, timeout=2))
+try:
+    tags = get("/api/tags").get("models", [])
+except Exception:
+    sys.exit(1)
+try:
+    cargados = {m["name"] for m in get("/api/ps").get("models", [])}
+except Exception:
+    cargados = set()
+tags.sort(key=lambda m: (m["name"] != ultimo, m["name"]))
+for m in tags:
+    d = m.get("details", {})
+    extra = " · ".join(x for x in (d.get("parameter_size"), d.get("quantization_level")) if x)
+    print(f'{m["name"]}\t{m["size"]/1e9:.1f} GB\t{extra}\t{"1" if m["name"] in cargados else ""}')
+PY
+) || { notify-send -a IA -i dialog-warning "IA local" "Ollama no responde. sudo systemctl start ollama"; exit 1; }
+
+[ -z "$filas" ] && { notify-send -a IA -i dialog-warning "IA local" "No hay modelos. Prueba: ollama pull qwen3:4b"; exit 1; }
+
+if [ "$(printf '%s\n' "$filas" | wc -l)" -eq 1 ]; then
+    modelo=$(printf '%s' "$filas" | cut -f1)
+else
+    i=$(printf '%s\n' "$filas" | while IFS=$'\t' read -r n t e c; do
+            marca="<span foreground='#3a4a44'>○</span>"
+            [ -n "$c" ] && marca="<span foreground='#3ee8a8'>●</span>"
+            printf '%s  <b>%s</b>   <span foreground="#70837c">%s  %s</span>\n' "$marca" "$n" "$t" "$e"
+        done | rofi -dmenu -i -markup-rows -format i -p "modelo" -theme "$TEMA" \
+            -theme-str "window { width: 44em; } listview { lines: 6; }
+                        textbox-sello { content: \"$ROBOT\"; text-color: #c8aae5; }" \
+            -mesg "<span foreground='#70837c'><span foreground='#3ee8a8'>●</span> ya cargado en memoria, responde al momento</span>") || exit 0
+    modelo=$(printf '%s\n' "$filas" | sed -n "$((i + 1))p" | cut -f1)
 fi
+[ -z "$modelo" ] && exit 0
+printf '%s' "$modelo" > "$ULTIMO"
 
-pregunta=$(rofi -dmenu -p "$modelo" \
-    -theme ~/.config/rofi/sigilo-lista.rasi \
-    -theme-str 'window { width: 44em; }
+pregunta=$(rofi -dmenu -p "$modelo" -theme "$TEMA" \
+    -theme-str "window { width: 44em; }
                 listview { enabled: false; }
-                textbox-sello { content: "󰙴"; text-color: #c8aae5; }
-                entry { placeholder: "pregunta lo que quieras"; placeholder-color: #556760; }' \
-    -mesg "<span foreground='#70837c'>Enter pregunta · Esc cancela · todo se queda en este equipo</span>" \
-    -markup) || exit 0
+                textbox-sello { content: \"$ROBOT\"; text-color: #c8aae5; }
+                entry { placeholder: \"pregunta lo que quieras\"; placeholder-color: #556760; }" \
+    -mesg "<span foreground='#70837c'>Enter pregunta · Esc cancela · todo se queda en este equipo</span>") || exit 0
 
-exec ~/.config/i3/scripts/terminal --titulo "IA local" --tam 100x32 \
+SIGILO_MODELO="$modelo" exec ~/.config/i3/scripts/terminal --titulo "IA local" --tam 100x32 \
      -- ~/.config/i3/scripts/ia-chat "$pregunta"
