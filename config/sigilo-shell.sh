@@ -66,8 +66,34 @@ if _hay eza; then
     alias ls='eza --group-directories-first --icons=auto'
     alias ll='eza -lh  --group-directories-first --icons=auto --git --time-style=relative'
     alias la='eza -lah --group-directories-first --icons=auto --git --time-style=relative'
-    alias lt='eza --tree --level=2 --icons=auto --git-ignore'
-    alias ltt='eza --tree --level=4 --icons=auto --git-ignore'
+    # Árbol completo, hasta el último fichero. Se saltan solo las carpetas
+    # que nunca quieres ver enteras (.git, node_modules, entornos de Python,
+    # cachés). Con un número delante se corta a esa profundidad:
+    #   lt              todo el árbol de la carpeta actual
+    #   lt 2            solo dos niveles
+    #   lt 3 ~/dotfiles tres niveles de otra carpeta
+    #   lt -a           también los ocultos (cualquier opción de eza vale)
+    # Si el árbol es más largo que la ventana se abre para desplazarse
+    # con las flechas o la rueda, / para buscar y q para salir.
+    # Si ya existía un alias «lt» (de una versión anterior o al recargar
+    # este fichero), bash lo sustituiría al definir la función y daría un
+    # error de sintaxis. Se quita antes.
+    unalias lt ltt 2>/dev/null
+    function lt {
+        local nivel=()
+        [[ $1 =~ ^[0-9]+$ ]] && { nivel=(--level="$1"); shift; }
+        local orden=(eza --tree --group-directories-first "${nivel[@]}"
+            -I '.git|node_modules|__pycache__|.venv|venv|.cache|.mypy_cache|.pytest_cache|target|dist')
+        if [[ -t 1 ]]; then
+            # En pantalla: si el árbol no cabe se abre en less para poder
+            # subir y bajar (q para salir); si cabe, sale tal cual (-F)
+            "${orden[@]}" --icons=always --color=always "$@" | less -RFX
+        else
+            # Hacia un fichero o una tubería: texto normal
+            "${orden[@]}" --icons=auto "$@"
+        fi
+    }
+    alias ltt='lt 2'
 else
     alias ls='ls --color=auto --group-directories-first'
     alias ll='ls -lh'
@@ -291,6 +317,7 @@ comandos() {
     _fila "Ctrl+T"      "buscar un archivo"
     _fila "Alt+C"       "buscar una carpeta y entrar"
     _fila "mkcd"        "crear carpeta y entrar"
+    _fila "lt [n]"      "árbol entero (o n niveles)"
     _grupo "sistema"
     _fila "actualizar"  "pacman + AUR con copia previa"
     _fila "instalar"    "instalar (repos o AUR)"
