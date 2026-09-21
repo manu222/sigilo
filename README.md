@@ -19,6 +19,7 @@ el foco, el escritorio en el que estás) y un lila suave marca lo seleccionado
 | Menú de apps | jgmenu | Botón *Apps* en la barra con un desplegable por categorías |
 | Lanzador y menús | Rofi | Buscador de apps, sesión, wifi, bluetooth, fondos, portapapeles, utilidades |
 | Compositor | picom | Transparencia en lo que no tiene el foco, sombras, animaciones y esquinas |
+| Editor | VS Code | Tema Sigilo: selección y coincidencias en lila, paréntesis por niveles, la terminal con los colores de kitty |
 | Terminal | kitty + Starship | Prompt de dos líneas con git; `ls` con color e icono por tipo de fichero |
 | Notificaciones | dunst | El borde dice la urgencia; volumen y brillo salen con barra |
 | Apps GTK | adw-gtk3 | El tema pone las formas y Sigilo solo cambia los colores |
@@ -53,6 +54,7 @@ extra/      scripts de uso diario: instalar apps, ordenarlas, comprobar el
             sistema, medir consumo y generar el tema de iconos
 sistema/    lo que toca fuera de tu carpeta: GRUB, pantalla de acceso,
             copias, rendimiento, discos. Se lanzan a mano y guardan copia
+vscode/     el tema Sigilo para VS Code y el script que lo instala
 iso/        la lista de apps por grupos y la detección de hardware, que
             también usará la ISO instalable
 ```
@@ -69,7 +71,10 @@ cd ~/dotfiles
 ```
 
 `instalar.sh` guarda lo que ya tuvieras en `~/.config-respaldo-<fecha>`, deja
-el visor de imágenes como programa por defecto y genera el tema de iconos.
+el visor de imágenes como programa por defecto, genera el tema de iconos y,
+si tienes VS Code, le instala el tema Sigilo (también se puede lanzar suelto:
+`vscode/instalar-tema`).
+
 Falta una línea en el `~/.bashrc`:
 
 ```bash

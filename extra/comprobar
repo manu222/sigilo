@@ -24,6 +24,10 @@ for pl in calc emoji; do ls /usr/lib/rofi 2>/dev/null | grep -q "$pl" && ok "rof
 
 paso "Temas"
 [ -f ~/.local/share/icons/Sigilo/index.theme ] && ok "iconos Sigilo" || mal "iconos Sigilo sin generar: python3 ~/dotfiles/extra/iconos-sigilo.py"
+if command -v code >/dev/null; then
+    code --list-extensions 2>/dev/null | grep -qi "manu222.sigilo-tema" && ok "tema de VS Code" \
+        || mal "tema de VS Code sin instalar: ~/dotfiles/vscode/instalar-tema"
+fi
 [ -d /usr/share/icons/Papirus ] && ok "Papirus" || mal "falta papirus-icon-theme"
 [ -d /usr/share/themes/adw-gtk3-dark ] && ok "adw-gtk3" || mal "falta adw-gtk-theme"
 ls /usr/share/icons 2>/dev/null | grep -qi bibata && ok "cursor Bibata" || mal "falta bibata-cursor-theme-bin"

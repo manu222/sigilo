@@ -348,10 +348,16 @@ _hay zoxide   && eval "$(zoxide init bash)"
 # ── Ficha del sistema, una vez por sesión ────────────────────
 if [[ -z $SIGILO_FETCH ]] && _hay fastfetch; then
     export SIGILO_FETCH=1
+    _logo=(--logo ~/.config/fastfetch/sigilo.png --logo-width 30 --logo-height 15
+           --logo-padding-top 1 --logo-padding-left 2 --logo-padding-right 4)
     if [[ $TERM == xterm-kitty && -f ~/.config/fastfetch/sigilo.png ]]; then
-        fastfetch --logo-type kitty-direct --logo ~/.config/fastfetch/sigilo.png \
-                  --logo-width 30 --logo-height 15 --logo-padding-top 1 --logo-padding-left 2 --logo-padding-right 4
+        fastfetch --logo-type kitty-direct "${_logo[@]}"
+    elif [[ $TERM_PROGRAM == vscode && -f ~/.config/fastfetch/sigilo.png ]]; then
+        # La terminal de VS Code no entiende el protocolo de imágenes de
+        # kitty pero sí el de iTerm (con terminal.integrated.enableImages)
+        fastfetch --logo-type iterm "${_logo[@]}"
     else
         fastfetch
     fi
+    unset _logo
 fi

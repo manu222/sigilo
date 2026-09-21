@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Instala el tema Sigilo en VS Code y lo deja puesto.
+
+Empaqueta la carpeta «sigilo» como extensión (.vsix) sin necesitar node ni
+vsce, la instala con «code --install-extension» y ajusta tu settings.json:
+tema Sigilo, la fuente JetBrains Mono de la terminal y los paréntesis de
+colores. Lo que ya tuvieras en settings.json se respeta; solo se tocan esas
+claves.
+
+Si cambias algo en sigilo/themes/sigilo-color-theme.json, vuelve a lanzar
+este script y recarga VS Code (Ctrl+Shift+P → «Reload Window»).
+
+  ./instalar-tema            instala y aplica
+  ./instalar-tema --solo-vsix   deja el .vsix en esta carpeta, sin instalar
+"""
+import json, os, re, shutil, subprocess, sys, tempfile, zipfile
+
+AQUI = os.path.dirname(os.path.abspath(__file__))
+FUENTE = os.path.join(AQUI, "sigilo")
+AJUSTES = os.path.expanduser("~/.config/Code/User/settings.json")
+
+# Lo que se pone en settings.json. Cambia o quita lo que no quieras.
+PREFERENCIAS = {
+    "workbench.colorTheme": "Sigilo",
+    "editor.fontFamily": "'JetBrainsMono Nerd Font', 'JetBrains Mono', monospace",
+    "editor.fontLigatures": True,
+    "editor.fontSize": 14,
+    "editor.cursorBlinking": "smooth",
+    "editor.cursorSmoothCaretAnimation": "on",
+    "editor.bracketPairColorization.enabled": True,
+    "editor.guides.bracketPairs": "active",
+    "editor.renderLineHighlight": "all",
+    # Terminal integrada: que se vea como kitty (❖+T)
+    "terminal.integrated.fontFamily": "'JetBrainsMono Nerd Font'",   # iconos de eza y starship
+    "terminal.integrated.fontSize": 14,                 # los 10.5 pt de kitty
+    "terminal.integrated.lineHeight": 1.12,             # el cell_height 112% de kitty
+    "terminal.integrated.fontLigatures.enabled": True,
+    "terminal.integrated.minimumContrastRatio": 1,      # sin esto VS Code «corrige» los colores
+    "terminal.integrated.drawBoldTextInBrightColors": False,
+    "terminal.integrated.cursorStyle": "block",
+    "terminal.integrated.cursorBlinking": False,
+    "terminal.integrated.enableImages": True,           # el logo de fastfetch
+    "terminal.integrated.gpuAcceleration": "on",
+    "workbench.iconTheme": None,     # None = no se toca (déjalo como tengas)
+}
+
+MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
+  <Metadata>
+    <Identity Language="en-US" Id="{name}" Version="{version}" Publisher="{publisher}"/>
+    <DisplayName>{displayName}</DisplayName>
+    <Description xml:space="preserve">{description}</Description>
+    <Categories>Themes</Categories>
+    <Properties>
+      <Property Id="Microsoft.VisualStudio.Code.Engine" Value="{engine}"/>
+    </Properties>
+  </Metadata>
+  <Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation>
+  <Dependencies/>
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/>
+  </Assets>
+</PackageManifest>
+"""
+TIPOS = """<?xml version="1.0" encoding="utf-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension=".json" ContentType="application/json"/><Default Extension=".vsixmanifest" ContentType="text/xml"/></Types>
+"""
+
+
+def empaquetar(destino):
+    """Un .vsix es un zip con la extensión dentro de «extension/» y dos
+    ficheros de descripción al lado."""
+    pkg = json.load(open(os.path.join(FUENTE, "package.json")))
+    datos = {**pkg, "engine": pkg["engines"]["vscode"]}
+    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("extension.vsixmanifest", MANIFIESTO.format(**datos))
+        z.writestr("[Content_Types].xml", TIPOS)
+        for raiz, _, ficheros in os.walk(FUENTE):
+            for f in ficheros:
+                ruta = os.path.join(raiz, f)
+                z.write(ruta, "extension/" + os.path.relpath(ruta, FUENTE))
+    return pkg
+
+
+def quitar_comentarios(texto):
+    """settings.json admite comentarios y comas finales; json no. Se quitan
+    respetando lo que haya dentro de las cadenas."""
+    sin = re.sub(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/',
+                 lambda m: m.group(1) or "", texto, flags=re.S)
+    return re.sub(r",(\s*[}\]])", r"\1", sin)
+
+
+def ajustar():
+    os.makedirs(os.path.dirname(AJUSTES), exist_ok=True)
+    try:
+        texto = open(AJUSTES).read()
+    except FileNotFoundError:
+        texto = "{}"
+    try:
+        actual = json.loads(quitar_comentarios(texto) or "{}")
+    except json.JSONDecodeError:
+        print(f"  ! no he podido leer {AJUSTES}; pon a mano \"workbench.colorTheme\": \"Sigilo\"")
+        return
+    if "//" in texto or "/*" in texto:
+        # Se reescribe como JSON limpio: se guarda antes una copia con tus comentarios
+        shutil.copy2(AJUSTES, AJUSTES + ".bak-sigilo")
+        print(f"  copia de tu settings.json con comentarios en {AJUSTES}.bak-sigilo")
+    for k, v in PREFERENCIAS.items():
+        if v is not None:
+            actual[k] = v
+    with open(AJUSTES, "w") as f:
+        json.dump(actual, f, indent=4, ensure_ascii=False)
+        f.write("\n")
+    print("  ✓ settings.json: tema Sigilo, fuentes, paréntesis de colores y terminal como kitty")
+
+
+def main():
+    if "--solo-vsix" in sys.argv:
+        pkg = json.load(open(os.path.join(FUENTE, "package.json")))
+        destino = os.path.join(AQUI, f"{pkg['name']}-{pkg['version']}.vsix")
+        empaquetar(destino)
+        print(destino)
+        return
+    code = shutil.which("code") or shutil.which("codium")
+    if not code:
+        sys.exit("No encuentro VS Code (ni «code» ni «codium»). Instálalo y vuelve a lanzarlo.")
+    with tempfile.TemporaryDirectory() as tmp:
+        vsix = os.path.join(tmp, "sigilo-tema.vsix")
+        pkg = empaquetar(vsix)
+        r = subprocess.run([code, "--install-extension", vsix, "--force"],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit("La instalación falló:\n" + r.stdout + r.stderr)
+    print(f"  ✓ tema {pkg['displayName']} {pkg['version']} instalado en VS Code")
+    ajustar()
+    print("  Si VS Code estaba abierto: Ctrl+Shift+P → «Reload Window»")
+
+
+if __name__ == "__main__":
+    main()

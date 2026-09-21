@@ -47,6 +47,13 @@ done
 python3 "$REPO/extra/iconos-sigilo.py" 2>/dev/null \
     || echo "Iconos: instala papirus-icon-theme y lanza  python3 $REPO/extra/iconos-sigilo.py"
 
+# Tema de VS Code, si está instalado (si no, se puede lanzar más tarde)
+if command -v code >/dev/null || command -v codium >/dev/null; then
+    "$REPO/vscode/instalar-tema" || true
+else
+    echo "VS Code: cuando lo instales, lanza  $REPO/vscode/instalar-tema"
+fi
+
 echo
 echo "Hecho. Faltan los paquetes:"
 echo "    sudo pacman -S --needed - < $REPO/paquetes-oficiales.txt"

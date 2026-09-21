@@ -1,0 +1,19 @@
+{
+  "name": "sigilo-tema",
+  "displayName": "Sigilo",
+  "description": "Tema oscuro Sigilo: fondos casi negros con tinte verde, menta para lo activo y lila para la selección.",
+  "version": "1.0.0",
+  "publisher": "manu222",
+  "license": "MIT",
+  "engines": { "vscode": "^1.70.0" },
+  "categories": ["Themes"],
+  "contributes": {
+    "themes": [
+      {
+        "label": "Sigilo",
+        "uiTheme": "vs-dark",
+        "path": "./themes/sigilo-color-theme.json"
+      }
+    ]
+  }
+}

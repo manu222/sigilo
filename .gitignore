@@ -6,6 +6,7 @@
 *.plano
 *.sin-animaciones
 *.log
+*.vsix
 __pycache__/
 config/**/cache/
 
