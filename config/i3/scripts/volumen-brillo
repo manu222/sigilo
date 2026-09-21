@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Volumen y brillo con aviso en pantalla.
+#   volumen-brillo volume_up | volume_down | volume_mute | mic_mute
+#                  brightness_up | brightness_down
+# Todas las tarjetas comparten etiqueta, así se sustituyen en vez de apilarse.
+
+PASO=5
+MAX=100
+
+vol()    { pactl get-sink-volume @DEFAULT_SINK@ | grep -Po '[0-9]{1,3}(?=%)' | head -1; }
+mudo()   { pactl get-sink-mute @DEFAULT_SINK@ | grep -q 'yes'; }
+brillo() { echo $(( 100 * $(brightnessctl g) / $(brightnessctl m) )); }
+
+aviso() {  # categoria icono titulo texto valor
+    notify-send -a osd -c "$1" -i "$2" -t 1400 \
+        -h string:x-dunst-stack-tag:osd -h string:synchronous:osd \
+        ${5:+-h int:value:$5} "$3" "$4"
+}
+
+aviso_volumen() {
+    local v; v=$(vol)
+    if mudo || (( v == 0 )); then
+        aviso silencio audio-volume-muted "Volumen" "silenciado" "$v"
+    else
+        local i=audio-volume-high
+        (( v < 67 )) && i=audio-volume-medium
+        (( v < 34 )) && i=audio-volume-low
+        aviso volumen "$i" "Volumen" "$v %" "$v"
+    fi
+}
+
+aviso_brillo() {
+    local b i=display-brightness-high; b=$(brillo)
+    (( b < 67 )) && i=display-brightness-medium
+    (( b < 34 )) && i=display-brightness-low
+    aviso brillo "$i" "Brillo" "$b %" "$b"
+}
+
+case "$1" in
+    volume_up)
+        pactl set-sink-mute @DEFAULT_SINK@ 0
+        (( $(vol) + PASO > MAX )) && pactl set-sink-volume @DEFAULT_SINK@ "$MAX%" \
+                                  || pactl set-sink-volume @DEFAULT_SINK@ "+$PASO%"
+        aviso_volumen ;;
+    volume_down)     pactl set-sink-volume @DEFAULT_SINK@ "-$PASO%"; aviso_volumen ;;
+    volume_mute)     pactl set-sink-mute @DEFAULT_SINK@ toggle;       aviso_volumen ;;
+    mic_mute)
+        pactl set-source-mute @DEFAULT_SOURCE@ toggle
+        if pactl get-source-mute @DEFAULT_SOURCE@ | grep -q yes; then
+            aviso silencio microphone-sensitivity-muted "Micrófono" "apagado"
+        else
+            aviso volumen audio-input-microphone "Micrófono" "encendido"
+        fi ;;
+    brightness_up)   brightnessctl -q s "+$PASO%"; aviso_brillo ;;
+    brightness_down) brightnessctl -q s "$PASO%-"; aviso_brillo ;;
+esac

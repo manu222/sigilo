@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 # Abre btop en una ventana flotante y centrada.
-exec xfce4-terminal --title="btop" --geometry=140x40 -e btop
+exec "$HOME/.config/i3/scripts/terminal" --titulo btop --tam 140x40 -- btop

@@ -2,7 +2,9 @@
 # Instalar con:  yay -S --needed - < paquetes-aur.txt
 1password
 alttab
+bibata-cursor-theme-bin
 claude-desktop
+i3lock-color
 nvidia-580xx-dkms
 nvidia-580xx-utils
 rofi-greenclip

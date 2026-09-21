@@ -28,11 +28,12 @@ PIEZAS=(
     gtk-3.0/gtk.css
     gtk-4.0/settings.ini
     xfce4/terminal/terminalrc
+    kitty/kitty.conf
     skippy-xd/skippy-xd.rc
 )
 
 # Lo que nunca entra: cachés, copias de seguridad y basura de git
-EXCLUIR=(--exclude='.git' --exclude='*.bak' --exclude='*.viejo'
+EXCLUIR=(--exclude='.git' --exclude='*.bak' --exclude='*.bak-*' --exclude='*.viejo'
          --exclude='*.pre-fix' --exclude='*.plano' --exclude='*.log'
          --exclude='__pycache__' --exclude='*.sin-animaciones')
 

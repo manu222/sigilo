@@ -1,53 +1,78 @@
 #!/usr/bin/env bash
-# Pantalla de bloqueo.
+# Pantalla de bloqueo con el sello Sigilo como indicador.
 #
-# OJO con la deteccion: en Arch el paquete i3lock-color SUSTITUYE a i3lock y
-# su binario se sigue llamando "i3lock". No existe ningun ejecutable llamado
-# i3lock-color, asi que buscarlo por nombre siempre falla. Se comprueba por
-# capacidad: se le pregunta al binario si entiende las opciones de color.
+# El anillo de i3lock no desaparece: se vuelve invisible y se le da el mismo
+# radio que el borde del sello. Asi, cada tecla dibuja un arco menta
+# alrededor del sello, que parece reaccionar al teclear, y en reposo no hay
+# ningun circulo generico que desentone.
 #
-# Se ejecuta sin separarse del terminal (--nofork) porque xss-lock necesita
-# seguir al proceso para saber cuando se ha desbloqueado.
+# El fondo se construye a mano (captura -> difuminado -> oscurecido -> sello
+# encima) porque la opcion --blur de i3lock no admite superponer imagenes.
+# La captura va a XDG_RUNTIME_DIR, que es memoria y solo la lee el usuario,
+# y se borra al desbloquear: es una foto de lo que tenias en pantalla.
+#
+# Deteccion: se le pregunta a pacman por i3lock-color. En Arch sustituye a
+# i3lock y su binario se sigue llamando "i3lock".
 
 export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/bloqueo.log"
+SELLO="$HOME/.config/i3/sello-bloqueo.png"
+IMG="${XDG_RUNTIME_DIR:-/tmp}/bloqueo-$$.png"
+SUBE=60          # cuanto se levanta el sello respecto al centro
 
-BIN=$(command -v i3lock-color || command -v i3lock) || {
-    notify-send -u critical "Bloqueo" "No hay ningún i3lock instalado"
-    exit 1; }
+BIN=$(command -v i3lock) || {
+    notify-send -u critical "Bloqueo" "No hay ningún i3lock instalado"; exit 1; }
 
-# ¿entiende las opciones de aspecto?
-if "$BIN" --help 2>&1 | grep -q -- "--ring-color"; then
-    COLOR=si
+simple() { rm -f "$IMG"; exec "$BIN" --nofork -c 070b09; }
+trap 'rm -f "$IMG"' EXIT
+
+echo "=== $(date '+%F %T') ===" >> "$LOG"
+
+pacman -Qq i3lock-color >/dev/null 2>&1 || {
+    echo "sin i3lock-color: bloqueo simple" >> "$LOG"; simple; }
+
+# ── fondo: captura, difuminado, oscurecido y sello ─────────────────────────
+if scrot -o -z "$IMG" 2>>"$LOG" && [ -s "$IMG" ]; then
+    TAM=$(magick identify -format '%wx%h' "$IMG" 2>/dev/null)
+    magick "$IMG" \
+        -scale 20% -blur 0x4 -scale "${TAM}!" \
+        -fill '#070b09' -colorize 55% \
+        "$SELLO" -gravity center -geometry "+0-${SUBE}" -composite \
+        "$IMG" 2>>"$LOG" || { echo "fallo al montar el fondo" >> "$LOG"; simple; }
+    FONDO=(-i "$IMG")
 else
-    COLOR=no
-    notify-send -u critical "Bloqueo" \
-        "i3lock no admite colores.\nInstala la versión con estilo:\n  yay -S i3lock-color"
+    echo "sin captura: fondo liso" >> "$LOG"
+    FONDO=(-c 070b09)
 fi
 
-if [ "$COLOR" = "no" ]; then
-    exec "$BIN" --nofork -c 070b09
-fi
+T="#e7edea"; S="#94a3a0"; M="#3ee8a8"; C="#6fc9c0"; R="#e0777d"; X="00000000"
 
-F="#070b09"; V="#0a0f0d"; M="#3ee8a8"; C="#6fc9c0"
-A="#c99d6b"; R="#e0777d"; T="#e7edea"; S="#94a3a0"
-
-exec "$BIN" --nofork \
-    --blur 6 \
-    --clock --indicator \
-    --radius 110 --ring-width 9 \
-    --inside-color="${V}dd"      --ring-color="${M}ff" \
-    --insidever-color="${V}dd"   --ringver-color="${C}ff" \
-    --insidewrong-color="${V}dd" --ringwrong-color="${R}ff" \
-    --line-uses-inside \
-    --keyhl-color="${A}ff"       --bshl-color="${R}ff" \
-    --separator-color="${F}00" \
+"$BIN" --nofork "${FONDO[@]}" \
+    --indicator --clock \
+    --ind-pos="x+w/2:y+h/2-${SUBE}" \
+    --radius 168 --ring-width 4 \
+    \
+    --ring-color="$X"          --inside-color="$X"       --line-color="$X" \
+    --separator-color="$X" \
+    --keyhl-color="${M}ff"     --bshl-color="${R}ff" \
+    --ringver-color="${C}66"   --insidever-color="$X" \
+    --ringwrong-color="${R}bb" --insidewrong-color="$X" \
+    \
+    --verif-text=""  --wrong-text=""  --noinput-text="" \
+    --lock-text=""   --lockfailed-text="no se pudo bloquear" \
+    \
+    --time-pos="ix:iy+250" \
     --time-str="%H:%M"           --time-color="${T}ff" \
-    --time-font="JetBrains Mono" --time-size=44 \
+    --time-font="JetBrains Mono" --time-size=52 \
+    --date-pos="tx:ty+40" \
     --date-str="%A, %-d de %B"   --date-color="${S}ff" \
-    --date-font="JetBrains Mono" --date-size=15 \
-    --verif-text="comprobando"   --verif-color="${C}ff" \
-    --wrong-text="no es esa"     --wrong-color="${R}ff" \
-    --noinput-text=""            --lock-text="bloqueando" \
-    --lockfailed-text="no se pudo bloquear" \
-    --verif-font="JetBrains Mono" --wrong-font="JetBrains Mono" \
-    --pass-media-keys --pass-volume-keys --pass-power-keys
+    --date-font="JetBrains Mono" --date-size=16 \
+    \
+    --pass-media-keys --pass-volume-keys --pass-power-keys \
+    2>>"$LOG"
+rc=$?
+if [ $rc -ne 0 ]; then
+    echo "las opciones de estilo fallaron (codigo $rc): bloqueo simple" >> "$LOG"
+    simple
+fi
+exit 0

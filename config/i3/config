@@ -14,7 +14,7 @@
 set $mod Mod4
 set $alt Mod1
 
-set $term       xfce4-terminal
+set $term       ~/.config/i3/scripts/terminal
 set $browser    firefox
 set $files      thunar
 set $launcher   rofi -show drun
@@ -68,7 +68,7 @@ gaps top 72
 bindsym $mod+Return         exec --no-startup-id $term
 # Alternativa de prueba, por si el problema es la tecla Enter
 bindsym $mod+t              exec --no-startup-id $term
-bindsym $mod+Shift+Return   exec --no-startup-id $term --maximize
+bindsym $mod+Shift+Return   exec --no-startup-id $term --max
 
 bindsym $mod+Shift+q        kill
 bindsym $alt+F4             kill
@@ -254,12 +254,12 @@ bindsym $mod+p              exec --no-startup-id ~/.config/rofi/scripts/portapap
 
 # Script de EndeavourOS que ya tenias: sube/baja volumen y brillo y ademas
 # muestra el aviso en pantalla y refresca la barra.
-set $vb ~/.config/i3/scripts/volume_brightness.sh
+set $vb ~/.config/i3/scripts/volumen-brillo
 
 bindsym XF86AudioRaiseVolume  exec --no-startup-id $vb volume_up
 bindsym XF86AudioLowerVolume  exec --no-startup-id $vb volume_down
 bindsym XF86AudioMute         exec --no-startup-id $vb volume_mute
-bindsym XF86AudioMicMute      exec --no-startup-id amixer sset Capture toggle
+bindsym XF86AudioMicMute      exec --no-startup-id $vb mic_mute
 
 bindsym XF86AudioPlay         exec --no-startup-id playerctl play-pause
 bindsym XF86AudioNext         exec --no-startup-id playerctl next
@@ -287,6 +287,8 @@ for_window [class="Blueman-manager"]     floating enable
 for_window [class="Nm-connection-editor"] floating enable
 for_window [class="Galculator"]          floating enable
 for_window [title="chuleta-i3"]          floating enable, border pixel 0, move position center
+for_window [title="^btop$"]              floating enable, resize set 1180 760, move position center
+for_window [title="^Redes$"]             floating enable, resize set 820 560, move position center
 
 # Sin escritorios fijos: cada aplicacion se abre donde estes.
 # Si alguna vez quieres fijar una, el formato es:  assign [class="firefox"] $ws2
@@ -350,6 +352,9 @@ exec_always --no-startup-id greenclip daemon
 # que i3 entienda. Ver el propio script para el porque.
 exec_always --no-startup-id ~/.config/i3/scripts/botones-ventana
 
+# Demonio del Alt+Tab con previsualización (skippy-xd). Sin él, Alt+Tab no hace nada.
+exec_always --no-startup-id ~/.config/i3/scripts/conmutador
+
 # Agente de autenticacion: los dialogos de contraseña de las apps graficas
 exec --no-startup-id /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 
@@ -358,6 +363,7 @@ exec --no-startup-id dex --autostart --environment i3
 
 # Tema e iconos GTK
 exec_always --no-startup-id $HOME/.config/i3/scripts/import-gsettings
+exec --no-startup-id xsetroot -cursor_name left_ptr
 
 # Fondo de pantalla
 exec --no-startup-id feh --bg-fill '/home/manu/Imágenes/fondos/seleccion/fria-a_cartoon_of_a_person_wearing_a_gas_mask.jpg'

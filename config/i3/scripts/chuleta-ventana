@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 # Abre la chuleta en una ventana flotante. i3 la centra por su titulo.
-exec xfce4-terminal --title="chuleta-i3" --hide-menubar --hide-toolbar \
-     --hide-scrollbar --geometry=152x46 \
-     -e "bash -c '$HOME/.config/i3/scripts/chuleta; read -n1 -s'"
+exec "$HOME/.config/i3/scripts/terminal" --titulo chuleta-i3 --tam 152x46 \
+     -- bash -c "$HOME/.config/i3/scripts/chuleta; read -n1 -s"

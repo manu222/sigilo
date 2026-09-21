@@ -1,0 +1,54 @@
+# GRUB - tema Sigilo
+#
+# Los nombres de fuente (@F18@, @F14@) los rellena instalar-grub.sh leyendo
+# el nombre real que queda grabado en cada fichero .pf2. Si el nombre no
+# coincide exacto, GRUB no falla: usa su fuente de reserva y sigue.
+
+title-text: ""
+desktop-image: "fondo.png"
+desktop-color: "#070b09"
+terminal-font: "@F14@"
+
++ boot_menu {
+    left   = 32%
+    top    = 52%
+    width  = 36%
+    height = 30%
+
+    item_font           = "@F18@"
+    item_color          = "#94a3a0"
+    selected_item_font  = "@F18@"
+    selected_item_color = "#3ee8a8"
+
+    item_height  = 42
+    item_padding = 16
+    item_spacing = 6
+
+    icon_width      = 0
+    icon_height     = 0
+    item_icon_space = 0
+
+    selected_item_pixmap_style = "select_*.png"
+    scrollbar = false
+}
+
++ label {
+    left   = 0
+    top    = 88%
+    width  = 100%
+    align  = "center"
+    id     = "__timeout__"
+    text   = "arranca solo en %d s"
+    color  = "#70837c"
+    font   = "@F14@"
+}
+
++ label {
+    left   = 0
+    top    = 92%
+    width  = 100%
+    align  = "center"
+    text   = "↑ ↓  elegir    ·    Intro  arrancar    ·    e  editar    ·    c  consola"
+    color  = "#556760"
+    font   = "@F14@"
+}

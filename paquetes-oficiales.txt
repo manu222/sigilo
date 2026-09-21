@@ -2,6 +2,7 @@
 # Instalar con:  sudo pacman -S --needed - < paquetes-oficiales.txt
 accountsservice
 acpi
+adw-gtk-theme
 alsa-firmware
 alsa-plugins
 alsa-utils
@@ -81,6 +82,7 @@ galculator
 gedit
 ghostscript
 git
+git-delta
 glances
 gnome-keyring
 grub
@@ -105,16 +107,17 @@ hwdetect
 hwinfo
 i3-wm
 i3blocks
-i3lock
 i3status
 inetutils
 intel-media-driver
 intel-ucode
+inter-font
 inxi
 iptables
 iwd
 jfsutils
 jq
+kitty
 less
 libdvdcss
 libgsf
@@ -148,11 +151,13 @@ networkmanager-openconnect
 networkmanager-openvpn
 nfs-utils
 nilfs-utils
+nmap
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
 noto-fonts-extra
 nss-mdns
+nsxiv
 ntfs-3g
 ntp
 numlockx
@@ -160,6 +165,7 @@ nwg-look
 openssh
 os-prober
 pacman-contrib
+papirus-icon-theme
 pavucontrol
 perl
 picom
@@ -235,6 +241,7 @@ xfce4-terminal
 xfsprogs
 xl2tpd
 xorg-server
+xorg-server-xephyr
 xorg-xdpyinfo
 xorg-xinit
 xorg-xinput
@@ -244,3 +251,4 @@ xss-lock
 xterm
 yay
 zip
+zoxide

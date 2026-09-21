@@ -2,6 +2,7 @@
 # Segmentos encadenados que van de claro a oscuro de izquierda a derecha:
 # lo que siempre miras (usuario, maquina, ruta) va delante y con mas peso;
 # lo accesorio (versiones, duracion, hora) se apaga al final.
+# La maquina va en lila: es el unico segmento de ese color y marca donde estas.
 
 add_newline = true
 command_timeout = 900
@@ -10,9 +11,9 @@ format = """
 [](fg:#34d399)\
 $os\
 $username\
-[](fg:#34d399 bg:#1b2723)\
+[](fg:#34d399 bg:#1d1829)\
 $hostname\
-[](fg:#1b2723 bg:#15201c)\
+[](fg:#1d1829 bg:#15201c)\
 $directory\
 [](fg:#15201c bg:#101714)\
 $git_branch\
@@ -45,7 +46,7 @@ format = "[$user ]($style)"
 
 [hostname]
 ssh_only = false
-style = "bg:#1b2723 fg:#8fd4b5"
+style = "bg:#1d1829 fg:#c8aae5"
 format = "[  $hostname ]($style)"
 
 [directory]
@@ -127,7 +128,7 @@ format = "[  $duration ]($style)"
 
 [time]
 disabled = false
-style = "bg:#0a0f0d fg:#70837c"
+style = "bg:#0a0f0d fg:#8f7fb0"
 format = "[  $time ]($style)"
 time_format = "%H:%M"
 
