@@ -13,7 +13,28 @@ GRUPOS="$REPO/iso/grupos.yaml"
 HW="$REPO/iso/detectar-hardware"
 LOG=~/.cache/sigilo-apps.log
 
-for p in dialog python3 yay; do command -v $p >/dev/null || { echo "Falta $p"; exit 1; }; done
+# Lo mínimo para que el propio script funcione. En Arch puro no viene nada
+# de esto, en EndeavourOS casi todo.
+command -v pacman >/dev/null || { echo "Esto es para distros basadas en Arch (necesita pacman)."; exit 1; }
+faltan=()
+for p in dialog python git; do command -v $p >/dev/null || faltan+=("$p"); done
+pacman -Qq base-devel >/dev/null 2>&1 || faltan+=(base-devel)
+[ ${#faltan[@]} -gt 0 ] && sudo pacman -S --needed --noconfirm "${faltan[@]}"
+
+# Ayudante del AUR: yay (EndeavourOS) o paru (CachyOS, Garuda). Si no hay
+# ninguno, como en Arch recién instalado, se instala yay desde el AUR.
+if command -v yay >/dev/null; then
+    AUR=yay;  AUR_SIN_PREGUNTAS=(--answerclean None --answerdiff None --removemake)
+elif command -v paru >/dev/null; then
+    AUR=paru; AUR_SIN_PREGUNTAS=(--skipreview --removemake)
+else
+    echo "No hay ayudante para el AUR: instalando yay…"
+    tmp=$(mktemp -d)
+    git clone -q https://aur.archlinux.org/yay-bin.git "$tmp/yay-bin" \
+        && (cd "$tmp/yay-bin" && makepkg -si --noconfirm) || { echo "No se pudo instalar yay"; exit 1; }
+    rm -rf "$tmp"
+    AUR=yay;  AUR_SIN_PREGUNTAS=(--answerclean None --answerdiff None --removemake)
+fi
 python3 -c 'import yaml' 2>/dev/null || sudo pacman -S --needed --noconfirm python-yaml
 
 # Colores de dialog a juego con Sigilo
@@ -106,10 +127,12 @@ for p in "${paquetes[@]}"; do
     elegido=""
     for alt in ${p//|/ }; do
         if pacman -Si "$alt" >/dev/null 2>&1; then elegido=$alt; oficiales+=("$alt"); break; fi
-        if yay -Si --aur "$alt" >/dev/null 2>&1; then elegido=$alt; aur+=("$alt"); break; fi
+        if $AUR -Si --aur "$alt" >/dev/null 2>&1; then elegido=$alt; aur+=("$alt"); break; fi
     done
     [ -z "$elegido" ] && faltan+=("$p")
 done
+# pipx hace falta para las herramientas «pipx:»
+[ ${#pipx_[@]} -gt 0 ] && ! command -v pipx >/dev/null && oficiales+=(python-pipx)
 mapfile -t oficiales < <(printf '%s\n' "${oficiales[@]}" | sort -u)
 mapfile -t aur < <(printf '%s\n' "${aur[@]}" | sort -u)
 
@@ -144,14 +167,14 @@ systemd-inhibit --what=idle:sleep:shutdown:handle-lid-switch:handle-suspend-key 
         [ -n "$1" ] && sudo pacman -S --needed --noconfirm $1
         fallidos=""
         for a in $2; do
-            yay -S --needed --noconfirm --answerclean None --answerdiff None --removemake "$a" \
+            $4 -S --needed --noconfirm $5 "$a" \
                 || fallidos="$fallidos $a"
         done
         for x in $3; do
             pipx install "$x" >/dev/null 2>&1 || pipx upgrade "$x" >/dev/null 2>&1 || fallidos="$fallidos $x"
         done
         echo "$fallidos" > "${XDG_RUNTIME_DIR:-/tmp}/sigilo-apps.fallidos"
-    ' _ "${oficiales[*]}" "${aur[*]}" "${pipx_[*]}" 2>&1 | tee -a "$LOG"
+    ' _ "${oficiales[*]}" "${aur[*]}" "${pipx_[*]}" "$AUR" "${AUR_SIN_PREGUNTAS[*]}" 2>&1 | tee -a "$LOG"
 
 fallidos=$(cat "${XDG_RUNTIME_DIR:-/tmp}/sigilo-apps.fallidos" 2>/dev/null | xargs)
 if [ -n "$fallidos" ]; then
@@ -162,6 +185,17 @@ fi
 
 echo -e "\n\e[1;36m── Ajustes ──\e[0m"
 q() { pacman -Qq "$1" >/dev/null 2>&1; }
+# En Arch puro no hay nada activado: red, bluetooth ni pantalla de acceso
+if q networkmanager && ! systemctl is-enabled -q NetworkManager 2>/dev/null; then
+    sudo systemctl enable --now NetworkManager >/dev/null 2>&1; echo "  ✓ NetworkManager activado"
+fi
+if q bluez && ! systemctl is-enabled -q bluetooth 2>/dev/null; then
+    sudo systemctl enable bluetooth >/dev/null 2>&1; echo "  ✓ Bluetooth activado"
+fi
+if q lightdm && ! systemctl is-enabled -q display-manager.service 2>/dev/null; then
+    sudo sed -i 's/^#\?greeter-session=.*/greeter-session=lightdm-slick-greeter/' /etc/lightdm/lightdm.conf
+    sudo systemctl enable lightdm >/dev/null 2>&1; echo "  ✓ Pantalla de inicio de sesión activada (entrará al reiniciar)"
+fi
 if q docker; then
     sudo systemctl enable --now docker.socket >/dev/null 2>&1
     sudo usermod -aG docker "$USER"; echo "  ✓ Docker (se arranca al usarlo) y tú en el grupo docker"
