@@ -19,6 +19,7 @@ if not API.startswith("http"):
     API = "http://" + API
 
 def rgb(h, fondo=False):
+    """Código de color de terminal (24 bits) a partir de un color #rrggbb."""
     h = h.lstrip("#")
     return f"\033[{48 if fondo else 38};2;{int(h[0:2],16)};{int(h[2:4],16)};{int(h[4:6],16)}m"
 
@@ -27,6 +28,7 @@ MENTA, MENTA_V, TEXTO, SUAVE, TENUE = "#34d399", "#3ee8a8", "#dfe7e3", "#94a3a0"
 LILA, LILA_C, AMBAR, ROJO, LINEA = "#8f7fb0", "#c8aae5", "#dcae76", "#e0777d", "#1f2b27"
 
 def api(ruta, datos=None, stream=False):
+    """Llamada a la API de Ollama. Con stream=True devuelve la respuesta sin leer, para ir trozo a trozo."""
     cuerpo = json.dumps(datos).encode() if datos is not None else None
     req = urllib.request.Request(API + ruta, data=cuerpo,
                                  headers={"Content-Type": "application/json"})
@@ -34,6 +36,7 @@ def api(ruta, datos=None, stream=False):
     return r if stream else json.load(r)
 
 def modelos():
+    """Modelos instalados en Ollama, o None si Ollama no responde."""
     try:
         return [m["name"] for m in api("/api/tags").get("models", [])]
     except Exception:
@@ -43,11 +46,13 @@ def modelos():
 class Pintor:
     """Pinta negrita, `código`, bloques ``` y títulos según llegan los trozos."""
     def __init__(self):
+        """Estado del pintor: qué estilos están abiertos y lo que queda por procesar."""
         self.buf = ""; self.negrita = self.codigo = self.bloque = False
         self.titulo = False; self.inicio = True; self.saltar_linea = False
         self.en_think = self.tras_think = False
 
     def estilo(self):
+        """Secuencia de color y grosor que corresponde al estado actual."""
         if self.bloque: return R + rgb(AMBAR)
         s = R + rgb(TEXTO)
         if self.titulo:  s = R + B + rgb(LILA_C)
@@ -56,6 +61,7 @@ class Pintor:
         return s
 
     def meter(self, texto, fin=False):
+        """Recibe un trozo de la respuesta y devuelve lo que ya se puede pintar. Lo que queda a medias (un ** sin cerrar) espera al siguiente trozo."""
         self.buf += texto
         out = []
         while self.buf:
@@ -120,6 +126,7 @@ class Pintor:
 
 # ── Charla ───────────────────────────────────────────────────
 def cabecera(modelo):
+    """Cabecera de la charla: modelo, aviso de que es local y las órdenes disponibles."""
     ancho = min(os.get_terminal_size().columns, 100)
     print(f"\n  {rgb(LILA_C)}\U000f06a9{R}  {B}{rgb(TEXTO)}{modelo}{R}"
           f"{rgb(TENUE)}  ·  local, nada sale del equipo{R}")
@@ -127,6 +134,7 @@ def cabecera(modelo):
     print(f"  {rgb(TENUE)}/nuevo  /modelo  /salir   ·   Ctrl+C corta la respuesta{R}\n")
 
 def responder(modelo, historial):
+    """Manda la conversación al modelo y pinta la respuesta según llega. Devuelve el texto completo."""
     datos = {"model": modelo, "messages": historial, "stream": True, "think": False}
     try:
         r = api("/api/chat", datos, stream=True)
@@ -161,6 +169,7 @@ def responder(modelo, historial):
     return "".join(texto)
 
 def main():
+    """Bucle de la charla: lee lo que escribes, atiende las órdenes /nuevo, /modelo y /salir, y pregunta."""
     lista = modelos()
     if lista is None:
         print(f"\n  {rgb(ROJO)}Ollama no responde.{R} Arráncalo con:"

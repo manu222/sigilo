@@ -1,3 +1,15 @@
+/* ─────────────────────────────────────────────────────────────
+ * Rofi · tema «lista»
+ *
+ * Una columna de filas con icono. Lo usan los menús de wifi, bluetooth,
+ * portapapeles, notificaciones, utilidades, la IA y el menú de la ventana.
+ * Cada script puede retocarlo con -theme-str (ancho, número de filas,
+ * el símbolo de la izquierda…) sin tocar este fichero.
+ * ───────────────────────────────────────────────────────────── */
+
+/* Paleta Sigilo. Los mismos colores que la barra, las notificaciones y el
+ * terminal: si cambias uno aquí, cámbialo también en polybar/config.ini
+ * para que todo siga a juego. */
 * {
     bg:        #070b09;
     bg-alt:    #0a0f0d;
@@ -15,6 +27,7 @@
     text-color:       @fg-dim;
     font:             "JetBrainsMono Nerd Font 11";
 }
+/* La ventana: caja oscura con borde fino y esquinas redondeadas */
 window {
     background-color: @bg;
     border:           1px;
@@ -25,15 +38,18 @@ window {
     anchor:           center;
 }
 
+/* Ancho por defecto; los menús que necesitan más o menos lo cambian */
 window { width: 48em; }
 mainbox { children: [ "inputbar", "listview", "message" ]; spacing: 0; padding: 0; }
 
+/* Barra de arriba: sello ❖, título del menú y el campo para filtrar */
 inputbar {
     background-color: @bg-alt;
     border:           0 0 1px 0;
     border-color:     @line;
     padding:          1em 1.3em;
     spacing:          0.8em;
+/* El símbolo de la izquierda. Los scripts lo cambian por el icono del menú */
     children:         [ "textbox-sello", "prompt", "entry" ];
 }
 textbox-sello { content: "❖"; text-color: @accent-hi; vertical-align: 0.5; }
@@ -46,10 +62,12 @@ entry {
     vertical-align:    0.5;
 }
 
+/* La lista: 9 filas; si hay menos, la ventana encoge (dynamic) */
 listview {
     lines: 9;  padding: 0.7em;  spacing: 0.2em;
     scrollbar: false;  dynamic: true;
 }
+/* Cada fila. El borde izquierdo de 3px es la marca de la fila elegida */
 element {
     padding:       0.7em 0.9em;
     border-radius: 10px;
@@ -59,6 +77,7 @@ element {
 }
 element normal.normal    { text-color: @fg-dim; }
 element alternate.normal { text-color: @fg-dim; background-color: @bg-alt; }
+/* Fila elegida: fondo algo más claro, texto y marca en menta */
 element selected.normal  {
     background-color: @surface;
     text-color:       @accent-hi;
@@ -67,6 +86,7 @@ element selected.normal  {
 element-icon { size: 1.3em; vertical-align: 0.5; }
 element-text { vertical-align: 0.5; }
 
+/* Pie con la ayuda de teclas (lo que los scripts pasan con -mesg) */
 message {
     background-color: @bg-alt;
     border:           1px 0 0 0;

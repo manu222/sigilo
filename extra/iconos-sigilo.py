@@ -23,11 +23,13 @@ CLARO_EXTRA = "#5fe3b3"
 HEX = re.compile(r"#([0-9a-fA-F]{6})\b")
 
 def tono(h):
+    """Tono (0-360), luminosidad y saturación de un color «rrggbb»."""
     r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
     hh, l, s = colorsys.rgb_to_hls(r, g, b)
     return hh * 360, l, s
 
 def recolorear(svg):
+    """Cambia los azules de un icono de carpeta por los tonos Sigilo, del más claro al más oscuro."""
     azules = sorted({m.lower() for m in HEX.findall(svg)
                      if 190 <= tono(m)[0] <= 240 and tono(m)[2] > 0.25},
                     key=lambda h: -tono(h)[1])
@@ -44,6 +46,7 @@ def recolorear(svg):
     return HEX.sub(lambda m: mapa.get(m.group(1).lower(), "#" + m.group(1)), svg)
 
 def main():
+    """Genera el tema en ~/.local/share/icons/Sigilo a partir de Papirus."""
     if not ORIGEN.is_dir():
         sys.exit("No encuentro Papirus. Instálalo con: sudo pacman -S papirus-icon-theme")
     if DESTINO.exists():

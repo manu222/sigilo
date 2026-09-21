@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""Ordena las aplicaciones instaladas en carpetas por categoría.
+
+Crea ~/Aplicaciones/<Categoría>/<Subcategoría>/ con accesos directos a cada
+app. No mueve ni copia programas: los accesos apuntan a los originales, así
+que las actualizaciones siguen funcionando. Las herramientas de terminal
+(nmap, sqlmap, john…) reciben un acceso propio que las abre en kitty con su
+chuleta de uso.
+
+El lanzador ❖+D recorre esta misma carpeta, así que ver y abrir apps es lo
+mismo en Thunar que en rofi.
+
+Dónde va cada cosa:
+  1. lo que diga iso/grupos.yaml (campos «carpeta» y «terminal»)
+  2. el resto, según la categoría que declare la propia app
+
+Se lanza solo al iniciar sesión. A mano:  ~/dotfiles/extra/organizar-apps
+"""
+import configparser, hashlib, os, shutil, subprocess, sys
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    sys.exit("Falta python-yaml")
+
+CASA = Path.home()
+# Lo instalado con pipx vive en ~/.local/bin; si la sesión no lo tiene en el
+# PATH, se añade aquí para encontrar herramientas como sigma.
+os.environ["PATH"] = str(CASA / ".local/bin") + ":" + os.environ.get("PATH", "")
+RAIZ = CASA / "Aplicaciones"
+GEN = CASA / ".local/share/sigilo-apps"
+REPO = Path(__file__).resolve().parent.parent
+GRUPOS = REPO / "iso/grupos.yaml"
+TERMINAL = CASA / ".config/i3/scripts/terminal"
+
+ICONOS_CARPETA = {
+    "Seguridad": "folder-locked", "Desarrollo": "folder-development",
+    "Día a día": "folder-documents", "Multimedia": "folder-videos",
+    "Sistema": "folder-script", "Juegos": "folder-games",
+    "Música": "folder-music", "Vídeo": "folder-videos", "Imagen": "folder-pictures",
+    "Internet": "folder-network", "Editores": "folder-code", "Red": "folder-network",
+}
+
+# Entradas que vienen de regalo con otros paquetes y no aportan nada en el
+# menú: repetidas (otros terminales o editores), herramientas internas de Qt,
+# Java o Avahi, o el propio lanzador. No se desinstalan: solo no se muestran.
+OCULTAR = {
+    "xterm", "uxterm", "xfce4-terminal", "vim", "org.x.editor",
+    "assistant", "designer", "linguist", "qdbusviewer", "qv4l2", "qvidcap",
+    "lstopo", "bssh", "bvnc", "avahi-discover", "yad-icon-browser", "yad-settings",
+    "rofi", "rofi-theme-selector", "jgmenu", "jconsole-java-openjdk",
+    "jshell-java-openjdk", "stoken-gui", "stoken-gui-small", "eos-apps-info",
+    "eos-log-tool", "eos-quickstart", "welcome",
+}
+
+# Entradas a las que la categoría automática no acierta
+MOVER = {
+    "hp-uiscan": "Sistema/Impresión", "hplip": "Sistema/Impresión",
+    "cups": "Sistema/Impresión", "system-config-printer": "Sistema/Impresión",
+    "org.gnome.seahorse.Application": "Sistema/Utilidades",
+    "firewall-config": "Sistema/Ajustes",
+    "org.pulseaudio.pavucontrol": "Sistema/Ajustes",
+    "org.flameshot.Flameshot": "Sistema/Utilidades",
+}
+
+# Categorías estándar de las apps -> carpeta de Sigilo (primera que encaje)
+POR_CATEGORIA = [
+    ("Security", "Seguridad/Otras"),
+    ("Game", "Juegos"),
+    ("IDE", "Desarrollo/Editores"), ("TextEditor", "Desarrollo/Editores"),
+    ("Development", "Desarrollo/Herramientas"),
+    ("Chat", "Día a día/Comunicación"), ("InstantMessaging", "Día a día/Comunicación"),
+    ("Email", "Día a día/Comunicación"),
+    ("WebBrowser", "Día a día/Internet"), ("Network", "Día a día/Internet"),
+    ("Office", "Día a día/Oficina"),
+    ("Audio", "Multimedia/Música"), ("Music", "Multimedia/Música"),
+    ("Video", "Multimedia/Vídeo"), ("AudioVideo", "Multimedia/Vídeo"),
+    ("Graphics", "Multimedia/Imagen"), ("Viewer", "Multimedia/Imagen"),
+    ("TerminalEmulator", "Sistema/Terminal"), ("FileManager", "Sistema/Archivos"),
+    ("Settings", "Sistema/Ajustes"), ("DesktopSettings", "Sistema/Ajustes"),
+    ("HardwareSettings", "Sistema/Ajustes"), ("Monitor", "Sistema/Monitor"),
+    ("System", "Sistema/Utilidades"), ("Utility", "Sistema/Utilidades"),
+]
+
+
+def leer_desktop(ruta):
+    """Lee la sección [Desktop Entry] de un fichero .desktop, o None si está roto."""
+    cp = configparser.ConfigParser(interpolation=None, strict=False)
+    cp.optionxform = str
+    try:
+        cp.read(ruta, encoding="utf-8")
+        return cp["Desktop Entry"]
+    except Exception:
+        return None
+
+
+def visible(e):
+    """True si la entrada es una app que tiene sentido enseñar en i3."""
+    if e is None or e.get("Type", "Application") != "Application":
+        return False
+    if e.get("NoDisplay", "false").lower() == "true" or e.get("Hidden", "false").lower() == "true":
+        return False
+    solo = e.get("OnlyShowIn", "")
+    if solo and "i3" not in solo:
+        return False
+    return "Exec" in e
+
+
+def de_paquete(paq):
+    """Ficheros .desktop que instala un paquete."""
+    r = subprocess.run(["pacman", "-Qlq", paq], capture_output=True, text=True)
+    return [Path(l) for l in r.stdout.split() if l.startswith("/usr/share/applications/") and l.endswith(".desktop")]
+
+
+def instalado(paq):
+    """True si el paquete está instalado."""
+    return subprocess.run(["pacman", "-Qq", paq], capture_output=True).returncode == 0
+
+
+def confiar(ruta):
+    """Thunar solo abre accesos de la carpeta personal si están marcados como fiables."""
+    try:
+        destino = ruta.resolve()
+        suma = hashlib.sha256(destino.read_bytes()).hexdigest()
+        subprocess.run(["gio", "set", str(ruta), "metadata::xfce-exe-checksum", suma],
+                       capture_output=True)
+    except Exception:
+        pass
+
+
+def acceso_terminal(herr):
+    """Acceso para una herramienta de terminal: kitty con su chuleta (tldr) y una shell."""
+    if not shutil.which(herr):
+        return None
+    GEN.mkdir(parents=True, exist_ok=True)
+    f = GEN / f"sigilo-{herr}.desktop"
+    orden = (f"{TERMINAL} --titulo {herr} -- bash -c "
+             f"\"cd ~/Seguridad 2>/dev/null || cd; echo; tldr {herr} 2>/dev/null || {herr} --help 2>&1 | head -40; "
+             f"echo; exec bash\"")
+    f.write_text(
+        "[Desktop Entry]\nType=Application\n"
+        f"Name={herr}\nComment=Herramienta de terminal: abre kitty con su chuleta\n"
+        f"Exec={orden}\nIcon=utilities-terminal\nTerminal=false\n"
+        "Categories=ConsoleOnly;\n")
+    f.chmod(0o755)
+    return f
+
+
+def carpetas_de_trabajo():
+    """Estructura fija para tu trabajo. Solo crea lo que falte; nunca borra."""
+    seg = CASA / "Seguridad"
+    for d in ["Laboratorios", "VPN", "Informes", "Notas", "Capturas", "Herramientas"]:
+        (seg / d).mkdir(parents=True, exist_ok=True)
+    dic = seg / "Diccionarios"
+    if not dic.exists() and not dic.is_symlink():
+        if Path("/usr/share/seclists").is_dir():
+            dic.symlink_to("/usr/share/seclists")
+        else:
+            dic.mkdir()
+    (CASA / "Proyectos").mkdir(exist_ok=True)
+    for d, icono in [(seg, "folder-locked"), (CASA / "Proyectos", "folder-code"),
+                     (seg / "Laboratorios", "folder-development"), (seg / "Notas", "folder-documents"),
+                     (seg / "Capturas", "folder-pictures"), (seg / "Informes", "folder-documents")]:
+        subprocess.run(["gio", "set", str(d), "metadata::custom-icon-name", icono], capture_output=True)
+
+    # Accesos en la barra lateral del gestor de archivos
+    marc = CASA / ".config/gtk-3.0/bookmarks"
+    lineas = marc.read_text().splitlines() if marc.exists() else []
+    for ruta, nombre in [(CASA / "Proyectos", "Proyectos"), (seg, "Seguridad"), (RAIZ, "Aplicaciones")]:
+        uri = "file://" + str(ruta).replace(" ", "%20")
+        if not any(l.split(" ")[0] == uri for l in lineas):
+            lineas.append(f"{uri} {nombre}")
+    marc.parent.mkdir(parents=True, exist_ok=True)
+    marc.write_text("\n".join(lineas) + "\n")
+
+
+def escribir_menu():
+    """Menú desplegable de la barra (jgmenu) con la misma estructura que ~/Aplicaciones."""
+    def campo(f):
+        """Un campo del CSV de jgmenu; si lleva comas, va entre comillas triples."""
+        return "\"\"\"" + f + "\"\"\"" if "," in f else f
+
+    def tag(ruta):
+        """Nombre interno de un submenú, sacado de su ruta."""
+        return "t_" + hashlib.md5(str(ruta).encode()).hexdigest()[:10]
+
+    def icono_carpeta(d):
+        """Icono para una carpeta del menú."""
+        return ICONOS_CARPETA.get(d.name, "folder")
+
+    def hijos(d):
+        """Subcarpetas y apps de una carpeta, cada grupo en orden alfabético."""
+        carpetas = sorted([x for x in d.iterdir() if x.is_dir()], key=lambda x: x.name.lower())
+        apps = sorted([x for x in d.iterdir() if x.suffix == ".desktop"], key=lambda x: x.name.lower())
+        return carpetas, apps
+
+    def fila_app(a):
+        """Fila del menú para una app: nombre, orden para abrirla e icono."""
+        e = leer_desktop(a) or {}
+        nombre = e.get("Name[es]") or e.get("Name") or a.stem
+        return ",".join([campo(nombre), campo(f'dex "{a}"'), campo(e.get("Icon", "application-x-executable"))])
+
+    lineas = [
+        "Buscar aplicación…,rofi -show drun,system-search",
+        "^sep()",
+    ]
+    bloques = []
+
+    def recorrer(d):
+        """Filas de una carpeta del menú; de paso apunta sus subcarpetas para escribirlas luego."""
+        carpetas, apps = hijos(d)
+        filas = []
+        for c in carpetas:
+            filas.append(f"{campo(c.name)},^checkout({tag(c)}),{icono_carpeta(c)}")
+            bloques.append((c, recorrer(c)))
+        filas += [fila_app(a) for a in apps]
+        return filas
+
+    if RAIZ.exists():
+        carpetas, _ = hijos(RAIZ)
+        for c in carpetas:
+            lineas.append(f"{campo(c.name)},^checkout({tag(c)}),{icono_carpeta(c)}")
+            bloques.append((c, recorrer(c)))
+    lineas += [
+        "^sep()",
+        f"Terminal,{TERMINAL},utilities-terminal",
+        "Archivos,thunar,system-file-manager",
+        "Carpeta de aplicaciones,thunar " + str(RAIZ) + ",folder",
+        "^sep()",
+        f"Salir…,{CASA}/.config/rofi/scripts/apagado,system-shutdown",
+    ]
+    for c, filas in bloques:
+        lineas += ["", f"^tag({tag(c)})"] + filas
+    destino = CASA / ".config/jgmenu/sigilo.csv"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text("\n".join(lineas) + "\n")
+
+
+def main():
+    """Crea las carpetas de trabajo, reparte las apps y rehace ~/Aplicaciones y el menú de la barra."""
+    carpetas_de_trabajo()
+    grupos = yaml.safe_load(GRUPOS.read_text()) if GRUPOS.exists() else []
+    plan = {}          # ruta .desktop -> carpeta
+
+    # Programas que ya tienen su propia entrada (nvim, btop…): a esos no se
+    # les crea el acceso de terminal, o saldrían dos veces.
+    con_ventana = set()
+    for base in (Path("/usr/share/applications"), CASA / ".local/share/applications"):
+        for d in base.glob("*.desktop") if base.is_dir() else []:
+            e = leer_desktop(d)
+            if visible(e) and d.stem not in OCULTAR:
+                con_ventana.add(os.path.basename(e.get("Exec", "").split()[0]) if e.get("Exec") else "")
+    if GEN.exists():
+        for viejo in GEN.glob("sigilo-*.desktop"):
+            viejo.unlink()
+    usados = set()
+
+    for g in grupos:
+        subs = g.get("subgroups") or [g]
+        for s in subs:
+            carpeta = s.get("carpeta") or g.get("carpeta")
+            if not carpeta:
+                continue
+            for p in s.get("packages", []):
+                for alt in p.split("|"):
+                    if instalado(alt):
+                        for d in de_paquete(alt):
+                            if visible(leer_desktop(d)) and d.stem not in OCULTAR:
+                                plan[d] = carpeta
+                        break
+            for h in s.get("terminal", []) or []:
+                if h in con_ventana:
+                    continue
+                f = acceso_terminal(h)
+                if f:
+                    plan[f] = carpeta
+
+    usados = {p.name for p in plan}
+    fuentes = [Path("/usr/share/applications"), CASA / ".local/share/applications"]
+    for base in fuentes:
+        if not base.is_dir():
+            continue
+        for d in sorted(base.glob("*.desktop")):
+            if d.name in usados or d.stem in OCULTAR:
+                continue
+            e = leer_desktop(d)
+            if not visible(e):
+                continue
+            cats = e.get("Categories", "").split(";")
+            destino = MOVER.get(d.stem) or next((c for k, c in POR_CATEGORIA if k in cats), "Sistema/Otras")
+            plan[d] = destino
+            usados.add(d.name)
+
+    # Rehacer la carpeta desde cero: es generada, no se guarda nada a mano aquí
+    if RAIZ.exists():
+        for hijo in RAIZ.iterdir():
+            if hijo.is_dir() and not hijo.is_symlink():
+                shutil.rmtree(hijo)
+            else:
+                hijo.unlink()
+    RAIZ.mkdir(exist_ok=True)
+    (RAIZ / "LÉEME.txt").write_text(
+        "Esta carpeta se genera sola al iniciar sesión (~/dotfiles/extra/organizar-apps).\n"
+        "Son accesos directos: puedes abrirlos, pero no guardes nada aquí.\n"
+        "Para cambiar dónde va una app, edita iso/grupos.yaml en tus dotfiles.\n")
+
+    for origen, carpeta in plan.items():
+        dest = RAIZ / carpeta
+        dest.mkdir(parents=True, exist_ok=True)
+        e = leer_desktop(origen)
+        nombre = (e.get("Name[es]") or e.get("Name") or origen.stem).replace("/", "-")
+        enlace = dest / f"{nombre}.desktop"
+        if enlace.exists():
+            enlace = dest / f"{nombre} ({origen.stem}).desktop"
+        enlace.symlink_to(origen)
+        confiar(enlace)
+
+    for d in [RAIZ] + [p for p in RAIZ.rglob("*") if p.is_dir()]:
+        icono = ICONOS_CARPETA.get(d.name)
+        if icono:
+            subprocess.run(["gio", "set", str(d), "metadata::custom-icon-name", icono], capture_output=True)
+
+    escribir_menu()
+    total = sum(1 for _ in RAIZ.rglob("*.desktop"))
+    if "-q" not in sys.argv:
+        print(f"{total} accesos en {RAIZ}")
+
+
+if __name__ == "__main__":
+    main()

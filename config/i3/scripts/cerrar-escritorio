@@ -13,6 +13,7 @@ otros = [w for w in i3.get_workspaces() if w.name != actual.name]
 
 
 def num(w):
+    """Número del escritorio; los que no tienen número van al final."""
     return w.num if w.num >= 0 else 99
 
 

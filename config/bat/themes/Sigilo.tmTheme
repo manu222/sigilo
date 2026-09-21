@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Tema Sigilo para bat (el «cat» con colores) y para los diff de git con delta.
+  Formato TextMate, el mismo que usan Sublime y VS Code. Si lo cambias,
+  vuelve a generar la caché:  bat cache -build
+-->
 <plist version="1.0">
 <dict>
 	<key>name</key>

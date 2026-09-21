@@ -49,6 +49,7 @@ instancia_unica()
 
 
 def main():
+    """Escucha los mensajes al escritorio raíz y traduce minimizar y maximizar a órdenes de i3."""
     d = display.Display()
     root = d.screen().root
 

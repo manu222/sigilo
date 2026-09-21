@@ -1,0 +1,165 @@
+# Aplicaciones de Sigilo, por grupos.
+#
+# Este fichero es la única lista. Lo leen:
+#   · extra/sigilo-apps      para instalar o añadir apps en un equipo ya hecho
+#   · iso/construir-iso.sh   que lo convierte en la pantalla de paquetes del
+#                            instalador (formato «netinstall» de Calamares)
+#
+# Cada app va en su propio subgrupo para que salga con su casilla.
+# «a|b» significa: usa «a» si existe y, si no, «b» (los nombres cambian a
+# veces entre el AUR y los repositorios oficiales). Del AUR, mejor las
+# versiones «-bin»: vienen ya compiladas y no arrastran compilaciones de horas.
+# «pipx:nombre» es una herramienta de Python que no está empaquetada: se
+# instala con pipx para el usuario.
+# Los drivers no están aquí: los decide iso/detectar-hardware según el equipo.
+#
+# Campos propios de Sigilo (el instalador los ignora):
+#   carpeta:   dónde aparece en ~/Aplicaciones y en el menú de la barra
+#   terminal:  herramientas de terminal a las que se les crea un acceso
+#              (se abren en kitty con su chuleta de uso)
+
+- name: "Sigilo · escritorio"
+  description: "El escritorio completo: i3, barra, menús, terminal, temas y utilidades. Obligatorio."
+  selected: true
+  critical: true
+  expanded: false
+  packages:
+    - i3-wm
+    - polybar
+    - rofi
+    - rofi-calc
+    - rofi-emoji
+    - rofi-greenclip
+    - jgmenu
+    - dunst
+    - picom
+    - kitty
+    - starship
+    - fastfetch
+    - eza
+    - bat
+    - fzf
+    - zoxide
+    - fd
+    - btop
+    - git-delta
+    - duf
+    - expac
+    - jq
+    - socat
+    - feh
+    - imv
+    - mpv
+    - ffmpeg
+    - xwinwrap-git
+    - xdotool
+    - xclip
+    - xss-lock
+    - i3lock-color
+    - scrot
+    - imagemagick
+    - brightnessctl
+    - playerctl
+    - pavucontrol
+    - autotiling
+    - python-i3ipc
+    - python-xlib
+    - python-yaml
+    - skippy-xd-git
+    - gsimplecal
+    - dex
+    - xorg-xsetroot
+    - nwg-look
+    - thunar
+    - thunar-archive-plugin
+    - thunar-volman
+    - tumbler
+    - gvfs
+    - network-manager-applet
+    - polkit-gnome
+    - gnome-keyring
+    - seahorse
+    - lightdm
+    - lightdm-slick-greeter
+    - papirus-icon-theme
+    - adw-gtk-theme
+    - bibata-cursor-theme-bin
+    - inter-font
+    - ttf-jetbrains-mono-nerd
+    - noto-fonts
+    - noto-fonts-emoji
+    - power-profiles-daemon
+    - zram-generator
+
+- name: "Sigilo · copias del sistema"
+  description: "Copia instantánea antes de cada actualización y arranque de copias desde GRUB. Solo sirve con btrfs."
+  selected: true
+  critical: false
+  packages:
+    - timeshift
+    - timeshift-autosnap
+    - grub-btrfs
+    - inotify-tools
+    - cronie
+
+- name: "Desarrollo"
+  description: "Editor, control de versiones, contenedores y lenguajes."
+  selected: true
+  critical: false
+  expanded: false
+  subgroups:
+    - {name: "VS Code", description: "Editor de código", selected: true, packages: [visual-studio-code-bin], carpeta: "Desarrollo/Editores"}
+    - {name: "Git en GitHub", description: "github-cli y lazygit", selected: true, packages: [github-cli, lazygit], carpeta: "Desarrollo/Herramientas", terminal: [lazygit, gh]}
+    - {name: "Docker", description: "Contenedores y compose", selected: true, packages: [docker, docker-compose, docker-buildx], carpeta: "Desarrollo/Contenedores", terminal: [lazydocker, docker]}
+    - {name: "Python", description: "uv y pipx", selected: true, packages: [uv, python-pipx], carpeta: "Desarrollo/Herramientas"}
+    - {name: "Node.js", description: "nodejs y npm", selected: true, packages: [nodejs, npm], carpeta: "Desarrollo/Herramientas"}
+    - {name: "Neovim", description: "Editor en terminal", selected: true, packages: [neovim], carpeta: "Desarrollo/Editores", terminal: [nvim]}
+    - {name: "SQLite", description: "Visor de bases de datos SQLite", selected: true, packages: [sqlitebrowser], carpeta: "Desarrollo/Herramientas"}
+    - {name: "Bruno", description: "Cliente de APIs, sin cuenta", selected: true, packages: ["bruno-bin|bruno"], carpeta: "Desarrollo/Herramientas"}
+
+- name: "Ciberseguridad"
+  description: "Herramientas de pentesting, análisis y laboratorio."
+  selected: true
+  critical: false
+  expanded: false
+  subgroups:
+    - {name: "Red", description: "wireshark, tcpdump, nmap, masscan, netcat", selected: true, packages: [wireshark-qt, tcpdump, nmap, masscan, openbsd-netcat], carpeta: "Seguridad/Red", terminal: [nmap, tcpdump, masscan, nc]}
+    - {name: "Web", description: "Burp Suite, sqlmap, ffuf, gobuster, nikto, whatweb", selected: true, packages: [burpsuite, sqlmap, ffuf, gobuster, nikto, whatweb], carpeta: "Seguridad/Web", terminal: [sqlmap, ffuf, gobuster, nikto, whatweb]}
+    - {name: "Contraseñas", description: "john, hashcat, hydra", selected: true, packages: [john, hashcat, hydra], carpeta: "Seguridad/Contraseñas", terminal: [john, hashcat, hydra]}
+    - {name: "Análisis", description: "ghidra, radare2, binwalk, exiftool, yara, volatility3", selected: true, packages: [ghidra, radare2, binwalk, perl-image-exiftool, yara, volatility3], carpeta: "Seguridad/Análisis", terminal: [r2, binwalk, exiftool, yara, vol]}
+    - {name: "Metasploit", description: "Framework de explotación", selected: true, packages: [metasploit], carpeta: "Seguridad/Explotación", terminal: [msfconsole, msfvenom]}
+    - {name: "Diccionarios (SecLists)", description: "Listas para fuzzing y contraseñas. Ocupa casi 2 GB", selected: false, packages: [seclists], carpeta: "Seguridad/Diccionarios"}
+    - {name: "Wifi", description: "aircrack-ng", selected: true, packages: [aircrack-ng], carpeta: "Seguridad/Wifi", terminal: [airmon-ng, airodump-ng, aircrack-ng]}
+    - {name: "Reglas Sigma", description: "sigma-cli", selected: true, packages: ["pipx:sigma-cli"], carpeta: "Seguridad/Detección", terminal: [sigma]}
+    - {name: "Máquinas virtuales", description: "virt-manager y QEMU para laboratorios", selected: true, packages: [virt-manager, qemu-desktop, libvirt, dnsmasq], carpeta: "Seguridad/Laboratorio"}
+    - {name: "OpenVPN", description: "Para HackTheBox y TryHackMe", selected: true, packages: [openvpn], carpeta: "Seguridad/Laboratorio"}
+
+- name: "Día a día"
+  description: "Oficina, multimedia y comunicación."
+  selected: true
+  critical: false
+  expanded: false
+  subgroups:
+    - {name: "Firefox", description: "Navegador", selected: true, packages: [firefox, firefox-i18n-es-es], carpeta: "Día a día/Internet"}
+    - {name: "1Password", description: "Gestor de contraseñas", selected: true, packages: [1password], carpeta: "Día a día/Utilidades"}
+    - {name: "Claude", description: "App de escritorio", selected: true, packages: [claude-desktop], carpeta: "Día a día/Utilidades"}
+    - {name: "LibreOffice", description: "Oficina, en español", selected: true, packages: [libreoffice-fresh, libreoffice-fresh-es], carpeta: "Día a día/Oficina"}
+    - {name: "VLC", description: "Reproductor de vídeo", selected: true, packages: [vlc], carpeta: "Multimedia/Vídeo"}
+    - {name: "OBS Studio", description: "Grabar y emitir pantalla", selected: true, packages: [obs-studio], carpeta: "Multimedia/Vídeo"}
+    - {name: "GIMP", description: "Edición de imagen", selected: true, packages: [gimp], carpeta: "Multimedia/Imagen"}
+    - {name: "Discord", description: "Chat", selected: true, packages: [discord], carpeta: "Día a día/Comunicación"}
+    - {name: "Telegram", description: "Mensajería", selected: true, packages: [telegram-desktop], carpeta: "Día a día/Comunicación"}
+    - {name: "WhatsApp (ZapZap)", description: "WhatsApp Web en su propia ventana", selected: true, packages: [zapzap], carpeta: "Día a día/Comunicación"}
+    - {name: "Spotify", description: "Música", selected: true, packages: [spotify-launcher], carpeta: "Multimedia/Música"}
+    - {name: "Obsidian", description: "Apuntes", selected: true, packages: [obsidian], carpeta: "Día a día/Oficina"}
+    - {name: "qBittorrent", description: "Descargas", selected: true, packages: [qbittorrent], carpeta: "Día a día/Internet"}
+    - {name: "GParted y ncdu", description: "Particiones y uso de disco", selected: true, packages: [gparted, ncdu], carpeta: "Sistema/Discos", terminal: [ncdu]}
+
+- name: "IA local"
+  description: "Ollama para modelos en local. La versión para tu gráfica (NVIDIA o AMD) se elige sola."
+  selected: true
+  critical: false
+  carpeta: "Desarrollo/IA local"
+  terminal: [ollama]
+  packages:
+    - ollama

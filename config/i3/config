@@ -383,6 +383,9 @@ exec --no-startup-id xsetroot -cursor_name left_ptr
 # Fondo de pantalla
 exec --no-startup-id ~/.config/i3/scripts/fondo --restaurar
 
+# Ordena las apps instaladas en ~/Aplicaciones (y el lanzador ❖+D)
+exec --no-startup-id ~/dotfiles/extra/organizar-apps -q
+
 # Gestion de energia: a los 10 min bloquea y apaga la pantalla.
 # xss-lock tambien bloquea al suspender o cerrar la tapa.
 exec --no-startup-id xset s 600 dpms 620 620 620

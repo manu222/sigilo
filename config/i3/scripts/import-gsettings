@@ -1,7 +1,11 @@
 #!/bin/sh
-
-# needed for nwg-looks
-# usage: import-gsettings
+# Copia el tema, los iconos, el cursor y la fuente de gtk-3.0/settings.ini
+# a gsettings.
+#
+# Las apps GTK4 y libadwaita no leen settings.ini: preguntan a gsettings.
+# Sin esto, Seahorse o las ventanas de «Abrir archivo» saldrían en claro y
+# con otros iconos. i3 lo lanza en cada inicio y en cada Mod+Shift+R, así
+# que basta con cambiar settings.ini (a mano o con nwg-look).
 config="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0/settings.ini"
 if [ ! -f "$config" ]; then exit 1; fi
 
@@ -14,4 +18,5 @@ gsettings set "$gnome_schema" gtk-theme "$gtk_theme"
 gsettings set "$gnome_schema" icon-theme "$icon_theme"
 gsettings set "$gnome_schema" cursor-theme "$cursor_theme"
 gsettings set "$gnome_schema" font-name "$font_name"
+# Pide a las apps modernas su versión oscura
 gsettings set "$gnome_schema" color-scheme prefer-dark

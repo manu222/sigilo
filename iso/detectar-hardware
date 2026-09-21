@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Mira el hardware del equipo y decide qué drivers y variantes instalar.
+#
+#   detectar-hardware              informe legible
+#   detectar-hardware --paquetes   solo los nombres de paquete, uno por línea
+#
+# No instala nada: lo usan extra/sigilo-apps y el instalador de la ISO.
+#
+# Gráficas NVIDIA, por generación (el nombre interno del chip lo dice):
+#   Turing y posteriores (TU, GA, AD, GB…)  → nvidia-open-dkms, el oficial
+#   Maxwell y Pascal (GM, GP: GTX 9xx/10xx)   → rama 580xx del AUR, la última
+#                                             que las soporta
+#   Más antiguas                              → nouveau, el libre (sin paquetes)
+
+MODO=${1:-}
+PAQ=()
+NOTAS=()
+anadir() { PAQ+=("$@"); }
+nota()   { NOTAS+=("$*"); }
+
+gpus=$(lspci -nn | grep -E '\[03(00|02|80)\]')
+npus=$(lspci -nn | grep -E '\[1200\]')
+
+# ── núcleos instalados: los drivers dkms necesitan sus cabeceras ─────────
+for k in linux linux-lts linux-zen; do
+    pacman -Qq "$k" >/dev/null 2>&1 && KERNELS+=("$k")
+done
+[ ${#KERNELS[@]} -eq 0 ] && KERNELS=(linux)
+
+# ── gráficas ─────────────────────────────────────────────────────────────
+NVIDIA_RAMA=""
+while IFS= read -r g; do
+    [ -z "$g" ] && continue
+    case "$g" in
+        *Intel*)
+            anadir mesa vulkan-intel intel-media-driver libva-intel-driver
+            nota "Gráfica Intel: $(sed 's/.*: //' <<<"$g")" ;;
+        *AMD*|*ATI*)
+            anadir mesa vulkan-radeon libva-mesa-driver
+            nota "Gráfica AMD: $(sed 's/.*: //' <<<"$g")"
+            GPU_IA=rocm ;;
+        *NVIDIA*)
+            chip=$(grep -oE '\b(GB|AD|GA|TU|GV|GP|GM|GK|GF)[0-9]+' <<<"$g" | head -1)
+            case "$chip" in
+                GB*|AD*|GA*|TU*)
+                    NVIDIA_RAMA=open
+                    anadir nvidia-open-dkms nvidia-utils opencl-nvidia
+                    GPU_IA=cuda ;;
+                GV*|GP*|GM*)
+                    NVIDIA_RAMA=580xx
+                    anadir nvidia-580xx-dkms nvidia-580xx-utils opencl-nvidia-580xx
+                    nota "Las CUDA actuales ya no soportan esta generación: Ollama irá por procesador."
+                    ;;
+                *)
+                    NVIDIA_RAMA=nouveau
+                    nota "NVIDIA muy antigua ($chip): se queda con nouveau, el driver libre." ;;
+            esac
+            [ -n "$NVIDIA_RAMA" ] && [ "$NVIDIA_RAMA" != nouveau ] && for k in "${KERNELS[@]}"; do anadir "$k-headers"; done
+            nota "Gráfica NVIDIA ($chip): driver ${NVIDIA_RAMA}" ;;
+    esac
+done <<<"$gpus"
+
+# ── IA local: la variante de Ollama que aprovecha la gráfica ─────────────
+case "${GPU_IA:-}" in
+    cuda) anadir ollama-cuda ;;
+    rocm) anadir ollama-rocm ;;
+esac
+
+# ── procesador ───────────────────────────────────────────────────────────
+if grep -q GenuineIntel /proc/cpuinfo; then anadir intel-ucode
+elif grep -q AuthenticAMD /proc/cpuinfo; then anadir amd-ucode; fi
+
+# ── NPU ──────────────────────────────────────────────────────────────────
+while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    case "$n" in
+        *Intel*) nota "NPU Intel detectada: el kernel ya la reconoce (intel_vpu). Para usarla: intel-npu-driver y OpenVINO (AUR)." ;;
+        *AMD*)   nota "NPU AMD (Ryzen AI) detectada: el driver amdxdna viene en el kernel; el software para usarla aún es experimental." ;;
+        *)       nota "Acelerador detectado: $(sed 's/.*: //' <<<"$n")" ;;
+    esac
+done <<<"$npus"
+
+# ── portátil o sobremesa ─────────────────────────────────────────────────
+if ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
+    nota "Portátil: batería $(basename /sys/class/power_supply/BAT* | head -1)"
+else
+    nota "Sobremesa: sin batería (la barra oculta batería y brillo)"
+fi
+
+# ── salida ───────────────────────────────────────────────────────────────
+mapfile -t PAQ < <(printf '%s\n' "${PAQ[@]}" | awk '!v[$0]++')
+if [ "$MODO" = --paquetes ]; then
+    printf '%s\n' "${PAQ[@]}"
+else
+    echo "Hardware detectado:"
+    printf '  · %s\n' "${NOTAS[@]}"
+    echo
+    echo "Paquetes para este equipo:"
+    printf '  %s\n' "${PAQ[@]}"
+fi

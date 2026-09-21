@@ -1,3 +1,14 @@
+/* ─────────────────────────────────────────────────────────────
+ * Rofi · tema «tarjetas»
+ *
+ * Cinco tarjetas en fila con un icono grande encima del texto. Es el menú
+ * de sesión (❖+Shift+E): bloquear, suspender, salir, reiniciar y apagar.
+ * Los iconos son los PNG de rofi/iconos, dibujados a propósito para que el
+ * color no dependa de la fuente.
+ * ───────────────────────────────────────────────────────────── */
+
+/* Paleta Sigilo. Los mismos colores que la barra, las notificaciones y el
+ * terminal: si cambias uno aquí, cámbialo también en polybar/config.ini. */
 * {
     bg:        #070b09;
     bg-alt:    #0a0f0d;
@@ -12,6 +23,7 @@
     text-color:       @fg-dim;
     font:             "JetBrainsMono Nerd Font 11";
 }
+/* Ventana centrada, más ancha que alta */
 window {
     background-color: @bg;
     border:           1px;
@@ -29,11 +41,13 @@ inputbar {
     border:           0 0 1px 0;
     border-color:     @line;
     padding:          1.1em 1.4em;
+/* Título fijo de la barra superior */
     children:         [ "textbox-titulo" ];
 }
 textbox-titulo { content: "❖   sesión"; text-color: @fg; }
 
 /* Sin altura fija: el elemento crece hasta caber icono + etiqueta. */
+/* Las cinco opciones en una sola fila */
 listview {
     columns:      5;
     lines:        1;
@@ -46,6 +60,7 @@ listview {
 
 /* El icono es un PNG, no un caracter: rofi lo escala al tamano pedido y
    no hay fuente de por medio que pueda faltar, cambiar o recortarlo. */
+/* Cada tarjeta: icono arriba y texto debajo */
 element {
     orientation:      vertical;
     padding:          1.3em 0.4em 1em 0.4em;
@@ -56,6 +71,7 @@ element {
     background-color: @bg-alt;
     children:         [ "element-icon", "element-text" ];
 }
+/* Tamaño del icono de cada tarjeta */
 element-icon {
     size:             3.6em;
     horizontal-align: 0.5;
@@ -67,6 +83,7 @@ element-text {
     font:             "JetBrainsMono Nerd Font 10";
 }
 element normal.normal   { text-color: @fg-dim; }
+/* Tarjeta elegida */
 element selected.normal {
     background-color: @surface;
     border-color:     @accent-hi;

@@ -1,3 +1,13 @@
+/* ─────────────────────────────────────────────────────────────
+ * Rofi · tema «galería»
+ *
+ * Seis miniaturas grandes en una sola fila que se recorre con ← →.
+ * Lo usa el selector de fondos (❖+Shift+F). Las miniaturas de webp y de
+ * los vídeos las prepara el script rofi/scripts/fondos en ~/.cache.
+ * ───────────────────────────────────────────────────────────── */
+
+/* Paleta Sigilo. Los mismos colores que la barra, las notificaciones y el
+ * terminal: si cambias uno aquí, cámbialo también en polybar/config.ini. */
 * {
     bg:        #070b09;
     bg-alt:    #0a0f0d;
@@ -15,6 +25,7 @@
     text-color:       @fg-dim;
     font:             "JetBrainsMono Nerd Font 11";
 }
+/* Ventana casi a lo ancho de la pantalla */
 window {
     background-color: @bg;
     border:           1px;
@@ -46,11 +57,13 @@ entry {
     vertical-align:    0.5;
 }
 
+/* Una fila de seis. flow: horizontal hace que ← → pasen de una a otra */
 listview {
     columns: 6;  lines: 1;
     padding: 1.1em;  spacing: 0.8em;
     scrollbar: false;  fixed-height: false;  flow: horizontal;
 }
+/* Cada fondo: miniatura y nombre debajo */
 element {
     orientation:   vertical;
     padding:       0.6em;
@@ -61,9 +74,11 @@ element {
     background-color: @bg-alt;
     children:      [ "element-icon", "element-text" ];
 }
+/* Tamaño de la miniatura */
 element-icon { size: 13em; border-radius: 10px; }
 element-text { horizontal-align: 0.5; font: "JetBrainsMono Nerd Font 9"; }
 element normal.normal   { text-color: @fg-muted; }
+/* Fondo elegido */
 element selected.normal {
     background-color: @surface;
     text-color:       @accent-hi;

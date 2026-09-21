@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
-# Redes wifi con icono de senal segun potencia y candado si van cifradas.
+# Menú de redes wifi (❖+Shift+W, o clic en el icono de red de la barra).
+#
+# Enseña las redes que se ven, ordenadas por señal, con un icono según la
+# potencia, un candado si piden clave y una marca en la que estás conectado.
+#   · Intro en la red actual: te desconecta.
+#   · Intro en una red ya guardada: se conecta sin pedir nada.
+#   · Intro en una red nueva: pide la clave (vacía si es abierta).
+# Todo pasa por nmcli, así que lo que hagas aquí lo ve NetworkManager igual
+# que si usaras nm-applet.
 set -uo pipefail
 . ~/.config/rofi/scripts/comun.sh
 TEMA=~/.config/rofi/sigilo-lista.rasi
 
+# Pide un escaneo nuevo en segundo plano y da un segundo para que llegue
 nmcli device wifi rescan >/dev/null 2>&1 &
 sleep 1
 
+# Una línea por red: en uso, señal, seguridad y nombre. Se quitan las redes
+# ocultas (sin nombre) y los duplicados de un mismo punto de acceso.
 mapfile -t crudas < <(nmcli -t -f IN-USE,SIGNAL,SECURITY,SSID device wifi list \
                       | awk -F: '$4 != ""' | sort -t: -k2 -rn | awk '!v[$0]++')
 
@@ -14,6 +25,8 @@ if [ ${#crudas[@]} -eq 0 ]; then
     notify-send "Wifi" "No se ve ninguna red"; exit 0
 fi
 
+# Se monta cada fila con marcado Pango (colores). Los nombres se guardan
+# aparte para saber a cuál corresponde la fila elegida.
 ssids=(); filas=""
 for linea in "${crudas[@]}"; do
     uso=${linea%%:*};    resto=${linea#*:}
@@ -21,6 +34,7 @@ for linea in "${crudas[@]}"; do
     seg=${resto%%:*};    ssid=${resto#*:}
     ssids+=("$ssid")
 
+    # Tres niveles de señal: fuerte en menta, media en turquesa, floja apagada
     if   [ "$senal" -ge 70 ]; then ico=""; col="$MINT"
     elif [ "$senal" -ge 40 ]; then ico=""; col="$CYAN"
     else                           ico=""; col="$MUTE"; fi
@@ -32,17 +46,20 @@ for linea in "${crudas[@]}"; do
     filas+="${marca}<span foreground=\"${col}\">${ico}</span>  ${nombre}   <span foreground=\"$MUTE\">${senal}%</span> ${cand}|"
 done
 
+# rofi devuelve el número de fila elegida (-format i), no el texto
 i=$(printf '%s' "${filas%|}" | rofi -dmenu -sep '|' -markup-rows -i -format i \
         -no-custom -theme "$TEMA" -p "redes" \
         -mesg "<span foreground=\"$MUTE\">Intro conecta o desconecta   ·   escribe para filtrar</span>")
 [ -z "$i" ] && exit 0
 ssid="${ssids[$i]}"
 
+# Si ya estás en esa red, Intro es para desconectar
 if nmcli -t -f NAME connection show --active | grep -qxF "$ssid"; then
     nmcli connection down id "$ssid" >/dev/null 2>&1 && notify-send "Wifi" "Desconectado de $ssid"
     exit 0
 fi
 
+# Red guardada: se levanta sin pedir clave. Red nueva: se pide.
 if nmcli -t -f NAME connection show | grep -qxF "$ssid"; then
     salida=$(nmcli connection up id "$ssid" 2>&1)
 else

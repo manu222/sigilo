@@ -1,14 +1,32 @@
+/* ─────────────────────────────────────────────────────────────
+ * Rofi · configuración general
+ *
+ * Rofi es el lanzador (❖+D, ❖+Espacio) y también la base de casi todos
+ * los menús de Sigilo: sesión, wifi, bluetooth, fondos, portapapeles…
+ * Aquí solo va el comportamiento; el aspecto está en sigilo.rasi y en
+ * los sigilo-*.rasi que usa cada menú.
+ * ───────────────────────────────────────────────────────────── */
+
 configuration {
+/* Modos disponibles: apps instaladas, cualquier programa y ventanas abiertas */
     modi:                "drun,run,window";
     show-icons:          true;
+/* El tema de iconos propio (carpetas en menta). Lo genera extra/iconos-sigilo.py */
     icon-theme:          "Sigilo";
+/* Solo el nombre de la app, sin la descripción genérica que traen muchas */
     drun-display-format: "{name}";
+/* Sin texto delante del buscador: el sello ❖ ya dice dónde estás */
     display-drun:        "";
     display-run:         "";
     display-window:      "";
+/* Busca también por lo que hace la app y sus palabras clave, no solo el nombre:
+   «navegador» encuentra Firefox y «mensajes» encuentra Telegram */
     drun-match-fields:   "name,generic,exec,categories,keywords";
     sort:                true;
+/* Ordena como fzf: premia las letras seguidas y el principio de palabra */
     sorting-method:      "fzf";
+/* Terminal que usa rofi para los programas que lo necesitan */
     terminal:            "kitty";
 }
+/* Aspecto del lanzador principal */
 @theme "~/.config/rofi/sigilo.rasi"

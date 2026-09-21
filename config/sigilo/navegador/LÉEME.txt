@@ -1,0 +1,11 @@
+Tema Sigilo para Brave, Chrome y Chromium.
+
+Cómo instalarlo:
+  1. Abre brave://extensions (o chrome://extensions).
+  2. Activa «Modo de desarrollador», arriba a la derecha.
+  3. Pulsa «Cargar descomprimida» y elige esta carpeta.
+
+Los colores están en manifest.json como números RGB [rojo, verde, azul].
+«frame» es la barra de pestañas, «toolbar» la de la dirección y los
+botones, y «ntp_*» la página de nueva pestaña. Tras cambiar algo, pulsa
+el botón de recargar de la extensión en esa misma página.

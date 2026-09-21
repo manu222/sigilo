@@ -41,6 +41,7 @@ FUENTE = {
 }
 
 def titulo(texto):
+    """Pinta un texto con letras de bloques de 5×7, con degradado de menta a turquesa."""
     filas = []
     for r in range(7):
         linea = ""
@@ -150,6 +151,7 @@ REGLAS = [
 ]
 
 def leer():
+    """Lee el config de i3: variables ($mod, $term…) y atajos agrupados por las secciones numeradas."""
     variables, secciones, sec, cur, modo = {}, [], "Otros", [], None
     for linea in open(CFG, encoding="utf-8"):
         linea = linea.rstrip("\n")
@@ -202,12 +204,14 @@ def leer_shell():
     return grupos
 
 def expandir(t, v):
+    """Sustituye las variables del config por su valor, varias pasadas por si unas usan otras."""
     for _ in range(3):
         for k in sorted(v, key=len, reverse=True):
             t = t.replace(k, v[k])
     return t
 
 def k_bonita(t, v):
+    """Convierte una combinación del config ($mod+Shift+q) en algo legible (❖ + Shift + q)."""
     partes = []
     for p in t.split("+"):
         if p == "en el borde":
@@ -221,6 +225,7 @@ def k_bonita(t, v):
     return " + ".join(partes)
 
 def a_bonita(a, v):
+    """Traduce el comando de i3 a una frase en castellano usando REGLAS."""
     a = expandir(a, v)
     a = re.sub(r"\s*,\s*mode\s+\"default\"\s*$", "", a)
     limpio = re.sub(r"^exec\s+(--no-startup-id\s+)?", "", a).strip()
@@ -234,12 +239,14 @@ ANCHO_COL = 44
 SEP = 3
 
 def pill(texto, color, ancho):
+    """Título de bloque: el nombre en una píldora de color."""
     t = " %s " % texto.upper()
     cuerpo = f(color) + "" + b(color) + f(OSCURO) + BOLD + t + RST + f(color) + "" + RST
     visible = len(t) + 2
     return cuerpo + " " * max(0, ancho - visible)
 
 def fila(accion, tecla, ancho, color=MINT):
+    """Una fila «acción ....... tecla», con puntos hasta completar el ancho de la columna."""
     libre = ancho - len(accion) - len(tecla)
     if libre < 2:
         accion = accion[:max(0, ancho - len(tecla) - 2)]
@@ -248,6 +255,7 @@ def fila(accion, tecla, ancho, color=MINT):
     return f(DIM) + accion + " " + puntos + " " + f(color) + tecla + RST
 
 def bloque(nombre, binds, color, v):
+    """Un bloque de atajos con su título."""
     out = [pill(nombre, color, ANCHO_COL)]
     vistos = set()
     for t, a in binds:
@@ -261,6 +269,7 @@ def bloque(nombre, binds, color, v):
 LILA_C = (200, 170, 229)
 
 def bloque_shell(nombre, filas):
+    """Un bloque de comandos de la terminal, en lila para distinguirlos de los atajos."""
     out = [pill("› " + nombre, VIOLET, ANCHO_COL)]
     for cmd, desc in filas:
         out.append(fila(desc[0].upper() + desc[1:], cmd, ANCHO_COL, LILA_C))
@@ -340,6 +349,7 @@ def recoger():
 
 
 def clasificar(items):
+    """Reparte las acciones en las categorías de CATEGORIAS, en su orden. Lo que no encaje va a «Otros»."""
     por_desc = {d: (t, c) for d, t, c in items}
     usados, grupos = set(), []
     for nombre, color, lista in CATEGORIAS:
@@ -363,6 +373,7 @@ def teclas_txt(teclas, maximo=2):
 
 
 def bloque_cat(nombre, color, filas):
+    """Un bloque de una categoría. Si los dos atajos no caben, deja solo el primero."""
     out = [pill(nombre, color, ANCHO_COL)]
     for d, teclas, _ in filas:
         k = teclas_txt(teclas)
@@ -412,6 +423,7 @@ def buscar():
 
 
 def main():
+    """Monta la chuleta completa y la pinta. Con --buscar abre el buscador en vez de la chuleta."""
     if "--buscar" in sys.argv:
         return buscar()
     bloques = [bloque_cat(n, c, filas) for n, c, filas in clasificar(recoger())]

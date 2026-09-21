@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Menú de utilidades (❖+U). Cada entrada tiene también su atajo directo.
+# Menú de utilidades (❖+U).
+#
+# Junta en un sitio las herramientas pequeñas del día a día, para no tener
+# que recordar cada atajo. Cada entrada abre el script correspondiente de
+# esta misma carpeta, y cada una tiene también su atajo directo, que sale
+# a la derecha como recordatorio.
 set -uo pipefail
 TEMA=~/.config/rofi/sigilo-lista.rasi
 D=~/.config/rofi/scripts
+# Fila con icono del tema, título en negrita y su atajo en gris
 fila() {  # icono  título  atajo
     printf '<b>%s</b>   <span foreground="#556760">%s</span>\0icon\x1f%s\n' "$2" "$3" "$1"
 }

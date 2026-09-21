@@ -16,7 +16,8 @@ localizar sin pensar.
 | Pieza | Programa | Detalle |
 |---|---|---|
 | Gestor de ventanas | i3 | Mosaico sin separación, esquinas redondeadas |
-| Barra | Polybar | Módulos como píldoras, flotante y centrada |
+| Barra | Polybar | Módulos como píldoras, flotante, con escritorios que enseñan sus apps |
+| Menú de apps | jgmenu | Desplegable desde la barra, por categorías, como en Kali o Ubuntu |
 | Lanzador y menús | Rofi | Rejilla con iconos, galería de fondos, menús de red y sesión |
 | Compositor | picom | Transparencia en las ventanas sin foco, sombras y animaciones |
 | Terminal | kitty + Starship | Prompt de dos líneas con git y duración; colores por tipo de fichero en `ls` |
@@ -24,7 +25,9 @@ localizar sin pensar.
 | Apps GTK | adw-gtk3 | Solo se cambian los colores con nombre; el tema pone las formas |
 | Iconos | Papirus recoloreado | Carpetas en menta con el dibujo interior en lila |
 | Cursor | Bibata Modern Classic | |
-| Conmutador | skippy-xd | Alt+Tab con previsualización en vivo |
+| Conmutador | skippy-xd | Alt+Tab con previsualización en vivo, de todos los escritorios |
+| Fondos | feh + mpv | Imagen o vídeo; el vídeo se pausa solo a pantalla completa o con batería |
+| Visor | imv | Supr manda la foto a la papelera y pasa a la siguiente; U la recupera |
 | Monitor | btop | Paleta completa |
 | Resaltado | bat | Tema `.tmTheme` propio |
 
@@ -65,10 +68,26 @@ Después, una línea en el `~/.bashrc`:
 Hay dos carpetas más que no copia `instalar.sh`:
 
 - `sistema/` toca cosas fuera de tu carpeta personal (GRUB, pantalla de
-  inicio de sesión, discos), así que cada script se lanza a mano con `sudo`,
+  inicio de sesión, discos, copias de Timeshift, zram y energía), así que cada script se lanza a mano con `sudo`,
   comprueba lo que va a tocar y guarda copia antes.
 - `extra/iconos-sigilo.py` genera el tema de iconos en
   `~/.local/share/icons/Sigilo` a partir de Papirus. No necesita `sudo`.
+
+## Apps
+
+La lista de aplicaciones está en `iso/grupos.yaml`, por grupos: escritorio,
+copias del sistema, desarrollo, ciberseguridad, día a día e IA local.
+
+- `extra/sigilo-apps` enseña esa lista con casillas, instala lo que marques
+  (repositorios oficiales y AUR por separado, de uno en uno para que un fallo
+  no tumbe al resto) y añade los drivers que toquen según el hardware.
+- `iso/detectar-hardware` decide esos drivers: la rama de NVIDIA según la
+  generación de la gráfica, microcódigo, NPU, portátil o sobremesa.
+- `extra/organizar-apps` monta `~/Aplicaciones` con accesos por categoría y
+  el menú de la barra a partir de ella. Se lanza solo al iniciar sesión.
+
+Los programas no se mueven de donde los deja pacman; lo que se ordena son
+los accesos.
 
 El tema del navegador está en `config/sigilo/navegador`. En Brave o Chrome:
 extensiones, modo de desarrollador, «Cargar descomprimida» y esa carpeta.
@@ -82,14 +101,19 @@ y agrupa por secciones, así que nunca se queda desfasada.
 | | |
 |---|---|
 | `❖ + T` | Terminal |
-| `❖ + D` | Lanzador de aplicaciones |
+| `❖ + D` | Buscar una aplicación |
+| Botón *Apps* de la barra | Menú de aplicaciones por categorías |
 | `❖ + B` / `❖ + N` | Navegador / Archivos |
 | `❖ + F1` | Chuleta de atajos |
 | `Alt + Tab` | Conmutador con previsualización |
-| `❖ + Shift + Tab` | Exposé |
+| `❖ + Shift + Tab` | Todas las ventanas de todos los escritorios |
+| `❖ + Ctrl + Q` | Cerrar el escritorio entero y saltar al más cercano |
+| `❖ + U` | Utilidades: calculadora, emojis, archivos, notificaciones |
+| `❖ + I` | Preguntar a la IA local (Ollama) |
 | `❖ + Shift + E` | Menú de sesión |
 | `❖ + Shift + W` / `B` / `F` | Wifi / Bluetooth / Fondos |
 | `❖ + P` | Historial del portapapeles |
+| `❖ + Shift + P` | Pausar el fondo animado |
 | `❖ + botón central` | Menú de la ventana |
 
 ## Cosas que tienen truco

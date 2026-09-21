@@ -10,6 +10,11 @@
 #   ./instalar-acceso.sh imagen.jpg   usa otra imagen
 #
 # Guarda copia de la configuracion anterior y al final dice como deshacerlo.
+#
+# El fondo va en /var/lib/sigilo/acceso.jpg, una carpeta tuya fuera de /home
+# que la pantalla de acceso sí puede leer. Cada vez que cambias el fondo del
+# escritorio, el script «fondo» actualiza también esta copia, así que al
+# cerrar sesión ves el mismo fondo que tenías.
 
 set -euo pipefail
 AQUI="$(cd "$(dirname "$0")" && pwd)"
@@ -78,9 +83,16 @@ if [ -f "$DEST" ]; then
 fi
 
 # 5. instalar
-sudo install -Dm644 "$FONDO" "$FONDOS/sigilo-acceso.$EXT"
+ACCESO=/var/lib/sigilo
+sudo install -d -o "$USER" -g "$USER" -m 755 "$ACCESO"
+if command -v magick >/dev/null; then
+    magick "$FONDO" -resize 1920x1080^ -gravity center -extent 1920x1080 -quality 90 "$ACCESO/acceso.jpg"
+else
+    cp "$FONDO" "$ACCESO/acceso.jpg"
+fi
+chmod 644 "$ACCESO/acceso.jpg"
 sudo install -Dm644 "$SELLO" "$FONDOS/sigilo-sello.png"
-sed "s|@FONDO@|$FONDOS/sigilo-acceso.$EXT|" "$CONF" | sudo tee "$DEST" >/dev/null
+sed "s|@FONDO@|$ACCESO/acceso.jpg|" "$CONF" | sudo tee "$DEST" >/dev/null
 sudo chmod 644 "$DEST"
 echo "  ✓ instalado"
 

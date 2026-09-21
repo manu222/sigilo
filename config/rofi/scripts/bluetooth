@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
-# Bluetooth: comprueba el servicio antes de nada, que en Arch viene apagado
-# de fabrica y sin eso bluetoothctl no tiene con quien hablar.
+# Menú de bluetooth (❖+Shift+B).
+#
+# Busca dispositivos durante unos segundos y los enseña con un icono según
+# su tipo (auriculares, ratón, teclado, móvil…) y su estado. Intro conecta
+# o desconecta; la primera vez también empareja y marca como de confianza,
+# así la próxima se conecta solo.
+#
+# Antes de nada comprueba el servicio: en Arch viene apagado de fábrica y
+# sin él bluetoothctl no tiene con quién hablar. Si está parado o el
+# adaptador apagado, pregunta antes de encenderlo.
 set -uo pipefail
 . ~/.config/rofi/scripts/comun.sh
 TEMA=~/.config/rofi/sigilo-lista.rasi
 
+# Pregunta de sí o no con rofi. Devuelve 0 si la respuesta es «Sí».
 pregunta() {  # $1 texto  -> 0 si dice que si
     r=$(printf 'No\nSí' | rofi -dmenu -no-custom -format i -theme "$TEMA" \
         -theme-str 'listview { lines: 2; } window { width: 34em; }' -p "$1")
@@ -27,6 +36,7 @@ if [ "$(bluetoothctl show 2>/dev/null | awk '/Powered:/{print $2}')" != "yes" ];
     sleep 1
 fi
 
+# Escanea 6 segundos en segundo plano mientras avisa de que está buscando
 notify-send -t 5000 "Bluetooth" "Buscando dispositivos..."
 bluetoothctl --timeout 6 scan on >/dev/null 2>&1 &
 sleep 5
@@ -36,6 +46,8 @@ if [ ${#crudas[@]} -eq 0 ]; then
     notify-send "Bluetooth" "No se ve ningún dispositivo"; exit 0
 fi
 
+# Una fila por dispositivo. El icono sale del tipo que declara el propio
+# aparato; el color, de si está conectado (menta), emparejado o nada.
 macs=(); filas=""
 for linea in "${crudas[@]}"; do
     mac=${linea%% *}; nombre=${linea#* }
@@ -68,6 +80,8 @@ i=$(printf '%s' "${filas%|}" | rofi -dmenu -sep '|' -markup-rows -i -format i \
 [ -z "$i" ] && exit 0
 mac="${macs[$i]}"
 
+# Conectado: se desconecta. Si no: emparejar, confiar y conectar.
+# pair y trust fallan sin más si ya estaba emparejado, por eso no se miran.
 if bluetoothctl info "$mac" | grep -q "Connected: yes"; then
     bluetoothctl disconnect "$mac" >/dev/null && notify-send "Bluetooth" "Desconectado"
 else

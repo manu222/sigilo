@@ -1,3 +1,7 @@
+// Ficha del sistema que sale al abrir el primer terminal de la sesión.
+// En kitty el sello se pinta como imagen (sigilo.png, lo decide
+// sigilo-shell.sh); en otros terminales, con los bloques de sigilo.ansi.
+// Los colores van en formato «38;2;R;G;B», el mismo de los códigos ANSI.
 {
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": {
@@ -7,6 +11,8 @@
     "height": 19,
     "padding": { "top": 1, "left": 1, "right": 4 }
   },
+  // Separación entre la etiqueta y el valor, ancho de las etiquetas y
+  // barras de uso (memoria, disco) con los colores según lo lleno que esté
   "display": {
     "separator": "  ",
     "key": { "width": 14 },
@@ -22,6 +28,7 @@
     },
     { "type": "custom", "format": "{#38;2;31;43;39}──────────────────────────────────────" },
 
+    // ── Tres bloques: equipo, escritorio y hardware ──
     { "type": "custom", "format": "{#38;2;143;127;176}󰌢  equipo" },
     { "type": "os",       "key": "  sistema",   "keyColor": "38;2;62;232;168", "format": "{pretty-name}" },
     { "type": "kernel",   "key": "  núcleo",    "keyColor": "38;2;62;232;168" },
@@ -43,6 +50,7 @@
     { "type": "disk",     "key": "  disco {mountpoint}", "keyColor": "38;2;200;170;229", "folders": "/:/datos" },
     { "type": "battery",  "key": "  batería",   "keyColor": "38;2;200;170;229" },
     "break",
+    // Muestra de la paleta del terminal
     { "type": "colors", "symbol": "circle", "paddingLeft": 2 }
   ]
 }

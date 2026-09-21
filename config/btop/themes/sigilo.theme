@@ -1,4 +1,7 @@
-# Sigilo Dark para btop
+# Tema Sigilo para btop (el monitor del sistema: clic en la CPU o la
+# memoria de la barra). Se elige en btop con Esc › Options › Color theme.
+# Mismos colores que el resto: menta para lo importante, grises para el
+# resto, y ámbar y rojo cuando algo se acerca al límite.
 theme[main_bg]="#070b09"
 theme[main_fg]="#e7edea"
 theme[title]="#e7edea"

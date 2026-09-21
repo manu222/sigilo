@@ -32,6 +32,10 @@ done < <(find "$ORIGEN" -type f -print0)
 chmod +x "$DESTINO"/i3/scripts/* "$DESTINO"/polybar/scripts/* \
          "$DESTINO"/polybar/launch.sh "$DESTINO"/rofi/scripts/* 2>/dev/null || true
 
+# ~/.local/bin en el PATH de la sesión gráfica (herramientas de pipx)
+grep -qs '.local/bin' "$HOME/.xprofile" || \
+    printf '# Herramientas instaladas para el usuario (pipx)\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.xprofile"
+
 # Accesos propios: el visor de imágenes como programa por defecto
 mkdir -p "$HOME/.local/share/applications"
 cp -a "$REPO"/extra/aplicaciones/*.desktop "$HOME/.local/share/applications/" 2>/dev/null

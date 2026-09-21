@@ -1,7 +1,12 @@
-/* Sigilo Dark - lanzador en rejilla
- * Banner arriba con el sello al vuelo, buscador encima y las aplicaciones
- * en tres columnas con icono.
- */
+/* ─────────────────────────────────────────────────────────────
+ * Rofi · lanzador de aplicaciones (❖+D y ❖+Espacio)
+ *
+ * Banner arriba con el sello, el buscador dentro del banner y debajo las
+ * aplicaciones en rejilla de 3 columnas × 6 filas con icono grande.
+ * El banner es rofi/banner.png: cámbialo por cualquier imagen ancha.
+ * ───────────────────────────────────────────────────────────── */
+/* Paleta Sigilo. Los mismos colores que la barra, las notificaciones y el
+ * terminal: si cambias uno aquí, cámbialo también en polybar/config.ini. */
 * {
     bg:        #070b09;
     bg-alt:    #0a0f0d;
@@ -20,6 +25,7 @@
     font:             "JetBrainsMono Nerd Font 11";
 }
 
+/* Ventana centrada, con borde y esquinas redondeadas */
 window {
     background-color: @bg;
     border:           1px;
@@ -66,6 +72,7 @@ entry {
 }
 
 /* ── rejilla de aplicaciones ───────────────────────────────────────── */
+/* Rejilla de apps: cambia columns y lines para ver más o menos a la vez */
 listview {
     columns:      3;
     lines:        6;
@@ -77,6 +84,7 @@ listview {
     dynamic:      true;
 }
 
+/* Cada app: icono y nombre */
 element {
     padding:       0.6em 0.7em;
     spacing:       0.8em;
@@ -85,6 +93,7 @@ element {
 }
 element normal.normal, element alternate.normal { text-color: @fg-dim; }
 element normal.urgent, element alternate.urgent { text-color: @urgent; }
+/* App elegida con las flechas: se ilumina en menta */
 element selected.normal {
     background-color: @surface;
     text-color:       @accent-hi;
@@ -94,6 +103,7 @@ element selected.urgent {
     text-color:       @urgent;
 }
 
+/* Tamaño del icono de cada app */
 element-icon { size: 1.9em; vertical-align: 0.5; }
 element-text { vertical-align: 0.5; }
 

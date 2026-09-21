@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# Instala las apps de Sigilo en este equipo, eligiendo con casillas.
+#
+#   ~/dotfiles/extra/sigilo-apps
+#
+# La lista sale de iso/grupos.yaml, la misma que usa el instalador de la ISO.
+# Lo ya instalado sale como «ya instalado» y sin marcar; lo que falta, marcado. También añade los
+# drivers y variantes que tocan según el hardware (iso/detectar-hardware).
+
+set -uo pipefail
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+GRUPOS="$REPO/iso/grupos.yaml"
+HW="$REPO/iso/detectar-hardware"
+LOG=~/.cache/sigilo-apps.log
+
+for p in dialog python3 yay; do command -v $p >/dev/null || { echo "Falta $p"; exit 1; }; done
+python3 -c 'import yaml' 2>/dev/null || sudo pacman -S --needed --noconfirm python-yaml
+
+# Colores de dialog a juego con Sigilo
+export DIALOGRC=$(mktemp)
+cat > "$DIALOGRC" <<'RC'
+use_shadow = OFF
+use_colors = ON
+screen_color = (WHITE,BLACK,OFF)
+dialog_color = (WHITE,BLACK,OFF)
+title_color = (GREEN,BLACK,ON)
+border_color = (BLACK,BLACK,ON)
+border2_color = (BLACK,BLACK,ON)
+button_active_color = (BLACK,GREEN,ON)
+button_inactive_color = (WHITE,BLACK,OFF)
+button_key_active_color = (BLACK,GREEN,ON)
+button_key_inactive_color = (GREEN,BLACK,OFF)
+button_label_active_color = (BLACK,GREEN,ON)
+button_label_inactive_color = (WHITE,BLACK,OFF)
+tag_color = (MAGENTA,BLACK,ON)
+tag_selected_color = (BLACK,GREEN,ON)
+tag_key_color = (MAGENTA,BLACK,ON)
+tag_key_selected_color = (BLACK,GREEN,ON)
+item_color = (WHITE,BLACK,OFF)
+item_selected_color = (BLACK,GREEN,ON)
+check_color = (GREEN,BLACK,ON)
+check_selected_color = (BLACK,GREEN,ON)
+menubox_color = (WHITE,BLACK,OFF)
+menubox_border_color = (BLACK,BLACK,ON)
+menubox_border2_color = (BLACK,BLACK,ON)
+RC
+trap 'rm -f "$DIALOGRC"' EXIT  # se sustituye más abajo al instalar
+
+# Filas: id \t etiqueta \t descripción \t paquetes \t on/off
+mapfile -t FILAS < <(python3 - "$GRUPOS" <<'PY'
+import sys, yaml, subprocess
+grupos = yaml.safe_load(open(sys.argv[1]))
+instalados = set(subprocess.run(["pacman", "-Qq"], capture_output=True, text=True).stdout.split())
+def resolver(p):
+    for alt in p.split("|"):
+        if alt in instalados: return alt
+    return p.split("|")[0]
+i = 0
+for g in grupos:
+    subs = g.get("subgroups") or [{"name": g["name"], "description": g.get("description", ""),
+                                   "selected": g.get("selected", True), "packages": g.get("packages", [])}]
+    for s in subs:
+        paqs = s.get("packages", [])
+        hecho = all(any(a in instalados for a in p.split("|")) for p in paqs)
+        etiqueta = (g["name"] + " › " + s["name"]) if g.get("subgroups") else g["name"]
+        # Lo instalado sale sin marcar y con «ya instalado» al final;
+        # lo que falta, marcado si está entre lo recomendado.
+        if hecho:
+            estado, desc = "off", "ya instalado"
+        else:
+            estado = "on" if (s.get("selected", True) or g.get("critical")) else "off"
+            desc = "FALTA · " + s.get("description", "")
+        print(f"{i}\t{etiqueta}\t{desc}\t{' '.join(paqs)}\t{estado}")
+        i += 1
+PY
+)
+
+args=()
+for f in "${FILAS[@]}"; do
+    IFS=$'\t' read -r id et desc paqs est <<<"$f"
+    args+=("$id" "$et  —  $desc" "$est")
+done
+
+sel=$(dialog --stdout --backtitle "Sigilo" --title " Apps de Sigilo " \
+      --checklist "Marcado = se va a instalar. Lo que pone «ya instalado» no hace falta marcarlo\n(desmarcarlo no lo desinstala). Espacio marca o desmarca · Intro sigue." \
+      0 0 0 "${args[@]}") || { clear; echo "Cancelado."; exit 0; }
+clear
+
+paquetes=()
+for id in $sel; do
+    id=${id//\"/}
+    IFS=$'\t' read -r _ _ _ paqs _ <<<"${FILAS[$id]}"
+    paquetes+=($paqs)
+done
+
+echo -e "\e[1;36m── Hardware de este equipo ──\e[0m"
+"$HW" | sed 's/^/  /'
+mapfile -t hw < <("$HW" --paquetes)
+read -rp $'\n  ¿Añado también esos drivers y variantes? [S/n] ' r
+[[ "$r" =~ ^[nN]$ ]] || paquetes+=("${hw[@]}")
+
+# Resolver alternativas «a|b» y separar repos oficiales / AUR
+oficiales=() aur=() faltan=() pipx_=()
+for p in "${paquetes[@]}"; do
+    if [[ $p == pipx:* ]]; then pipx_+=("${p#pipx:}"); continue; fi
+    elegido=""
+    for alt in ${p//|/ }; do
+        if pacman -Si "$alt" >/dev/null 2>&1; then elegido=$alt; oficiales+=("$alt"); break; fi
+        if yay -Si --aur "$alt" >/dev/null 2>&1; then elegido=$alt; aur+=("$alt"); break; fi
+    done
+    [ -z "$elegido" ] && faltan+=("$p")
+done
+mapfile -t oficiales < <(printf '%s\n' "${oficiales[@]}" | sort -u)
+mapfile -t aur < <(printf '%s\n' "${aur[@]}" | sort -u)
+
+echo -e "\n\e[1;36m── Resumen ──\e[0m"
+echo "  Repositorios oficiales: ${#oficiales[@]}"
+echo "  AUR (se compilan):      ${#aur[@]}  ${aur[*]}"
+[ ${#pipx_[@]} -gt 0 ] && echo "  Python (pipx):          ${pipx_[*]}"
+[ ${#faltan[@]} -gt 0 ] && echo -e "  \e[33mNo encontrados (se saltan): ${faltan[*]}\e[0m"
+read -rp $'\n  ¿Instalo? [S/n] ' r
+[[ "$r" =~ ^[nN]$ ]] && exit 0
+
+# A partir de aquí puede ir solo: no pregunta nada más, no deja que el
+# equipo se bloquee, suspenda o hiberne (tampoco al cerrar la tapa) y
+# mantiene sudo vivo para que no se quede esperando la contraseña.
+echo -e "\n  Puedes irte: no se bloqueará ni suspenderá hasta que termine."
+sudo -v
+( while true; do sudo -n true; sleep 50; done ) 2>/dev/null &
+SUDO_VIVO=$!
+xset s off -dpms 2>/dev/null
+restaurar() {
+    kill "$SUDO_VIVO" 2>/dev/null
+    xset s 600 dpms 620 620 620 2>/dev/null
+    rm -f "$DIALOGRC"
+}
+trap restaurar EXIT
+
+# Del AUR, de uno en uno: si uno falla (una descarga cortada, un conflicto),
+# los demás se instalan igual y al final se dice cuáles fallaron.
+systemd-inhibit --what=idle:sleep:shutdown:handle-lid-switch:handle-suspend-key \
+    --who="sigilo-apps" --why="Instalando aplicaciones" --mode=block \
+    bash -c '
+        [ -n "$1" ] && sudo pacman -S --needed --noconfirm $1
+        fallidos=""
+        for a in $2; do
+            yay -S --needed --noconfirm --answerclean None --answerdiff None --removemake "$a" \
+                || fallidos="$fallidos $a"
+        done
+        for x in $3; do
+            pipx install "$x" >/dev/null 2>&1 || pipx upgrade "$x" >/dev/null 2>&1 || fallidos="$fallidos $x"
+        done
+        echo "$fallidos" > "${XDG_RUNTIME_DIR:-/tmp}/sigilo-apps.fallidos"
+    ' _ "${oficiales[*]}" "${aur[*]}" "${pipx_[*]}" 2>&1 | tee -a "$LOG"
+
+fallidos=$(cat "${XDG_RUNTIME_DIR:-/tmp}/sigilo-apps.fallidos" 2>/dev/null | xargs)
+if [ -n "$fallidos" ]; then
+    echo -e "\n  \e[33m! No se pudieron instalar: $fallidos\e[0m  (detalles en $LOG)"
+else
+    echo -e "\n  \e[32m✓ Todo instalado\e[0m"
+fi
+
+echo -e "\n\e[1;36m── Ajustes ──\e[0m"
+q() { pacman -Qq "$1" >/dev/null 2>&1; }
+if q docker; then
+    sudo systemctl enable --now docker.socket >/dev/null 2>&1
+    sudo usermod -aG docker "$USER"; echo "  ✓ Docker (se arranca al usarlo) y tú en el grupo docker"
+fi
+if q libvirt; then
+    sudo systemctl enable --now libvirtd.socket >/dev/null 2>&1
+    sudo usermod -aG libvirt "$USER"; echo "  ✓ Máquinas virtuales listas"
+fi
+if q wireshark-qt; then
+    sudo usermod -aG wireshark "$USER"; echo "  ✓ Wireshark puede capturar sin sudo"
+fi
+if q ollama; then sudo systemctl enable --now ollama >/dev/null 2>&1; echo "  ✓ Ollama en marcha"; fi
+"$REPO/extra/organizar-apps" && echo "  ✓ Apps ordenadas en ~/Aplicaciones (y en ❖+D)"
+echo -e "\n  Cierra sesión y vuelve a entrar para que los grupos nuevos cuenten."
+echo "  Registro en $LOG"

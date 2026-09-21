@@ -7,6 +7,10 @@
 add_newline = true
 command_timeout = 900
 
+# Orden de la primera línea del prompt. Cada [] es la punta de flecha que
+# une un segmento con el siguiente: su color de letra es el del segmento que
+# termina y su fondo, el del que empieza. Si cambias un color de fondo,
+# cámbialo también en las dos flechas que lo tocan.
 format = """
 [](fg:#34d399)\
 $os\
@@ -28,27 +32,33 @@ $time\
 
 $character"""
 
+# ── Logo del sistema (el fantasma) ──────────────────────────
 [os]
 disabled = false
 style = "bg:#34d399 fg:#06130d"
 format = "[$symbol]($style)"
 
+# El mismo fantasma sea cual sea la distribución
 [os.symbols]
 EndeavourOS = "󰊠 "
 Arch = "󰊠 "
 Linux = "󰊠 "
 
+# ── Usuario: en menta; en rojo si eres root, para que se note ──
 [username]
 show_always = true
 style_user = "bg:#34d399 fg:#06130d"
 style_root = "bg:#e0777d fg:#070b09"
 format = "[$user ]($style)"
 
+# ── Nombre del equipo: el único segmento en lila ──────────────
 [hostname]
 ssh_only = false
 style = "bg:#1d1829 fg:#c8aae5"
 format = "[  $hostname ]($style)"
 
+# ── Carpeta actual: como mucho 3 niveles; dentro de un repo git,
+#    la ruta empieza en la raíz del repo ─────────────────────
 [directory]
 style = "bg:#15201c fg:#3ee8a8"
 format = "[ $path ]($style)[$read_only]($read_only_style)"
@@ -59,15 +69,20 @@ truncate_to_repo = true
 truncation_symbol = "…/"
 home_symbol = " ~"
 
+# Iconos en vez del nombre para las carpetas de siempre
 [directory.substitutions]
 "Documentos" = " "
 "Descargas"  = " "
 "Escritorio" = " "
-"Imagenes"   = " "
-"Musica"     = " "
-"Videos"     = " "
+"Imágenes"   = " "
+"Música"     = " "
+"Vídeos"     = " "
+"Seguridad"  = "󰒃 "
+"Aplicaciones" = "󰀻 "
 "Proyectos"  = " "
 
+# ── Git: rama y estado (!2 = 2 cambiados, ?3 = 3 sin seguir,
+#    +1 = 1 preparado, ↑↓ = commits por subir o por bajar) ────
 [git_branch]
 symbol = " "
 style = "bg:#101714 fg:#b79ad4"
@@ -88,6 +103,7 @@ staged = "+${count} "
 renamed = "»${count} "
 deleted = "✗${count} "
 
+# ── Versión del lenguaje, solo dentro de un proyecto que lo use ──
 [nodejs]
 symbol = " "
 style = "bg:#0d1411 fg:#b8c9a0"
@@ -114,6 +130,7 @@ symbol = " "
 style = "bg:#0d1411 fg:#8aa9c4"
 format = "[ $symbol$context ]($style)"
 
+# ── Código de error del último comando, solo si falló ──────────
 [status]
 disabled = false
 style = "bg:#0a0f0d fg:#e0777d"
@@ -121,17 +138,20 @@ format = "[ ✗$status ]($style)"
 map_symbol = false
 pipestatus = true
 
+# ── Cuánto tardó el último comando, si pasó de 2 segundos ─────
 [cmd_duration]
 min_time = 2000
 style = "bg:#0a0f0d fg:#94a3a0"
 format = "[  $duration ]($style)"
 
+# ── Hora, apagada al final ──────────────────────────────────
 [time]
 disabled = false
 style = "bg:#0a0f0d fg:#8f7fb0"
 format = "[  $time ]($style)"
 time_format = "%H:%M"
 
+# ── Segunda línea: ❯ en menta, o en rojo si el último comando falló ──
 [character]
 success_symbol = "[❯](bold fg:#34d399)"
 error_symbol = "[❯](bold fg:#e0777d)"

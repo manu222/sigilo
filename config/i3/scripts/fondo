@@ -51,6 +51,18 @@ subir_barra() {
     done
 }
 
+# Copia del fondo para la pantalla de inicio de sesión. Esa pantalla no
+# puede leer tu carpeta personal, así que se deja una copia en
+# /var/lib/sigilo (la crea sistema/instalar-acceso.sh). Si la carpeta no
+# existe todavía, no hace nada.
+actualizar_acceso() {
+    local src="$1" dest=/var/lib/sigilo/acceso.jpg
+    [ -w "$(dirname "$dest")" ] || return 0
+    es_video "$src" && src=$(fotograma "$src")
+    magick "$src" -resize 1920x1080^ -gravity center -extent 1920x1080 -quality 90 "$dest.tmp" 2>>"$LOG" \
+        && mv -f "$dest.tmp" "$dest" && chmod 644 "$dest"
+}
+
 poner() {
     local f="$1"
     [ -f "$f" ] || { echo "no existe: $f" >> "$LOG"; return 1; }
@@ -76,6 +88,7 @@ poner() {
         feh --no-fehbg --bg-fill "$f"
     fi
     printf '%s\n' "$f" > "$ESTADO"
+    actualizar_acceso "$f" &
 }
 
 case "${1:-}" in

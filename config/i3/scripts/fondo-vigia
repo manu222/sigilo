@@ -21,6 +21,7 @@ cerrojo = threading.Lock()
 
 
 def mpv(pausa):
+    """Pausa o reanuda el vídeo del fondo a través del socket de mpv."""
     try:
         s = socket.socket(socket.AF_UNIX)
         s.connect(SOCKET)
@@ -31,6 +32,7 @@ def mpv(pausa):
 
 
 def aplicar():
+    """Decide si el vídeo tiene que estar en pausa y solo actúa si cambia algo."""
     with cerrojo:
         if os.path.exists(MANUAL):
             return
@@ -41,6 +43,7 @@ def aplicar():
 
 
 def con_bateria():
+    """True si el portátil va sin cargador."""
     for f in glob.glob("/sys/class/power_supply/A*/online"):
         try:
             return open(f).read().strip() == "0"
@@ -50,12 +53,14 @@ def con_bateria():
 
 
 def revisar_foco(*_):
+    """Mira si la ventana con el foco está a pantalla completa."""
     f = i3.get_tree().find_focused()
     estado["pantalla_completa"] = bool(f and f.fullscreen_mode)
     aplicar()
 
 
 def vigilar_bateria():
+    """Comprueba la batería cada 20 s. No hay evento de i3 para eso."""
     while True:
         b = con_bateria()
         if b != estado["bateria"]:

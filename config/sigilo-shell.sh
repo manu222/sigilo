@@ -5,6 +5,9 @@
 # ─────────────────────────────────────────────────────────────
 
 [[ $- == *i* ]] || return 0
+# Programas instalados para el usuario (pipx, uv tool, scripts propios)
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
+
 _hay() { command -v "$1" >/dev/null 2>&1; }
 
 # ── Historial ────────────────────────────────────────────────

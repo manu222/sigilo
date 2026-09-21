@@ -56,6 +56,7 @@ def medir(ruta):
 
 
 def clasificar(w, h, r, g, b):
+    """Mide una imagen y dice a qué familia pertenece, o None si no sirve de fondo."""
     if w < ANCHO_MIN or h < ALTO_MIN:
         return None, 0
     hh, ll, ss = colorsys.rgb_to_hls(r, g, b)
@@ -82,6 +83,7 @@ def clasificar(w, h, r, g, b):
 
 
 def main():
+    """Recorre la carpeta de fondos, clasifica en paralelo y copia la selección."""
     rutas = []
     for raiz, dirs, ficheros in os.walk(BASE):
         dirs[:] = [d for d in dirs if d not in (".git", "seleccion")]

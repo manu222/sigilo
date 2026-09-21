@@ -62,6 +62,7 @@ def presentable(clase):
 
 
 def nombre(f):
+    """Nombre presentable de la ventana con el foco, o «escritorio» si no hay ninguna."""
     if f is None or f.type == "workspace":
         return "escritorio"
     clase = (f.window_class or f.window_instance or "").strip()
@@ -74,6 +75,7 @@ def nombre(f):
 
 
 def pinta(i3, _evento=None):
+    """Escribe el nombre para la barra, solo si ha cambiado."""
     try:
         print(nombre(i3.get_tree().find_focused()), flush=True)
     except Exception:
@@ -81,6 +83,7 @@ def pinta(i3, _evento=None):
 
 
 def main():
+    """Escribe el nombre actual y se queda escuchando los cambios de foco de i3."""
     i3 = i3ipc.Connection()
     for evento in ("window::focus", "window::close", "workspace::focus"):
         i3.on(evento, pinta)

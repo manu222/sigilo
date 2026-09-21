@@ -1,0 +1,55 @@
+# jgmenu · Sigilo
+# Menú desplegable de aplicaciones que sale del botón de la barra.
+# Las entradas las escribe ~/dotfiles/extra/organizar-apps en sigilo.csv.
+
+stay_alive          = 0
+position_mode       = fixed
+menu_halign         = left
+menu_valign         = top
+menu_margin_x       = 33
+menu_margin_y       = 60
+menu_width          = 250
+menu_padding_top    = 8
+menu_padding_right  = 8
+menu_padding_bottom = 8
+menu_padding_left   = 8
+menu_radius         = 12
+menu_border         = 1
+menu_gradient_pos   = none
+
+sub_spacing         = 6
+sub_padding_top     = -1
+sub_padding_right   = -1
+sub_padding_bottom  = -1
+sub_padding_left    = -1
+sub_hover_action    = 1
+
+item_height         = 30
+item_padding_x      = 10
+item_radius         = 8
+item_border         = 0
+sep_height          = 9
+sep_markup          =
+
+font                = Inter 10
+font_fallback       = xtg
+icon_size           = 20
+icon_text_spacing   = 10
+icon_theme          = Sigilo
+icon_theme_fallback = Papirus-Dark
+arrow_string        = ›
+arrow_width         = 12
+
+color_menu_bg       = #0b100e 97
+color_menu_bg_to    = #0b100e 97
+color_menu_border   = #1f2b27 100
+color_norm_bg       = #0b100e 0
+color_norm_fg       = #c9d3ce 100
+color_sel_bg        = #c8aae5 22
+color_sel_fg        = #f2eefa 100
+color_sel_border    = #c8aae5 0
+color_sep_fg        = #1f2b27 100
+color_scroll_ind    = #556760 100
+color_title_fg      = #8f7fb0 100
+color_title_bg      = #0b100e 0
+color_title_border  = #0b100e 0

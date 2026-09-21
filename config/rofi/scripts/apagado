@@ -10,6 +10,7 @@ set -uo pipefail
 
 ICO=~/.config/rofi/iconos
 
+# Una fila de rofi con su icono: el texto, un byte nulo y la ruta del PNG
 fila() {   # $1 etiqueta  $2 fichero de icono
     printf '%s\0icon\x1f%s/%s.png\n' "$1" "$ICO" "$2"
 }
@@ -24,6 +25,8 @@ i=$( { fila "Bloquear"  bloquear
               -mesg "<span foreground=\"$MUTE\">←  →  para elegir   ·   Intro confirma   ·   Esc cancela</span>" )
 [ -z "$i" ] && exit 0
 
+# Lo que no tiene vuelta atrás (salir, reiniciar, apagar) pide confirmación.
+# Bloquear y suspender no, porque se deshacen solos al volver.
 confirmar() {   # $1 pregunta  $2 texto del si
     r=$(printf 'Cancelar\n%s' "$2" | rofi -dmenu -no-custom -format i \
         -theme ~/.config/rofi/sigilo-lista.rasi \

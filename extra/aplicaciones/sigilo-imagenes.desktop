@@ -1,3 +1,5 @@
+# Visor de imágenes de Sigilo (imv con las teclas de borrar y deshacer).
+# Lo instala instalar.sh y se deja como programa por defecto para imágenes.
 [Desktop Entry]
 Type=Application
 Name=Imágenes

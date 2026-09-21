@@ -15,7 +15,8 @@ FALLOS=0
 paso "Programas"
 for p in i3 polybar rofi dunst picom skippy-xd greenclip kitty starship fastfetch eza bat fzf zoxide fd \
          brightnessctl pactl playerctl xclip xdotool notify-send dunstctl i3lock scrot magick feh \
-         autotiling nmcli ollama timeshift btop jq nmap dig delta duf expac paccache gsimplecal; do
+         autotiling nmcli ollama timeshift btop jq nmap dig delta duf expac paccache gsimplecal \
+         jgmenu imv mpv ffmpeg xwinwrap pipx dialog; do
     command -v "$p" >/dev/null && ok "$p" || mal "$p no está instalado"
 done
 python3 -c 'import i3ipc' 2>/dev/null && ok "python i3ipc" || mal "falta python-i3ipc"
@@ -55,8 +56,49 @@ systemctl is-active -q ollama && ok "ollama" || ojo "ollama parado"
 systemctl is-active -q cronie && ok "cronie (copias)" || mal "cronie parado"
 systemctl is-active -q grub-btrfsd && ok "grub-btrfsd" || ojo "grub-btrfsd parado"
 
+paso "Apps de la lista (iso/grupos.yaml)"
+python3 - "$(dirname "$0")/../iso/grupos.yaml" <<'PY'
+import sys, yaml, subprocess, shutil, os
+os.environ["PATH"] = os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", "")
+g = yaml.safe_load(open(sys.argv[1]))
+inst = set(subprocess.run(["pacman", "-Qq"], capture_output=True, text=True).stdout.split())
+faltan = []
+for grupo in g:
+    for s in (grupo.get("subgroups") or [grupo]):
+        for p in s.get("packages", []):
+            if p.startswith("pipx:"):
+                if not shutil.which(p[5:].replace("-cli", "")) and not shutil.which(p[5:]):
+                    faltan.append(p)
+            elif not any(a in inst for a in p.split("|")):
+                faltan.append(p)
+print("  \033[32m✓\033[0m todas instaladas" if not faltan else "  \033[31m✗\033[0m faltan: " + " ".join(faltan))
+PY
+
+paso "Duplicados y restos"
+for p in greenclip dunst picom polybar; do n=$(pgrep -xc "$p"); [ "$n" -le 1 ] && ok "$p: $n copia" || mal "$p: $n copias"; done
+for s in botones-ventana escritorios app-enfocada fondo-vigia; do n=$(pgrep -fc "scripts/$s"); [ "$n" -le 1 ] && ok "$s: $n" || mal "$s: $n copias"; done
+h=$(pacman -Qdtq 2>/dev/null | wc -l); [ "$h" -eq 0 ] && ok "sin paquetes huérfanos" || ojo "$h huérfanos (limpiar los quita): $(pacman -Qdtq | tr '\n' ' ')"
+f=$(systemctl --failed --no-legend | wc -l); [ "$f" -eq 0 ] && ok "ningún servicio caído" || { mal "$f servicios caídos"; systemctl --failed --no-legend | sed 's/^/      /'; }
+fu=$(systemctl --user --failed --no-legend | wc -l); [ "$fu" -eq 0 ] && ok "ningún servicio de usuario caído" || { mal "$fu servicios de usuario caídos"; systemctl --user --failed --no-legend | sed 's/^/      /'; }
+
+paso "Menú y carpetas"
+n=$(find ~/Aplicaciones -name '*.desktop' 2>/dev/null | wc -l); [ "$n" -gt 0 ] && ok "~/Aplicaciones: $n accesos" || mal "~/Aplicaciones vacía: ~/dotfiles/extra/organizar-apps"
+rotos=$(find ~/Aplicaciones -xtype l 2>/dev/null | wc -l); [ "$rotos" -eq 0 ] && ok "sin accesos rotos" || mal "$rotos accesos rotos (vuelve a lanzar organizar-apps)"
+[ -s ~/.config/jgmenu/sigilo.csv ] && ok "menú de la barra generado" || mal "falta ~/.config/jgmenu/sigilo.csv"
+for d in ~/Seguridad ~/Proyectos; do [ -d "$d" ] && ok "$d" || mal "falta $d"; done
+
+paso "Pantalla de inicio de sesión"
+if [ -f /var/lib/sigilo/acceso.jpg ]; then
+    ok "fondo de acceso en /var/lib/sigilo ($(date -r /var/lib/sigilo/acceso.jpg '+%d/%m %H:%M'))"
+    grep -q "/var/lib/sigilo/acceso.jpg" /etc/lightdm/slick-greeter.conf && ok "slick-greeter lo usa" || mal "slick-greeter apunta a otro fondo: ~/dotfiles/sistema/instalar-acceso.sh"
+else
+    mal "sin fondo dinámico: lanza ~/dotfiles/sistema/instalar-acceso.sh"
+fi
+
 paso "Polybar: últimos errores"
-grep -iE "error|warn" ~/.cache/polybar.log 2>/dev/null | tail -8 | sed 's/^/  /' || true
+# Solo lo del último arranque de la barra, no el historial entero
+awk '/lanzamiento/{b=""} {b=b $0 "\n"} END{printf "%s", b}' ~/.cache/polybar.log 2>/dev/null \
+    | grep -iE "error|warn" | grep -v "Root pixmap" | tail -8 | sed 's/^/  /' | grep . || ok "sin errores"
 
 paso "Resumen"
 [ $FALLOS -eq 0 ] && echo "  Todo en orden." || echo "  $FALLOS cosas que revisar. Informe en $LOG"
