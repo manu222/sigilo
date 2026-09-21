@@ -5,6 +5,9 @@
 #   fondo --restaurar   vuelve a poner el último (lo lanza i3 al arrancar)
 #   fondo --pausar      congela el vídeo en el fotograma actual / lo reanuda
 #
+# Además, «fondo-vigia» lo pausa solo si hay una ventana a pantalla completa
+# o si el portátil va con batería.
+#
 # Los vídeos se reproducen con mpv dentro de una ventana de escritorio
 # (xwinwrap), en bucle, sin sonido y con decodificación por hardware.
 # Además se pone de fondo «normal» un fotograma del vídeo: lo usan la barra,
@@ -19,6 +22,7 @@ mkdir -p "$CACHE" "$(dirname "$ESTADO")"
 es_video() { case "${1,,}" in *.mp4|*.webm|*.mkv|*.mov|*.gif) return 0 ;; esac; return 1; }
 
 parar_video() {
+    pkill -f "scripts/fondo-vigia" 2>/dev/null
     pkill -f "xwinwrap.*sigilo-fondo" 2>/dev/null
     pkill -f "mpv.*sigilo-fondo" 2>/dev/null
     rm -f "$SOCKET"
@@ -67,6 +71,7 @@ poner() {
                 --stop-screensaver=no --cursor-autohide=no --really-quiet --no-terminal \
                 "$f" >>"$LOG" 2>&1
         subir_barra &
+        setsid -f "$(dirname "$0")/fondo-vigia" >>"$LOG" 2>&1
     else
         feh --no-fehbg --bg-fill "$f"
     fi
@@ -80,8 +85,15 @@ case "${1:-}" in
         # Sin estado todavía: el fondo que hubiera antes
         [ -x ~/.fehbg ] && ~/.fehbg ;;
     --pausar)
-        [ -S "$SOCKET" ] && echo '{"command":["cycle","pause"]}' | socat - "$SOCKET" >/dev/null 2>&1 \
-            || python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.send(b"{\"command\":[\"cycle\",\"pause\"]}\n")' "$SOCKET" ;;
+        # Pausa manual: se marca para que la pausa automática no la deshaga
+        MARCA="${XDG_RUNTIME_DIR:-/tmp}/sigilo-fondo.pausa-manual"
+        if [ -e "$MARCA" ]; then
+            rm -f "$MARCA"; valor=false
+        else
+            : > "$MARCA"; valor=true
+        fi
+        python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.send(("{\"command\":[\"set_property\",\"pause\",%s]}\n" % sys.argv[2]).encode())' "$SOCKET" "$valor" 2>/dev/null \
+            || rm -f "$MARCA" ;;
     --subir-barra)
         subir_barra ;;
     "")

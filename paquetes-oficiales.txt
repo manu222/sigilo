@@ -260,3 +260,4 @@ xterm
 yay
 zip
 zoxide
+zram-generator

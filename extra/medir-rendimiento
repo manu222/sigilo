@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Foto del consumo del equipo en reposo, para decidir qué optimizar.
+# No cambia nada. Deja el informe en ~/.cache/sigilo-rendimiento.log
+#
+#   sudo -v && ~/dotfiles/extra/medir-rendimiento
+#
+# Conviene lanzarlo con el escritorio como lo usas normalmente, pero sin
+# apps pesadas abiertas, para ver lo que gasta el sistema «de fondo».
+
+LOG=~/.cache/sigilo-rendimiento.log
+exec > >(tee "$LOG") 2>&1
+s() { printf '\n===== %s =====\n' "$*"; }
+
+s "equipo"
+uname -r; nproc; grep -m1 'model name' /proc/cpuinfo
+free -h; swapon --show; zramctl 2>/dev/null
+cat /proc/cmdline
+
+s "arranque"
+systemd-analyze 2>/dev/null
+systemd-analyze blame 2>/dev/null | head -20
+systemd-analyze critical-chain 2>/dev/null | head -20
+
+s "servicios activos (sistema)"
+systemctl list-units --type=service --state=running --no-legend --plain | awk '{print $1}'
+s "servicios habilitados (sistema)"
+systemctl list-unit-files --state=enabled --no-legend --type=service | awk '{print $1}'
+s "timers"
+systemctl list-timers --no-legend | awk '{print $NF, $(NF-1)}' | head -30
+s "servicios de usuario"
+systemctl --user list-units --type=service --state=running --no-legend --plain | awk '{print $1}'
+
+s "procesos por memoria (RSS MB)"
+ps -eo rss,pcpu,comm --sort=-rss | awk 'NR==1{print;next} NR<=30{printf "%7.0f %5s %s\n",$1/1024,$2,$3}'
+s "cpu en reposo (10 s)"
+top -b -d 10 -n 2 -o %CPU | awk '/^top/{n++} n==2' | sed -n '1,25p'
+
+s "energía y cpu"
+powerprofilesctl get 2>/dev/null
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null
+cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null
+cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null
+for b in /sys/class/power_supply/BAT*; do echo "$b: $(cat $b/status) $(cat $b/capacity)%"; cat $b/power_now $b/current_now 2>/dev/null; done
+pacman -Qq tlp auto-cpufreq thermald power-profiles-daemon 2>/dev/null
+
+s "gráficas"
+lspci -k | grep -EA3 'VGA|3D'
+cat /proc/driver/nvidia/gpus/*/power 2>/dev/null
+cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status 2>/dev/null
+nvidia-smi --query-gpu=name,power.draw,pstate,memory.used --format=csv 2>/dev/null
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv 2>/dev/null
+cat /etc/modprobe.d/*nvidia* 2>/dev/null
+glxinfo -B 2>/dev/null | grep -E 'renderer|vendor'
+pacman -Qq optimus-manager envycontrol nvidia-prime switcheroo-control 2>/dev/null
+
+s "disco"
+lsblk -d -o NAME,ROTA,SCHED,MODEL
+findmnt -no TARGET,OPTIONS / /home /datos
+systemctl is-enabled fstrim.timer 2>/dev/null
+journalctl --disk-usage 2>/dev/null
+du -sh /var/cache/pacman/pkg ~/.cache 2>/dev/null
+
+s "memoria y kernel"
+sysctl vm.swappiness vm.vfs_cache_pressure vm.dirty_ratio vm.dirty_background_ratio 2>/dev/null
+cat /sys/kernel/mm/transparent_hugepage/enabled
+
+s "escritorio"
+picom --version 2>/dev/null
+ps -o pid,pcpu,rss,etime,args -C picom,polybar,dunst,skippy-xd,greenclip,mpv,xwinwrap,autotiling | cut -c1-150
+pgrep -af 'scripts/' | cut -c1-150
+cat ~/.config/sigilo/fondo-actual
+s "fin"

@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Pausa el fondo animado cuando no se ve o cuando conviene ahorrar.
+
+Se pausa si:
+  · la ventana con el foco está a pantalla completa (el fondo no se ve), o
+  · el portátil va con batería.
+Se reanuda en cuanto deja de cumplirse. Si lo pausas tú a mano (❖+Shift+P),
+se respeta: no lo vuelve a poner en marcha.
+
+Lo arranca y lo para el script «fondo»; no hace falta lanzarlo a mano.
+"""
+import glob, json, os, socket, threading, time
+import i3ipc
+
+SOCKET = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "sigilo-fondo.sock")
+MANUAL = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "sigilo-fondo.pausa-manual")
+
+i3 = i3ipc.Connection()
+estado = {"pantalla_completa": False, "bateria": False, "pausado": None}
+cerrojo = threading.Lock()
+
+
+def mpv(pausa):
+    try:
+        s = socket.socket(socket.AF_UNIX)
+        s.connect(SOCKET)
+        s.send((json.dumps({"command": ["set_property", "pause", pausa]}) + "\n").encode())
+        s.close()
+    except OSError:
+        pass
+
+
+def aplicar():
+    with cerrojo:
+        if os.path.exists(MANUAL):
+            return
+        pausar = estado["pantalla_completa"] or estado["bateria"]
+        if pausar != estado["pausado"]:
+            mpv(pausar)
+            estado["pausado"] = pausar
+
+
+def con_bateria():
+    for f in glob.glob("/sys/class/power_supply/A*/online"):
+        try:
+            return open(f).read().strip() == "0"
+        except OSError:
+            pass
+    return False
+
+
+def revisar_foco(*_):
+    f = i3.get_tree().find_focused()
+    estado["pantalla_completa"] = bool(f and f.fullscreen_mode)
+    aplicar()
+
+
+def vigilar_bateria():
+    while True:
+        b = con_bateria()
+        if b != estado["bateria"]:
+            estado["bateria"] = b
+            aplicar()
+        time.sleep(20)
+
+
+if os.path.exists(MANUAL):
+    os.remove(MANUAL)
+estado["bateria"] = con_bateria()
+threading.Thread(target=vigilar_bateria, daemon=True).start()
+for ev in (i3ipc.Event.WINDOW_FOCUS, i3ipc.Event.WINDOW_FULLSCREEN_MODE,
+           i3ipc.Event.WORKSPACE_FOCUS, i3ipc.Event.WINDOW_CLOSE):
+    i3.on(ev, revisar_foco)
+time.sleep(1)
+revisar_foco()
+i3.main()

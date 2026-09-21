@@ -359,7 +359,9 @@ exec_always --no-startup-id ~/.config/polybar/launch.sh
 exec_always --no-startup-id autotiling
 
 # Historial del portapapeles, para recuperarlo con Mod+P
-exec_always --no-startup-id greenclip daemon
+# Solo si no está ya: exec_always se repite en cada reinicio de i3 y
+# acababan acumulándose copias del demonio.
+exec_always --no-startup-id sh -c 'pgrep -x greenclip >/dev/null || exec greenclip daemon'
 
 # Traduce los botones de minimizar y maximizar de las aplicaciones a algo
 # que i3 entienda. Ver el propio script para el porque.

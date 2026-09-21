@@ -28,6 +28,26 @@ except ImportError as e:
 ICONIC = 3          # el estado "minimizada" de toda la vida de X11
 
 
+def instancia_unica():
+    """i3 lanza este script en cada reinicio (exec_always). Sin esto se
+    acumulaban copias; la nueva cierra a la anterior y ocupa su sitio, así
+    que un cambio en el script se aplica con reiniciar i3."""
+    ruta = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "botones-ventana.pid")
+    try:
+        viejo = int(open(ruta).read().strip())
+        if viejo != os.getpid():
+            with open(f"/proc/{viejo}/cmdline", "rb") as f:
+                if b"botones-ventana" in f.read():
+                    os.kill(viejo, 15)
+    except (OSError, ValueError):
+        pass
+    with open(ruta, "w") as f:
+        f.write(str(os.getpid()))
+
+
+instancia_unica()
+
+
 def main():
     d = display.Display()
     root = d.screen().root
