@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Saca de la papelera la última imagen borrada desde el visor y la vuelve
+# a abrir en él.
+pid="$1"
+REG="${XDG_CACHE_HOME:-$HOME/.cache}/imv-papelera"
+TR="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
+[ -s "$REG" ] || { notify-send -a Imágenes -i edit-undo "Nada que deshacer"; exit 0; }
+
+ruta=$(tail -n1 "$REG")
+sed -i '$d' "$REG"
+
+# Busca en la papelera la entrada más reciente con esa ruta
+info=$(python3 - "$TR" "$ruta" <<'PY'
+import sys, os, urllib.parse
+tr, ruta = sys.argv[1], sys.argv[2]
+mejor = None
+for f in os.listdir(os.path.join(tr, "info")):
+    if not f.endswith(".trashinfo"): continue
+    datos = dict(l.strip().split("=", 1) for l in open(os.path.join(tr, "info", f)) if "=" in l)
+    if urllib.parse.unquote(datos.get("Path", "")) == ruta:
+        fecha = datos.get("DeletionDate", "")
+        if mejor is None or fecha > mejor[0]:
+            mejor = (fecha, f[:-10])
+print(mejor[1] if mejor else "")
+PY
+)
+if [ -z "$info" ] || [ -e "$ruta" ]; then
+    notify-send -a Imágenes -i dialog-warning "No se pudo recuperar" "$(basename "$ruta")"; exit 1
+fi
+mv -n -- "$TR/files/$info" "$ruta" && rm -f -- "$TR/info/$info.trashinfo"
+imv-msg "$pid" open "$ruta" && imv-msg "$pid" goto -1
+notify-send -a Imágenes -i edit-undo "Recuperada" "$(basename "$ruta")"

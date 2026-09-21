@@ -38,7 +38,7 @@ NOMBRES = {
     "alttab":         "Cambiar",
 }
 
-LIMITE = 18          # por si aparece una clase larga inesperada
+LIMITE = 14          # por si aparece una clase larga inesperada
 
 
 # Palabras que no distinguen nada al final de un nombre de dominio invertido

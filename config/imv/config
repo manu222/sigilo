@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────
+#  imv · Sigilo
+#  Visor de imágenes pensado para limpiar carpetas:
+#    Supr        a la papelera y pasa a la siguiente
+#    U           deshace la última (la saca de la papelera)
+#    ← →         anterior / siguiente      F  pantalla completa
+#    + − 0       zoom / tamaño real         Q  salir
+# ─────────────────────────────────────────────────────────────
+
+[options]
+background = 070b09
+initial_pan = 50 50
+upscaling_method = linear
+loop_input = false
+overlay = true
+overlay_font = JetBrainsMono Nerd Font:10
+overlay_text_color = c9d3ce
+overlay_text_alpha = ff
+overlay_background_color = 0a0f0d
+overlay_background_alpha = e6
+overlay_position_bottom = true
+title_text = Imágenes · $(basename "$imv_current_file")
+overlay_text = $imv_current_index / $imv_file_count   ·   $(basename "$imv_current_file")   ·   ${imv_width}×${imv_height}        Supr  papelera    U  deshacer    F  pantalla completa    Q  salir
+
+[aliases]
+
+[binds]
+<Delete> = exec ~/.config/imv/papelera "$imv_current_file"; close
+<KP_Delete> = exec ~/.config/imv/papelera "$imv_current_file"; close
+u = exec ~/.config/imv/deshacer "$imv_pid"
+f = fullscreen
+<Escape> = quit

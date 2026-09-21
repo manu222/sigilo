@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Calculadora en rofi. Escribe la operación y el resultado sale al momento;
+# Enter lo copia al portapapeles. Entiende unidades y monedas:
+#   2^10     15% de 240     5 km a millas     100 EUR a USD     0x1F a decimal
+# Usa el plugin rofi-calc (libqalculate).
+TEMA=~/.config/rofi/sigilo-lista.rasi
+ICONO=$'\U000f00ec'
+
+if [ -d /usr/lib/rofi ] && ls /usr/lib/rofi | grep -q calc; then
+    exec rofi -show calc -modi calc -no-show-match -no-sort -no-persist-history \
+        -calc-command "echo -n '{result}' | xclip -selection clipboard" \
+        -theme "$TEMA" \
+        -theme-str "window { width: 38em; } listview { lines: 6; }
+                    textbox-sello { content: \"$ICONO\"; text-color: #c8aae5; }
+                    entry { placeholder: \"2+2, 15% de 240, 5 km a millas…\"; }" \
+        -mesg "<span foreground='#70837c'>Enter copia el resultado</span>"
+fi
+notify-send -a Calculadora -i accessories-calculator "Calculadora" "Falta el plugin: sudo pacman -S rofi-calc"

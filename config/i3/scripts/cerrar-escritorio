@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""Cierra todas las ventanas del escritorio actual y salta al más cercano.
+
+«Más cercano» es el de número más próximo que siga abierto; si hay empate,
+el de la izquierda (como al cerrar una pestaña). Al salir, i3 quita solo el
+escritorio vacío de la barra. Si no queda ningún otro, te quedas en este.
+"""
+import i3ipc
+
+i3 = i3ipc.Connection()
+actual = i3.get_tree().find_focused().workspace()
+otros = [w for w in i3.get_workspaces() if w.name != actual.name]
+
+
+def num(w):
+    return w.num if w.num >= 0 else 99
+
+
+destino = min(otros, key=lambda w: (abs(num(w) - actual.num), num(w))) if otros else None
+
+i3.command('[workspace="__focused__"] kill')
+if destino:
+    i3.command(f'workspace "{destino.name}"')

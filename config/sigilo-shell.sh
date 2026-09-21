@@ -266,49 +266,61 @@ if _hay fzf; then
 fi
 
 # ── Chuleta ──────────────────────────────────────────────────
+# «comandos» la enseña aquí; la chuleta de ❖+F1 lee esta misma lista,
+# así que lo que se añada aquí aparece en los dos sitios.
 comandos() {
-    local v=$'\e[1;38;2;62;232;168m' l=$'\e[38;2;143;127;176m' g=$'\e[38;2;148;163;160m' r=$'\e[0m'
-    _fila() { printf "  ${v}%-14s${r}${g}%s${r}\n" "$1" "$2"; }
-    echo; echo "${l}── moverse ──────────────────────────────${r}"
-    _fila "z <trozo>"   "salta a la carpeta que más usas que lo contenga"
-    _fila "zi"          "lo mismo, eligiendo en una lista"
+    local v=$'\e[1;38;2;200;170;229m' l=$'\e[38;2;143;127;176m' g=$'\e[38;2;148;163;160m' r=$'\e[0m'
+    _fila() { printf "  ${v}%-18s${r}${g}%s${r}\n" "$1" "$2"; }
+    _grupo() { printf "%s── %s %s${r}\n" "$l" "$1" "$(printf '─%.0s' $(seq $((40 - ${#1}))))"; }
+    echo
+    _grupo "moverse"
+    _fila "z <trozo>"   "saltar a una carpeta usada"
+    _fila "zi"          "saltar eligiendo de la lista"
     _fila "Ctrl+R"      "buscar en el historial"
-    _fila "Ctrl+T"      "buscar un fichero y pegarlo en la línea"
+    _fila "Ctrl+T"      "buscar un archivo"
     _fila "Alt+C"       "buscar una carpeta y entrar"
     _fila "mkcd"        "crear carpeta y entrar"
-    echo "${l}── sistema ──────────────────────────────${r}"
-    _fila "actualizar"  "pacman + AUR, y avisa de huérfanos o núcleo nuevo"
-    _fila "instalar"    "instalar paquetes (repos o AUR)"
+    _grupo "sistema"
+    _fila "actualizar"  "pacman + AUR con copia previa"
+    _fila "instalar"    "instalar (repos o AUR)"
     _fila "quitar"      "desinstalar con dependencias"
-    _fila "buscar"      "buscar paquetes; sin nombre abre el buscador"
-    _fila "limpiar"     "huérfanos, caché de pacman y registros viejos"
-    _fila "huerfanos"   "listar paquetes que ya nadie usa"
+    _fila "buscar"      "buscar paquetes"
+    _fila "limpiar"     "huérfanos, caché y registros"
+    _fila "huerfanos"   "paquetes que nadie usa"
     _fila "errores"     "errores de este arranque"
     _fila "fallos"      "servicios caídos"
-    _fila "recientes"   "últimos paquetes instalados"
+    _fila "recientes"   "últimos instalados"
     _fila "espacio"     "uso de los discos"
-    echo "${l}── git ──────────────────────────────────${r}"
-    _fila "gs ga gaa"   "status, add, add todo"
-    _fila "gc gca"      "commit -m, enmendar el último"
+    _grupo "git"
+    _fila "gs ga gaa"   "estado, añadir, añadir todo"
+    _fila "gc gca"      "commit, enmendar el último"
     _fila "gp gpl"      "push, pull con rebase"
-    _fila "gd gds"      "diff, diff de lo preparado"
-    _fila "gsw gswc"    "cambiar de rama, crear rama"
+    _fila "gd gds"      "diff, diff preparado"
+    _fila "gsw gswc"    "cambiar rama, crear rama"
     _fila "glog"        "historial en árbol"
-    echo "${l}── red y seguridad ──────────────────────${r}"
+    _grupo "red y seguridad"
     _fila "miip"        "IP local y pública"
-    _fila "puertos"     "qué escucha en este equipo"
-    _fila "conexiones"  "conexiones abiertas ahora"
-    _fila "escanear"    "equipos vivos en la red local"
+    _fila "puertos"     "qué escucha en el equipo"
+    _fila "conexiones"  "conexiones abiertas"
+    _fila "escanear"    "equipos en la red local"
     _fila "dnsinfo"     "registros DNS de un dominio"
     _fila "certificado" "certificado TLS de un dominio"
     _fila "cabeceras"   "cabeceras HTTP de una URL"
-    _fila "hashes"      "md5, sha1 y sha256 de ficheros"
-    _fila "b64 unb64"   "codificar y decodificar base64"
+    _fila "hashes"      "md5, sha1 y sha256"
+    _fila "b64 unb64"   "base64 ida y vuelta"
     _fila "jwt"         "leer un token JWT"
-    _fila "servir"      "servidor web en la carpeta actual"
-    _fila "extraer"     "descomprimir casi cualquier cosa"
+    _fila "servir"      "web en la carpeta actual"
+    _fila "extraer"     "descomprimir casi todo"
+    _grupo "kitty"
+    _fila "Ctrl+Shift+T"     "pestaña nueva aquí"
+    _fila "Ctrl+Shift+Intro" "dividir en horizontal"
+    _fila "Ctrl+Shift+\\"    "dividir en vertical"
+    _fila "Ctrl+Shift+←→↑↓"  "moverse entre paneles"
+    _fila "Ctrl+Shift+Z"     "ampliar el panel"
+    _fila "Ctrl+Shift+H"     "buscar en lo mostrado"
+    _fila "Ctrl+Shift+A M/L" "más o menos transparencia"
     echo
-    unset -f _fila
+    unset -f _fila _grupo
 }
 
 # ── Prompt ───────────────────────────────────────────────────

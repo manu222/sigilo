@@ -93,7 +93,14 @@ bindsym --border button2            kill
 
 # Chuleta de atajos: se genera leyendo este mismo fichero
 bindsym $mod+F1             exec --no-startup-id ~/.config/i3/scripts/chuleta-ventana
+bindsym $mod+Shift+F1       exec --no-startup-id ~/.config/i3/scripts/chuleta --buscar
 bindsym $mod+i               exec --no-startup-id ~/.config/i3/scripts/ia
+bindsym $mod+u               exec --no-startup-id ~/.config/rofi/scripts/utilidades
+bindsym $mod+x               exec --no-startup-id ~/.config/rofi/scripts/calculadora
+bindsym $mod+period          exec --no-startup-id ~/.config/rofi/scripts/emojis
+bindsym $mod+o               exec --no-startup-id ~/.config/rofi/scripts/archivos
+bindsym $mod+Shift+n         exec --no-startup-id ~/.config/rofi/scripts/notificaciones
+bindsym $mod+Shift+p         exec --no-startup-id ~/.config/i3/scripts/fondo --pausar
 
 
 # ----------------------------------------------------------------------------
@@ -120,7 +127,7 @@ bindsym $alt+Tab            exec --no-startup-id skippy-xd --switch --pivot Alt_
 bindsym $alt+Shift+Tab      exec --no-startup-id skippy-xd --switch --pivot Alt_L --prev
 
 # Expose: todas las ventanas repartidas por la pantalla, al estilo macOS.
-bindsym $mod+Shift+Tab      exec --no-startup-id skippy-xd --expose
+bindsym $mod+Shift+Tab      exec --no-startup-id skippy-xd --switch --toggle
 bindsym $mod+Tab            exec --no-startup-id $switcher
 
 # Volver al escritorio anterior
@@ -232,6 +239,9 @@ bindsym $mod+Shift+0 move container to workspace number $ws10
 bindsym $mod+Control+Right  workspace next
 bindsym $mod+Control+Left   workspace prev
 
+# Cierra todas las ventanas del escritorio y salta al más cercano
+bindsym $mod+Control+q        exec --no-startup-id ~/.config/i3/scripts/cerrar-escritorio
+
 
 # ----------------------------------------------------------------------------
 # 8. SESIÓN
@@ -291,6 +301,7 @@ for_window [title="chuleta-i3"]          floating enable, border pixel 0, move p
 for_window [title="^btop$"]              floating enable, resize set 1180 760, move position center
 for_window [title="^Redes$"]             floating enable, resize set 820 560, move position center
 for_window [title="^IA local$"]          floating enable, resize set 1040 720, move position center
+for_window [class="imv"]                floating enable, resize set 1500 920, move position center
 
 # Sin escritorios fijos: cada aplicacion se abre donde estes.
 # Si alguna vez quieres fijar una, el formato es:  assign [class="firefox"] $ws2
@@ -368,7 +379,7 @@ exec_always --no-startup-id $HOME/.config/i3/scripts/import-gsettings
 exec --no-startup-id xsetroot -cursor_name left_ptr
 
 # Fondo de pantalla
-exec --no-startup-id feh --bg-fill '/home/manu/Imágenes/fondos/seleccion/fria-a_cartoon_of_a_person_wearing_a_gas_mask.jpg'
+exec --no-startup-id ~/.config/i3/scripts/fondo --restaurar
 
 # Gestion de energia: a los 10 min bloquea y apaga la pantalla.
 # xss-lock tambien bloquea al suspender o cerrar la tapa.

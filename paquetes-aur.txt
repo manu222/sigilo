@@ -10,3 +10,4 @@ nvidia-580xx-utils
 rofi-greenclip
 skippy-xd-git
 timeshift-autosnap
+xwinwrap-git

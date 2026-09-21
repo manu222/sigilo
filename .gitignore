@@ -1,5 +1,6 @@
 # Copias de seguridad y ficheros de trabajo
 *.bak
+*.bak-*
 *.viejo
 *.pre-fix
 *.plano
@@ -9,8 +10,4 @@ __pycache__/
 config/**/cache/
 
 # Carpetas que crean las herramientas de escritorio y no pintan nada aquí
-.claude/
-.claude.json
-CLAUDE.md
-Claude outputs/
 .vscode/

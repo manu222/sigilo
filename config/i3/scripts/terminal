@@ -5,15 +5,17 @@
 #   terminal                                  un terminal normal
 #   terminal --titulo btop --tam 140x40 -- btop
 #   terminal --max
+#   terminal --fuente 9.5 ...                 letra más pequeña (solo kitty)
 #
 # --titulo también sirve para que i3 reconozca la ventana (for_window).
 
-titulo="" tam="" max=""
+titulo="" tam="" max="" fuente=""
 while (( $# )); do
     case "$1" in
         --titulo) titulo="$2"; shift 2 ;;
         --tam)    tam="$2";    shift 2 ;;
         --max)    max=1;       shift ;;
+        --fuente) fuente="$2"; shift 2 ;;
         --|-e)    shift; break ;;
         *)        break ;;
     esac
@@ -28,6 +30,7 @@ if command -v kitty >/dev/null; then
             -o "initial_window_height=${tam#*x}c")
     fi
     [[ -n $max ]] && a+=(--start-as maximized)
+    [[ -n $fuente ]] && a+=(-o "font_size=$fuente")
     exec "${a[@]}" "$@"
 else
     a=(xfce4-terminal --hide-menubar --hide-toolbar --hide-scrollbar)

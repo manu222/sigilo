@@ -38,15 +38,35 @@ fi
 echo "  ✓ lightdm con slick-greeter"
 
 # 3. el fondo
+# El del escritorio sale de ~/.config/sigilo/fondo-actual. Si es un vídeo
+# se usa su fotograma fijo, y si es webp/avif se convierte a png: la
+# pantalla de acceso solo lee png y jpg.
 if [ $# -ge 1 ]; then
     FONDO="$1"
 else
-    FONDO=$(grep -oP "feh --bg-fill '?\K[^']+" "$HOME/.config/i3/config" | head -1)
-    FONDO="${FONDO/#\~/$HOME}"
+    FONDO=$(cat "$HOME/.config/sigilo/fondo-actual" 2>/dev/null)
+    [ -z "$FONDO" ] && FONDO=$(grep -oP "feh --bg-fill '?\K[^']+" "$HOME/.fehbg" 2>/dev/null | head -1)
 fi
 [ -f "$FONDO" ] || para "No encuentro la imagen de fondo: $FONDO"
+TMP_FONDO=""
+case "${FONDO,,}" in
+    *.mp4|*.webm|*.mkv|*.mov|*.gif)
+        CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/fondos-miniaturas"
+        FOTO="$CACHE/$(printf '%s' "$FONDO" | md5sum | cut -c1-16)-fondo.png"
+        if [ ! -f "$FOTO" ]; then
+            command -v ffmpeg >/dev/null || para "Hace falta ffmpeg para sacar un fotograma del vídeo"
+            mkdir -p "$CACHE"; ffmpeg -loglevel error -y -ss 1 -i "$FONDO" -frames:v 1 "$FOTO"
+        fi
+        echo "  · el fondo es un vídeo: se usa un fotograma"
+        FONDO="$FOTO" ;;
+    *.png|*.jpg|*.jpeg) ;;
+    *)
+        command -v magick >/dev/null || para "Hace falta imagemagick para convertir el fondo a png"
+        TMP_FONDO=$(mktemp --suffix=.png); magick "$FONDO" "$TMP_FONDO"
+        echo "  · el fondo se ha convertido a png"
+        FONDO="$TMP_FONDO" ;;
+esac
 EXT="${FONDO##*.}"; EXT="${EXT,,}"
-case "$EXT" in png|jpg|jpeg) ;; *) para "El fondo tiene que ser png o jpg (es .$EXT)";; esac
 echo "  ✓ fondo: $(basename "$FONDO")"
 
 # 4. copia de seguridad

@@ -2,7 +2,9 @@
 # Estado de Ollama para la barra.
 #   sin salida     el servicio no está en marcha (el módulo desaparece)
 #   icono lila     en marcha, sin modelo en memoria
-#   icono menta    hay un modelo cargado; se muestra su nombre corto
+#   icono menta    hay un modelo cargado (el nombre sale en la lista de Mod+I)
+# Solo icono: la barra va justa de ancho y un texto más empuja la bandeja
+# contra el borde derecho.
 # Clic izquierdo: preguntar. Clic derecho: sacar el modelo de la memoria.
 
 API=http://127.0.0.1:11434
@@ -25,8 +27,7 @@ ABRIR="%{A1:/home/manu/.config/i3/scripts/ia:}%{A3:/home/manu/.config/polybar/sc
 
 nombre=$(printf '%s' "$ps" | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$nombre" ]; then
-    corto=${nombre%%:*}
-    echo "$ABRIR%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} %{F#3ee8a8}%{T4}$I%{T-}%{F-} %{F#94a3a0}$corto%{F-} %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A}"
+    echo "$ABRIR%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} %{F#3ee8a8}%{T4}$I%{T-}%{F-} %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A} "
 else
-    echo "$ABRIR%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} %{F#8f7fb0}%{T4}$I%{T-}%{F-} %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A}"
+    echo "$ABRIR%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} %{F#8f7fb0}%{T4}$I%{T-}%{F-} %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A} "
 fi

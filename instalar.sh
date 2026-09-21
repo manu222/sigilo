@@ -32,6 +32,17 @@ done < <(find "$ORIGEN" -type f -print0)
 chmod +x "$DESTINO"/i3/scripts/* "$DESTINO"/polybar/scripts/* \
          "$DESTINO"/polybar/launch.sh "$DESTINO"/rofi/scripts/* 2>/dev/null || true
 
+# Accesos propios: el visor de imágenes como programa por defecto
+mkdir -p "$HOME/.local/share/applications"
+cp -a "$REPO"/extra/aplicaciones/*.desktop "$HOME/.local/share/applications/" 2>/dev/null
+command -v xdg-mime >/dev/null && for t in png jpeg webp gif bmp tiff avif heic svg+xml; do
+    xdg-mime default sigilo-imagenes.desktop "image/$t"
+done
+
+# Tema de iconos (necesita papirus-icon-theme; si aún no está, se avisa)
+python3 "$REPO/extra/iconos-sigilo.py" 2>/dev/null \
+    || echo "Iconos: instala papirus-icon-theme y lanza  python3 $REPO/extra/iconos-sigilo.py"
+
 echo
 echo "Hecho. Faltan los paquetes:"
 echo "    sudo pacman -S --needed - < $REPO/paquetes-oficiales.txt"

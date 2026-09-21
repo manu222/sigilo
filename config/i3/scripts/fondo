@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Pone el fondo de pantalla, sea imagen o vídeo, y lo recuerda.
+#
+#   fondo <archivo>     imagen (png, jpg, webp…) o vídeo (mp4, webm, mkv, gif)
+#   fondo --restaurar   vuelve a poner el último (lo lanza i3 al arrancar)
+#   fondo --pausar      congela el vídeo en el fotograma actual / lo reanuda
+#
+# Los vídeos se reproducen con mpv dentro de una ventana de escritorio
+# (xwinwrap), en bucle, sin sonido y con decodificación por hardware.
+# Además se pone de fondo «normal» un fotograma del vídeo: lo usan la barra,
+# la pantalla de bloqueo y cualquier cosa que lea el fondo del escritorio.
+
+ESTADO="${XDG_CONFIG_HOME:-$HOME/.config}/sigilo/fondo-actual"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/fondos-miniaturas"
+SOCKET="${XDG_RUNTIME_DIR:-/tmp}/sigilo-fondo.sock"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/fondo.log"
+mkdir -p "$CACHE" "$(dirname "$ESTADO")"
+
+es_video() { case "${1,,}" in *.mp4|*.webm|*.mkv|*.mov|*.gif) return 0 ;; esac; return 1; }
+
+parar_video() {
+    pkill -f "xwinwrap.*sigilo-fondo" 2>/dev/null
+    pkill -f "mpv.*sigilo-fondo" 2>/dev/null
+    rm -f "$SOCKET"
+}
+
+fotograma() {  # primer fotograma "bueno" del vídeo, en caché
+    local f="$1" dest="$CACHE/$(printf '%s' "$1" | md5sum | cut -c1-16)-fondo.png"
+    if [ ! -f "$dest" ] || [ "$f" -nt "$dest" ]; then
+        ffmpeg -loglevel error -y -ss 1 -i "$f" -frames:v 1 "$dest" 2>>"$LOG" \
+            || ffmpeg -loglevel error -y -i "$f" -frames:v 1 "$dest" 2>>"$LOG"
+    fi
+    printf '%s' "$dest"
+}
+
+# xwinwrap crea una ventana que i3 no gestiona, y según el orden en que
+# aparezcan puede quedar por encima de la barra. Se espera a que el vídeo
+# tenga ventana y se vuelve a subir la barra por encima.
+subir_barra() {
+    for _ in $(seq 20); do
+        xdotool search --name '^sigilo-fondo$' >/dev/null 2>&1 && break
+        sleep 0.2
+    done
+    sleep 0.3
+    for w in $(xdotool search --class Polybar 2>/dev/null); do
+        xdotool windowraise "$w" 2>/dev/null
+    done
+}
+
+poner() {
+    local f="$1"
+    [ -f "$f" ] || { echo "no existe: $f" >> "$LOG"; return 1; }
+    parar_video
+    if es_video "$f"; then
+        for p in xwinwrap mpv ffmpeg; do
+            command -v $p >/dev/null || {
+                notify-send -a Fondos -u critical "Falta $p" "sudo pacman -S mpv ffmpeg  ·  yay -S xwinwrap-git"
+                return 1; }
+        done
+        feh --no-fehbg --bg-fill "$(fotograma "$f")"
+        local tam
+        tam=$(xrandr --current | sed -n 's/.*current \([0-9]*\) x \([0-9]*\).*/\1x\2/p')
+        xwinwrap -g "${tam:-1920x1080}+0+0" -ni -s -nf -b -un -ov -fdt -argb -d -- \
+            mpv -wid %WID --title=sigilo-fondo --input-ipc-server="$SOCKET" \
+                --loop-file=inf --no-audio --panscan=1.0 --hwdec=auto-safe \
+                --no-osc --osd-level=0 --no-input-default-bindings --input-vo-keyboard=no \
+                --stop-screensaver=no --cursor-autohide=no --really-quiet --no-terminal \
+                "$f" >>"$LOG" 2>&1
+        subir_barra &
+    else
+        feh --no-fehbg --bg-fill "$f"
+    fi
+    printf '%s\n' "$f" > "$ESTADO"
+}
+
+case "${1:-}" in
+    --restaurar)
+        f=$(cat "$ESTADO" 2>/dev/null)
+        [ -n "$f" ] && [ -f "$f" ] && poner "$f" && exit 0
+        # Sin estado todavía: el fondo que hubiera antes
+        [ -x ~/.fehbg ] && ~/.fehbg ;;
+    --pausar)
+        [ -S "$SOCKET" ] && echo '{"command":["cycle","pause"]}' | socat - "$SOCKET" >/dev/null 2>&1 \
+            || python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.send(b"{\"command\":[\"cycle\",\"pause\"]}\n")' "$SOCKET" ;;
+    --subir-barra)
+        subir_barra ;;
+    "")
+        echo "uso: fondo <archivo> | --restaurar | --pausar" ;;
+    *)
+        poner "$1" ;;
+esac

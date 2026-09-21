@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Abre una imagen con todas las de su carpeta, empezando por ella, para
+# poder pasar de una a otra (y borrar con Supr). Con una carpeta, la recorre.
+[ $# -eq 0 ] && exec imv
+if [ -d "$1" ]; then
+    exec imv "$1"
+fi
+exec imv -n "$1" "$(dirname -- "$1")"

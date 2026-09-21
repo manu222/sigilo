@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Imágenes
+GenericName=Visor de imágenes
+Comment=Ver las imágenes de una carpeta y mandar a la papelera las que sobren
+Exec=/home/manu/.config/i3/scripts/ver-imagenes %f
+Icon=image-viewer
+Terminal=false
+Categories=Graphics;Viewer;
+MimeType=image/png;image/jpeg;image/webp;image/gif;image/bmp;image/tiff;image/avif;image/heic;image/svg+xml;image/x-icon;

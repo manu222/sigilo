@@ -65,13 +65,33 @@ TECLAS = {
     "XF86AudioRaiseVolume": "Vol +", "XF86AudioLowerVolume": "Vol -",
     "XF86AudioMute": "Mute", "XF86AudioMicMute": "Mic",
     "XF86AudioPlay": "Play", "XF86AudioNext": "Next", "XF86AudioPrev": "Prev",
-    "XF86MonBrightnessUp": "Brillo +", "XF86MonBrightnessDown": "Brillo -",
+    "XF86MonBrightnessUp": "Brillo +", "XF86MonBrightnessDown": "Brillo -", "period": ".", "comma": ",",
+    "Mod4": "❖", "Mod1": "Alt",
+    "button1": "Clic", "button2": "Clic central", "button3": "Clic derecho",
 }
 DIR = {"left":"a la izquierda","right":"a la derecha","up":"arriba","down":"abajo",
        "h":"a la izquierda","l":"a la derecha","k":"arriba","j":"abajo"}
 
 REGLAS = [
  (r"^kill$", "Cerrar la ventana"),
+ (r"cerrar-escritorio", "Cerrar el escritorio entero"),
+ (r"scripts/bloqueo", "Bloquear pantalla"),
+ (r"rofi/scripts/apagado", "Menú de sesión"),
+ (r"rofi/scripts/wifi", "Redes wifi"),
+ (r"rofi/scripts/bluetooth", "Bluetooth"),
+ (r"rofi/scripts/fondos", "Fondos de pantalla"),
+ (r"scripts/fondo --pausar", "Pausar el fondo animado"),
+ (r"rofi/scripts/portapapeles", "Portapapeles"),
+ (r"rofi/scripts/ventana", "Menú de la ventana"),
+ (r"rofi/scripts/utilidades", "Menú de utilidades"),
+ (r"rofi/scripts/calculadora", "Calculadora"),
+ (r"rofi/scripts/emojis", "Emojis y símbolos"),
+ (r"rofi/scripts/archivos", "Buscar archivos"),
+ (r"rofi/scripts/notificaciones", "Notificaciones"),
+ (r"skippy-xd --switch.*--next", "Cambiar de ventana"),
+ (r"skippy-xd --switch.*--prev", "Ventana anterior"),
+ (r"skippy-xd --expose", "Ver todas las ventanas"),
+ (r"skippy-xd --switch --toggle", "Ver todas las ventanas"),
  (r"^focus parent$", "Seleccionar el grupo"),
  (r"^focus child$", "Volver a la ventana"),
  (r"^focus (\w+)$", lambda m: "Foco " + DIR.get(m[1], m[1])),
@@ -106,19 +126,20 @@ REGLAS = [
  (r"scripts/ia$", "Preguntar a la IA local"),
  (r"^thunar", "Gestor de archivos"),
  (r"rofi -show drun", "Lanzador de apps"),
- (r"rofi -show window", "Cambiar de ventana"),
+ (r"rofi -show window", "Lista de ventanas"),
  (r"i3lock", "Bloquear pantalla"),
  (r"^xkill", "Matar ventana a ratón"),
+ (r"chuleta --buscar", "Buscar un atajo"),
  (r"chuleta", "Esta chuleta"),
  (r"atajos", "Esta chuleta"),
  (r"captura full", "Captura completa"),
  (r"captura sel", "Captura con selección"),
- (r"volume_brightness.*volume_up", "Subir volumen"),
- (r"volume_brightness.*volume_down", "Bajar volumen"),
- (r"volume_brightness.*volume_mute", "Silenciar"),
- (r"volume_brightness.*brightness_up", "Subir brillo"),
- (r"volume_brightness.*brightness_down", "Bajar brillo"),
- (r"amixer.*Capture toggle", "Silenciar micro"),
+ (r"volum\w*.brill\w*.*volume_up", "Subir volumen"),
+ (r"volum\w*.brill\w*.*volume_down", "Bajar volumen"),
+ (r"volum\w*.brill\w*.*volume_mute", "Silenciar"),
+ (r"volum\w*.brill\w*.*brightness_up", "Subir brillo"),
+ (r"volum\w*.brill\w*.*brightness_down", "Bajar brillo"),
+ (r"amixer.*Capture toggle|mic_mute", "Silenciar micro"),
  (r"playerctl play-pause", "Reproducir / pausa"),
  (r"playerctl next", "Pista siguiente"),
  (r"playerctl previous", "Pista anterior"),
@@ -144,11 +165,41 @@ def leer():
             if cur: secciones.append((sec, cur))
             sec, cur = m.group(1).strip(), []
             continue
-        m = re.match(r"^\s*bindsym\s+(\S+)\s+(.+?)\s*$", linea)
+        m = re.match(r"^\s*bindsym\s+((?:--\S+\s+)*)(\S+)\s+(.+?)\s*$", linea)
         if m and not modo:
-            cur.append((m.group(1), m.group(2)))
+            tecla = m.group(2)
+            if "--border" in m.group(1):
+                tecla += "+en el borde"
+            cur.append((tecla, m.group(3)))
     if cur: secciones.append((sec, cur))
     return variables, secciones
+
+SHELL = os.path.expanduser("~/.config/sigilo-shell.sh")
+
+def leer_shell():
+    """Saca los grupos de la función comandos() de sigilo-shell.sh."""
+    grupos, nombre, filas, dentro = [], None, [], False
+    try:
+        lineas = open(SHELL, encoding="utf-8").read().splitlines()
+    except OSError:
+        return []
+    for l in lineas:
+        if l.startswith("comandos()"):
+            dentro = True; continue
+        if dentro and l.startswith("}"):
+            break
+        if not dentro:
+            continue
+        m = re.match(r'\s*_grupo\s+"([^"]+)"', l)
+        if m:
+            if nombre and filas: grupos.append((nombre, filas))
+            nombre, filas = m.group(1), []
+            continue
+        m = re.match(r'\s*_fila\s+"((?:[^"\\]|\\.)*)"\s+"([^"]+)"', l)
+        if m and nombre:
+            filas.append((m.group(1).replace("\\\\", "\\"), m.group(2)))
+    if nombre and filas: grupos.append((nombre, filas))
+    return grupos
 
 def expandir(t, v):
     for _ in range(3):
@@ -159,6 +210,8 @@ def expandir(t, v):
 def k_bonita(t, v):
     partes = []
     for p in t.split("+"):
+        if p == "en el borde":
+            partes[-1] += " en el borde"; continue
         if p in TECLAS:            # $mod, Return, XF86...
             partes.append(TECLAS[p])
         elif p.startswith("$"):    # $left, $term... resueltas por el config
@@ -177,7 +230,7 @@ def a_bonita(a, v):
     return limpio[:26]
 
 # ── maquetacion ─────────────────────────────────────────────────────────────
-ANCHO_COL = 46
+ANCHO_COL = 44
 SEP = 3
 
 def pill(texto, color, ancho):
@@ -186,13 +239,13 @@ def pill(texto, color, ancho):
     visible = len(t) + 2
     return cuerpo + " " * max(0, ancho - visible)
 
-def fila(accion, tecla, ancho):
+def fila(accion, tecla, ancho, color=MINT):
     libre = ancho - len(accion) - len(tecla)
     if libre < 2:
         accion = accion[:max(0, ancho - len(tecla) - 2)]
         libre = ancho - len(accion) - len(tecla)
     puntos = f(LINE) + "." * max(1, libre - 1) + RST
-    return f(DIM) + accion + " " + puntos + " " + f(MINT) + tecla + RST
+    return f(DIM) + accion + " " + puntos + " " + f(color) + tecla + RST
 
 def bloque(nombre, binds, color, v):
     out = [pill(nombre, color, ANCHO_COL)]
@@ -205,23 +258,178 @@ def bloque(nombre, binds, color, v):
     out.append("")
     return out
 
-def main():
-    v, secciones = leer()
-    bloques = []
-    for i, (nombre, binds) in enumerate(secciones):
-        if not binds: continue
-        nombre = re.sub(r"^(LO ESENCIAL:|LO ESENCIAL)\s*", "", nombre, flags=re.I)
-        bloques.append(bloque(nombre[:28], binds, COLORES[i % len(COLORES)], v))
+LILA_C = (200, 170, 229)
 
-    # reparto en tres columnas equilibrando altura
+def bloque_shell(nombre, filas):
+    out = [pill("› " + nombre, VIOLET, ANCHO_COL)]
+    for cmd, desc in filas:
+        out.append(fila(desc[0].upper() + desc[1:], cmd, ANCHO_COL, LILA_C))
+    out.append("")
+    return out
+
+# ── organización por tareas ─────────────────────────────────────────────────
+# Cada acción va a una categoría. El orden de las categorías y de las filas
+# dentro de cada una es el de esta lista: lo que más se usa, arriba.
+CATEGORIAS = [
+ ("Lo básico", MINT, [
+    "Buscar un atajo", "Lanzador de apps", "Abrir terminal", "Terminal maximizado", "Navegador",
+    "Gestor de archivos", "Buscar archivos", "Cerrar la ventana", "Esta chuleta",
+    "Bloquear pantalla", "Menú de sesión"]),
+ ("Cambiar de ventana", CYAN, [
+    "Cambiar de ventana", "Ventana anterior", "Ver todas las ventanas",
+    "Lista de ventanas", "Mover el foco", "Seleccionar el grupo", "Volver a la ventana"]),
+ ("Colocar ventanas", SLATE, [
+    "Pantalla completa", "Mover la ventana", "Soltar del mosaico",
+    "Apartar (minimizar)", "Recuperar la apartada", "Centrar la flotante",
+    "Modo redimensionar", "Siguiente ventana al lado", "Siguiente ventana debajo",
+    "Apilar en pestañas", "Apilar en lista", "Volver al mosaico",
+    "Menú de la ventana", "Matar ventana a ratón"]),
+ ("Escritorios", VIOLET, [
+    "Ir al escritorio", "Llevar la ventana a otro", "Escritorio anterior",
+    "Escritorio siguiente", "Escritorio previo", "Cerrar el escritorio entero"]),
+ ("Menús y utilidades", AMBER, [
+    "Menú de utilidades", "Preguntar a la IA local", "Calculadora", "Emojis y símbolos",
+    "Portapapeles", "Notificaciones", "Captura con selección", "Captura completa",
+    "Redes wifi", "Bluetooth", "Fondos de pantalla", "Pausar el fondo animado"]),
+ ("Sistema", RED, ["Recargar config", "Reiniciar i3"]),
+ ("Teclas multimedia", OLIVE, [
+    "Subir volumen", "Bajar volumen", "Silenciar", "Silenciar micro",
+    "Subir brillo", "Bajar brillo", "Reproducir / pausa", "Pista siguiente", "Pista anterior"]),
+]
+
+FLECHAS = {"a la izquierda": "←", "abajo": "↓", "arriba": "↑", "a la derecha": "→"}
+
+
+def recoger():
+    """Lista única de (acción, teclas, orden i3) sin repeticiones.
+
+    - Las acciones con varios atajos se juntan en una fila.
+    - Foco y mover en cuatro direcciones pasan a una sola fila.
+    - Los diez escritorios pasan a una fila «❖ + 1 … 0».
+    """
+    v, secciones = leer()
+    acciones = {}          # desc -> {"teclas": [...], "cmd": str}
+    orden = []
+    for _, binds in secciones:
+        for t, a in binds:
+            k, d = k_bonita(t, v), a_bonita(a, v)
+            cmd = expandir(a, v)
+            m = re.match(r"^Foco (.+)$", d)
+            if m and m[1] in FLECHAS:
+                d, cmd = "Mover el foco", ""
+                k = re.sub(r"[←→↑↓hjkl]$", "", k).rstrip(" +") + " + ← ↓ ↑ →"
+                if "h" in t.split("+")[-1] or t.endswith(("$left", "$right", "$up", "$down")):
+                    k = k.replace("← ↓ ↑ →", "h j k l")
+            m = re.match(r"^Mover (a la izquierda|a la derecha|arriba|abajo)$", d)
+            if m:
+                d, cmd = "Mover la ventana", ""
+                es_letra = t.endswith(("$left", "$right", "$up", "$down")) or t[-1] in "hjkl"
+                k = re.sub(r" \+ [^+]+$", "", k) + (" + h j k l" if es_letra else " + ← ↓ ↑ →")
+            m = re.match(r"^Ir al escritorio \d+$", d)
+            if m:
+                d, cmd, k = "Ir al escritorio", "", "❖ + 1 … 0"
+            m = re.match(r"^Llevar al escritorio \d+$", d)
+            if m:
+                d, cmd, k = "Llevar la ventana a otro", "", "❖ + Shift + 1 … 0"
+            if d not in acciones:
+                acciones[d] = {"teclas": [], "cmd": cmd}
+                orden.append(d)
+            if k not in acciones[d]["teclas"]:
+                acciones[d]["teclas"].append(k)
+    return [(d, acciones[d]["teclas"], acciones[d]["cmd"]) for d in orden]
+
+
+def clasificar(items):
+    por_desc = {d: (t, c) for d, t, c in items}
+    usados, grupos = set(), []
+    for nombre, color, lista in CATEGORIAS:
+        filas = []
+        for d in lista:
+            if d in por_desc:
+                filas.append((d, por_desc[d][0], por_desc[d][1])); usados.add(d)
+        if filas:
+            grupos.append((nombre, color, filas))
+    resto = [(d, t, c) for d, t, c in items if d not in usados]
+    if resto:
+        grupos.append(("Otros", DIM, resto))
+    return grupos
+
+
+def teclas_txt(teclas, maximo=2):
+    """Junta hasta dos atajos: «❖ + Intro · ❖ + T»; si son flechas y hjkl,
+    se quedan solo las flechas (las letras se explican en el pie)."""
+    t = [x for x in teclas if not x.endswith("h j k l")] or teclas
+    return " · ".join(t[:maximo])
+
+
+def bloque_cat(nombre, color, filas):
+    out = [pill(nombre, color, ANCHO_COL)]
+    for d, teclas, _ in filas:
+        k = teclas_txt(teclas)
+        if len(d) + len(k) + 4 > ANCHO_COL:      # si no cabe, solo el primero
+            k = teclas_txt(teclas, 1)
+        out.append(fila(d, k, ANCHO_COL, color if color != DIM else MINT))
+    out.append("")
+    return out
+
+
+def buscar():
+    """Buscador: escribe lo que quieres hacer y Enter lo ejecuta."""
+    import subprocess
+    filas, acciones = [], []
+    def esc(x): return html.escape(x, quote=False)
+    hexa = lambda c: "#%02x%02x%02x" % c
+    for nombre, color, grupo in clasificar(recoger()):
+        for d, teclas, cmd in grupo:
+            filas.append(f"<span foreground='{hexa(color)}'>●</span>  <b>{esc(d)}</b>"
+                         f"   <span foreground='#94a3a0'>{esc(teclas_txt(teclas, 3))}</span>"
+                         f"   <span foreground='#556760' size='small'>{esc(nombre.lower())}</span>")
+            acciones.append(("i3", cmd))
+    for nombre, grupo in leer_shell():
+        for cmdt, desc in grupo:
+            filas.append(f"<span foreground='#c8aae5'>●</span>  <b>{esc(desc[0].upper() + desc[1:])}</b>"
+                         f"   <span foreground='#c8aae5'>{esc(cmdt)}</span>"
+                         f"   <span foreground='#556760' size='small'>terminal · {esc(nombre)}</span>")
+            acciones.append(("shell", cmdt))
+    r = subprocess.run(
+        ["rofi", "-dmenu", "-i", "-markup-rows", "-format", "i", "-p", "atajos",
+         "-theme", os.path.expanduser("~/.config/rofi/sigilo-lista.rasi"),
+         "-theme-str", 'window { width: 56em; } listview { lines: 12; } '
+                       'textbox-sello { content: "❖"; text-color: #c8aae5; } '
+                       'entry { placeholder: "¿qué quieres hacer? wifi, captura, escritorio…"; }',
+         "-mesg", "<span foreground='#70837c'>Enter lo hace · los de la terminal se copian</span>"],
+        input="\n".join(filas), capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip():
+        return
+    tipo, cmd = acciones[int(r.stdout.strip())]
+    if tipo == "i3" and cmd:
+        subprocess.Popen(["i3-msg", "-q", cmd])
+    elif tipo == "shell":
+        palabra = cmd.split()[0]
+        subprocess.run(["xclip", "-selection", "clipboard"], input=palabra, text=True)
+        subprocess.Popen(["notify-send", "-a", "Sigilo", "-i", "edit-copy",
+                          "Copiado", f"«{palabra}»: pégalo en la terminal"])
+
+
+def main():
+    if "--buscar" in sys.argv:
+        return buscar()
+    bloques = [bloque_cat(n, c, filas) for n, c, filas in clasificar(recoger())]
+    for nombre, filas in leer_shell():
+        bloques.append(bloque_shell(nombre, filas))
+
+    # Tantas columnas como quepan (mínimo 3). Los bloques van en orden de
+    # lectura: de arriba abajo y de izquierda a derecha.
+    ancho_term = shutil.get_terminal_size((160, 50)).columns
+    NCOL = max(3, min(5, (ancho_term - 4 + SEP) // (ANCHO_COL + SEP)))
     total = sum(len(x) for x in bloques)
-    objetivo, cols, actual, alto = total/3, [], [], 0
+    objetivo, cols, actual, alto = total/NCOL, [], [], 0
     for bl in bloques:
-        if actual and len(cols) < 2 and alto + len(bl)*0.5 > objetivo:
+        if actual and len(cols) < NCOL - 1 and alto + len(bl)*0.5 > objetivo:
             cols.append(actual); actual, alto = [], 0
         actual += bl; alto += len(bl)
     cols.append(actual)
-    while len(cols) < 3: cols.append([])
+    while len(cols) < NCOL: cols.append([])
     h = max(len(c) for c in cols)
     for c in cols: c += [""] * (h - len(c))
 
@@ -235,14 +443,17 @@ def main():
         cuerpo.append((" " * SEP).join(trozos).rstrip())
 
     tit, tw = titulo("ATAJOS")
-    interior = ANCHO_COL*3 + SEP*2
+    interior = ANCHO_COL*NCOL + SEP*(NCOL-1)
     pad = max(0, (interior - tw)//2)
 
     print()
     for l in tit:
         print("  " + " "*pad + l)
-    sub = "❖ = tecla Super   ·   ❖ + F1 para abrir   ·   cualquier tecla para cerrar"
-    print("  " + " "*max(0,(interior-len(sub))//2) + f(MUTE) + sub + RST)
+    sub = (f(MINT) + BOLD + "/" + RST + f(MUTE) + " buscar y lanzar   ·   ❖ = tecla Super   ·   "
+           "las flechas también valen con h j k l   ·   " + f(LILA_C) + "lila" + f(MUTE)
+           + " = comandos de la terminal   ·   otra tecla cierra")
+    vis = len(re.sub(r"\x1b\[[0-9;]*m", "", sub))
+    print("  " + " "*max(0,(interior-vis)//2) + f(MUTE) + sub + RST)
     print()
     print("  " + f(LINE) + "─"*interior + RST)
     print()

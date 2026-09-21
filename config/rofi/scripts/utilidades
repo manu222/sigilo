@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Menú de utilidades (❖+U). Cada entrada tiene también su atajo directo.
+set -uo pipefail
+TEMA=~/.config/rofi/sigilo-lista.rasi
+D=~/.config/rofi/scripts
+fila() {  # icono  título  atajo
+    printf '<b>%s</b>   <span foreground="#556760">%s</span>\0icon\x1f%s\n' "$2" "$3" "$1"
+}
+i=$( { fila accessories-calculator   "Calculadora"                "❖ + X"
+       fila face-smile               "Emojis y símbolos"          "❖ + ."
+       fila system-search            "Buscar archivos"            "❖ + O"
+       fila preferences-system-notifications "Notificaciones"     "❖ + Shift + N"
+       fila edit-paste               "Portapapeles"               "❖ + P"
+       fila preferences-desktop-wallpaper "Fondos de pantalla"    "❖ + Shift + F"
+     } | rofi -dmenu -i -markup-rows -show-icons -format i -p "utilidades" -theme "$TEMA" \
+         -theme-str 'window { width: 34em; } listview { lines: 6; } element-icon { size: 1.6em; }
+                     textbox-sello { content: "❖"; text-color: #c8aae5; }') || exit 0
+case $i in
+    0) exec $D/calculadora ;;
+    1) exec $D/emojis ;;
+    2) exec $D/archivos ;;
+    3) exec $D/notificaciones ;;
+    4) exec $D/portapapeles ;;
+    5) exec $D/fondos ;;
+esac

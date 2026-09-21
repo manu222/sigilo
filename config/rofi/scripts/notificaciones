@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Historial de notificaciones de dunst.
+# Enter vuelve a mostrar la notificación (con sus botones, si los tenía).
+# Arriba: no molestar y borrar el historial.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+TEMA=~/.config/rofi/sigilo-lista.rasi
+CAMPANA=$'\U000f009c'
+
+pausado=$(dunstctl is-paused 2>/dev/null)
+if [ "$pausado" = true ]; then
+    silencio="$(icono $'\U000f009b' "$AMBER")  <b>No molestar</b>  <span foreground='$AMBER'>activado</span>"
+else
+    silencio="$(icono $'\U000f009b' "$MUTE")  No molestar  <span foreground='$MUTE'>desactivado</span>"
+fi
+borrar="$(icono $'\U000f0a7a' "$RED")  Borrar el historial"
+
+# id \t fila
+mapfile -t hist < <(dunstctl history 2>/dev/null | python3 -c '
+import json, sys, time, html
+try:
+    datos = json.load(sys.stdin)["data"][0]
+except Exception:
+    sys.exit()
+arranque = time.clock_gettime(time.CLOCK_MONOTONIC)
+def hace(us):
+    s = arranque - us / 1e6
+    if s < 60: return "ahora"
+    if s < 3600: return "%d min" % (s // 60)
+    if s < 86400: return "%d h" % (s // 3600)
+    return "%d d" % (s // 86400)
+e = lambda t: html.escape(str(t), quote=False)
+for n in datos:
+    g = lambda k: n.get(k, {}).get("data", "")
+    if g("appname") == "osd":
+        continue
+    cuerpo = " ".join(str(g("body")).split())
+    if len(cuerpo) > 70:
+        cuerpo = cuerpo[:70] + "…"
+    cab = "<span foreground=\"#8f7fb0\" size=\"small\">%s · %s</span>" % (e(g("appname")), hace(g("timestamp")))
+    txt = "<b>%s</b>  <span foreground=\"#94a3a0\">%s</span>" % (e(g("summary")), e(cuerpo))
+    print("%s\t%s⏎%s" % (g("id"), cab, txt))
+')
+
+filas="$silencio|$borrar|"
+for h in "${hist[@]}"; do filas+="${h#*$'\t'}|"; done
+filas=${filas//⏎/$'\n'}
+
+i=$(printf '%s' "${filas%|}" | rofi -dmenu -sep '|' -eh 2 -markup-rows -i -format i \
+    -p "notificaciones" -theme "$TEMA" \
+    -theme-str "window { width: 46em; } listview { lines: 8; }
+                textbox-sello { content: \"$CAMPANA\"; text-color: #c8aae5; }" \
+    -mesg "<span foreground='$MUTE'>${#hist[@]} guardadas · Enter la vuelve a mostrar</span>") || exit 0
+
+case "$i" in
+    0) dunstctl set-paused toggle
+       [ "$(dunstctl is-paused)" = false ] && notify-send -a Sigilo -i notifications "No molestar" "Desactivado" ;;
+    1) dunstctl history-clear ;;
+    *) id=${hist[$((i - 2))]%%$'\t'*}; dunstctl history-pop "$id" ;;
+esac

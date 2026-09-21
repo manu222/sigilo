@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Manda la imagen a la papelera (se puede recuperar) y la anota para «U».
+f="$1"; [ -f "$f" ] || exit 0
+gio trash -- "$f" && printf '%s\n' "$(realpath -m -- "$f")" >> "${XDG_CACHE_HOME:-$HOME/.cache}/imv-papelera"

@@ -44,3 +44,6 @@ BL="$(ls -1 /sys/class/backlight 2>/dev/null | head -1)"
 export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
 
 polybar sigilo >>"$LOG" 2>&1 &
+
+# Si hay un fondo animado, la barra nueva tiene que quedar por encima de él
+( sleep 1.5; ~/.config/i3/scripts/fondo --subir-barra ) &

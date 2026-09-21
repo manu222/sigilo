@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Selector de emojis y símbolos (❖+.  como en otros escritorios).
+# Enter lo escribe donde estaba el cursor; Shift+Enter lo copia.
+# Busca en inglés y por categoría: «heart», «arrow», «check», «flag es»…
+TEMA=~/.config/rofi/sigilo-lista.rasi
+if [ -d /usr/lib/rofi ] && ls /usr/lib/rofi | grep -q emoji; then
+    exec rofi -show emoji -modi emoji -theme "$TEMA" \
+        -theme-str 'window { width: 46em; }
+                    listview { columns: 2; lines: 10; }
+                    element-text { font: "Noto Color Emoji 12, JetBrainsMono Nerd Font 11"; }
+                    textbox-sello { content: "☺"; text-color: #c8aae5; }
+                    entry { placeholder: "busca en inglés: heart, check, arrow…"; }' \
+        -mesg "<span foreground='#70837c'>Enter escribe · Shift+Enter copia</span>"
+fi
+notify-send -a Emojis -i face-smile "Emojis" "Falta el plugin: sudo pacman -S rofi-emoji noto-fonts-emoji xdotool"

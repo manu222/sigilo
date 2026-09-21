@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Buscador de archivos de todo el equipo.
+#   Enter      abre el archivo con su programa
+#   Alt+1      abre la carpeta que lo contiene
+#   Alt+2      copia la ruta al portapapeles
+# Salen primero los de tu carpeta personal y /datos, y después el resto del
+# sistema. Se saltan cachés, carpetas de sistema virtuales (/proc, /sys…)
+# y las copias de Timeshift, que repetirían todo el sistema varias veces.
+set -uo pipefail
+TEMA=~/.config/rofi/sigilo-lista.rasi
+LUPA=$'\U000f0c7d'
+
+command -v fd >/dev/null || { notify-send -a Archivos -i system-search "Archivos" "Falta fd: sudo pacman -S fd"; exit 1; }
+
+COMUNES=(--type f --hidden --follow --exclude .git --exclude node_modules
+         --exclude __pycache__ --exclude .cache --exclude Trash)
+
+listar_crudo() {
+    # Lo tuyo primero, sin ocultos (casi nunca los buscas)
+    fd "${COMUNES[@]}" --exclude '.*' . "$HOME" 2>/dev/null
+    [ -d /datos ] && fd "${COMUNES[@]}" . /datos 2>/dev/null
+    # Tus ocultos (configuración) y el resto del equipo
+    fd "${COMUNES[@]}" --max-depth 6 '' "$HOME" 2>/dev/null | grep '/\.'
+    fd "${COMUNES[@]}" --one-file-system \
+       --exclude /home --exclude /datos --exclude /proc --exclude /sys --exclude /dev \
+       --exclude /run --exclude /tmp --exclude /var/tmp --exclude /var/cache \
+       --exclude /var/lib/pacman/sync --exclude /var/log/journal \
+       --exclude /timeshift --exclude /timeshift-btrfs --exclude /.snapshots \
+       --exclude /lost+found --exclude /swap \
+       . / 2>/dev/null
+}
+
+# Filas con icono según el tipo; se escriben directas a la tubería porque
+# bash no guarda el byte nulo que rofi usa para separar el icono.
+listar() {
+    listar_crudo | python3 -c '
+import sys, os, mimetypes
+casa = os.path.expanduser("~")
+tema = "/usr/share/icons/Papirus/48x48/mimetypes"
+cache = {}
+def icono(ruta):
+    if "/bin/" in ruta or ruta.endswith(".sh"):
+        return "application-x-executable"
+    tipo = mimetypes.guess_type(ruta)[0] or ""
+    if tipo in cache: return cache[tipo]
+    candidatos = []
+    if tipo:
+        candidatos += [tipo.replace("/", "-"), tipo.split("/")[0] + "-x-generic"]
+    candidatos.append("text-x-generic")
+    for c in candidatos:
+        if os.path.exists(os.path.join(tema, c + ".svg")):
+            cache[tipo] = c; return c
+    cache[tipo] = "text-x-generic"; return cache[tipo]
+vistos = set()
+out = sys.stdout
+try:
+    for l in sys.stdin:
+        r = l.rstrip("\n")
+        if r in vistos: continue
+        vistos.add(r)
+        mostrar = "~" + r[len(casa):] if r.startswith(casa + "/") else r
+        out.write("%s\0icon\x1f%s\n" % (mostrar, icono(r)))
+except BrokenPipeError:
+    pass
+'
+}
+
+sel=$(listar | rofi -dmenu -i -show-icons -async-pre-read 40 -p "archivos" -theme "$TEMA" \
+      -kb-custom-1 "Alt+1" -kb-custom-2 "Alt+2" \
+      -theme-str "window { width: 52em; } listview { lines: 10; }
+                  textbox-sello { content: \"$LUPA\"; text-color: #c8aae5; }
+                  entry { placeholder: \"nombre o trozo de la ruta, en todo el equipo\"; }" \
+      -mesg "<span foreground='#70837c'>Enter abre · Alt+1 abre la carpeta · Alt+2 copia la ruta</span>")
+codigo=$?
+[ -z "$sel" ] && exit 0
+ruta="${sel/#\~/$HOME}"
+
+case $codigo in
+    0)  xdg-open "$ruta" >/dev/null 2>&1 & ;;
+    10) xdg-open "$(dirname "$ruta")" >/dev/null 2>&1 & ;;
+    11) printf '%s' "$ruta" | xclip -selection clipboard
+        notify-send -a Archivos -i edit-copy "Ruta copiada" "$sel" ;;
+esac

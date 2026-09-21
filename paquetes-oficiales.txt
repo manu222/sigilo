@@ -110,6 +110,7 @@ hwinfo
 i3-wm
 i3blocks
 i3status
+imv
 inetutils
 inotify-tools
 intel-media-driver
@@ -193,6 +194,8 @@ rebuild-detector
 reflector
 reflector-simple
 rofi
+rofi-calc
+rofi-emoji
 rsync
 rtkit
 s-nail
@@ -239,6 +242,7 @@ xclip
 xdg-user-dirs
 xdg-user-dirs-gtk
 xdg-utils
+xdotool
 xed
 xf86-input-libinput
 xfce4-terminal

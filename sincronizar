@@ -29,6 +29,7 @@ PIEZAS=(
     gtk-4.0/settings.ini
     xfce4/terminal/terminalrc
     kitty/kitty.conf
+    imv
     sigilo
     gtk-4.0/gtk.css
     skippy-xd/skippy-xd.rc
@@ -55,6 +56,11 @@ for pieza in "${PIEZAS[@]}"; do
     fi
     printf '  %-34s ok\n' "$pieza"
 done
+
+# ── accesos de aplicaciones propios (visor de imágenes…) ─────────────────
+mkdir -p "$REPO/extra/aplicaciones"
+cp -a "$HOME"/.local/share/applications/sigilo-*.desktop "$REPO/extra/aplicaciones/" 2>/dev/null \
+    && printf '  %-34s ok\n' "aplicaciones (.desktop)"
 
 # ── lista de paquetes ─────────────────────────────────────────────────────
 echo

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Revisa que todas las piezas de Sigilo estén en su sitio y funcionando.
+#   ~/dotfiles/extra/comprobar
+# No cambia nada. Escribe un informe en pantalla y en ~/.cache/sigilo-comprobar.log
+
+LOG=~/.cache/sigilo-comprobar.log
+exec > >(tee "$LOG") 2>&1
+C=~/.config
+ok()   { printf '  \e[32m✓\e[0m %s\n' "$*"; }
+mal()  { printf '  \e[31m✗\e[0m %s\n' "$*"; FALLOS=$((FALLOS+1)); }
+ojo()  { printf '  \e[33m!\e[0m %s\n' "$*"; }
+paso() { printf '\n\e[1;36m── %s ──\e[0m\n' "$*"; }
+FALLOS=0
+
+paso "Programas"
+for p in i3 polybar rofi dunst picom skippy-xd greenclip kitty starship fastfetch eza bat fzf zoxide fd \
+         brightnessctl pactl playerctl xclip xdotool notify-send dunstctl i3lock scrot magick feh \
+         autotiling nmcli ollama timeshift btop jq nmap dig delta duf expac paccache gsimplecal; do
+    command -v "$p" >/dev/null && ok "$p" || mal "$p no está instalado"
+done
+python3 -c 'import i3ipc' 2>/dev/null && ok "python i3ipc" || mal "falta python-i3ipc"
+for pl in calc emoji; do ls /usr/lib/rofi 2>/dev/null | grep -q "$pl" && ok "rofi-$pl" || mal "falta rofi-$pl"; done
+
+paso "Temas"
+[ -f ~/.local/share/icons/Sigilo/index.theme ] && ok "iconos Sigilo" || mal "iconos Sigilo sin generar: python3 ~/dotfiles/extra/iconos-sigilo.py"
+[ -d /usr/share/icons/Papirus ] && ok "Papirus" || mal "falta papirus-icon-theme"
+[ -d /usr/share/themes/adw-gtk3-dark ] && ok "adw-gtk3" || mal "falta adw-gtk-theme"
+ls /usr/share/icons 2>/dev/null | grep -qi bibata && ok "cursor Bibata" || mal "falta bibata-cursor-theme-bin"
+fc-list | grep -qi "JetBrainsMono Nerd" && ok "fuente JetBrains Nerd" || mal "falta la fuente"
+fc-list | grep -qi "Noto Color Emoji" && ok "emojis" || ojo "falta noto-fonts-emoji"
+fc-list | grep -qi "Inter" && ok "fuente Inter" || ojo "falta inter-font (apps GTK)"
+
+paso "Configuraciones"
+i3 -C -c $C/i3/config >/tmp/i3c.txt 2>&1 && ok "i3: config válida" || { mal "i3: errores en el config"; sed 's/^/      /' /tmp/i3c.txt | head -20; }
+for f in $C/i3/scripts/* $C/rofi/scripts/* $C/polybar/scripts/* $C/polybar/launch.sh; do
+    [ -f "$f" ] || continue
+    case "$(head -1 "$f")" in
+        *python*) python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f" 2>/dev/null && ok "${f#$C/}" || mal "${f#$C/}: error de sintaxis" ;;
+        *bash*|*sh*) bash -n "$f" 2>/dev/null && ok "${f#$C/}" || mal "${f#$C/}: error de sintaxis" ;;
+    esac
+    [ -x "$f" ] || mal "${f#$C/}: no es ejecutable"
+done | grep -v '✓' ; echo "  (scripts revisados)"
+for t in $C/rofi/*.rasi; do
+    rofi -theme "$t" -dump-theme >/dev/null 2>/tmp/rofit.txt && ok "rofi: ${t##*/}" || { mal "rofi: ${t##*/}"; head -3 /tmp/rofit.txt | sed 's/^/      /'; }
+done
+notify-send -a Sigilo "Comprobación" "Si ves esto, las notificaciones van" && ok "notificación de prueba enviada (debería verse arriba a la derecha)" || mal "notify-send falló"
+starship print-config >/dev/null 2>&1 && ok "starship" || mal "starship: config con errores"
+fastfetch -c $C/fastfetch/config.jsonc --pipe >/dev/null 2>/tmp/ff.txt && ! grep -qi error /tmp/ff.txt && ok "fastfetch" || { mal "fastfetch"; head -3 /tmp/ff.txt | sed 's/^/      /'; }
+
+paso "Procesos en marcha"
+for p in polybar dunst picom greenclip autotiling xss-lock; do pgrep -x "$p" >/dev/null && ok "$p" || mal "$p no está corriendo"; done
+pgrep -f "skippy-xd --start-daemon" >/dev/null && ok "skippy-xd (Alt+Tab)" || mal "skippy-xd no está corriendo"
+for s in botones-ventana escritorios app-enfocada; do pgrep -f "scripts/$s" >/dev/null && ok "$s" || mal "$s no está corriendo"; done
+systemctl is-active -q ollama && ok "ollama" || ojo "ollama parado"
+systemctl is-active -q cronie && ok "cronie (copias)" || mal "cronie parado"
+systemctl is-active -q grub-btrfsd && ok "grub-btrfsd" || ojo "grub-btrfsd parado"
+
+paso "Polybar: últimos errores"
+grep -iE "error|warn" ~/.cache/polybar.log 2>/dev/null | tail -8 | sed 's/^/  /' || true
+
+paso "Resumen"
+[ $FALLOS -eq 0 ] && echo "  Todo en orden." || echo "  $FALLOS cosas que revisar. Informe en $LOG"
