@@ -389,6 +389,10 @@ if [[ -z $SIGILO_FETCH ]] && _hay fastfetch; then
         # La terminal de VS Code no entiende el protocolo de imágenes de
         # kitty pero sí el de iTerm (con terminal.integrated.enableImages)
         fastfetch --logo-type iterm "${_logo[@]}"
+    elif [[ -f ~/.config/fastfetch/sigilo.ansi ]]; then
+        # Terminal sin imágenes: el sello en bloques de colores
+        fastfetch --logo-type file-raw --logo ~/.config/fastfetch/sigilo.ansi \
+                  --logo-width 35 --logo-height 19 --logo-padding-left 1
     else
         fastfetch
     fi

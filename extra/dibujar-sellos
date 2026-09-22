@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Dibuja sellos de Sigilo con distintas formas.
+
+Todos siguen el mismo lenguaje que el de siempre: una figura de líneas
+finas, la misma figura repetida más pequeña por dentro, unas marcas cortas
+por fuera y un rombo encendido en el centro, con el degradado de la casa
+(menta arriba, verde azulado abajo).
+
+    extra/dibujar-sellos config/sigilo/sellos       los dibuja todos ahí
+    extra/dibujar-sellos . rombo estrella           solo esos
+
+Para cambiarles el color, extra/tintar-sello. Para añadir una forma nueva,
+basta con una función que devuelva sus trazos y meterla en FORMAS: el resto
+(el interior, las marcas, el núcleo y el degradado) es igual para todas.
+Cada forma devuelve una lista de trazos, y cada trazo es (puntos, cerrado):
+así una figura puede tener varias piezas sueltas, como la lente, que son
+dos arcos que no se tocan por los lados.
+
+Se dibuja a cuatro veces el tamaño y luego se reduce, que es la manera de
+que las líneas salgan suaves sin tener que pelearse con el antialias.
+"""
+import math
+import os
+import sys
+
+from PIL import Image, ImageDraw
+
+LADO = 380
+ESCALA = 4
+R = 150                      # radio de la figura de fuera
+DENTRO = 0.70                # cuánto encoge la figura de dentro
+ARRIBA = (0x3e, 0xe8, 0xa8)  # menta
+ABAJO = (0x5f, 0xa6, 0xc6)   # verde azulado
+
+GRUESO_FUERA = 5
+GRUESO_DENTRO = 1.5
+GRUESO_MARCA = 2
+ALFA_DENTRO = 140            # la figura de dentro va más apagada
+ALFA_MARCA = 185
+
+
+def poligono(lados, giro=0.0):
+    """Un polígono regular, con el giro que se le diga."""
+    def trazos(r):
+        return [([(math.cos(2 * math.pi * i / lados + giro) * r,
+                   math.sin(2 * math.pi * i / lados + giro) * r)
+                  for i in range(lados)], True)]
+    return trazos
+
+
+def estrella(puntas=6, hondo=0.48):
+    """Una estrella: se alternan un punto lejos y otro cerca del centro."""
+    def trazos(r):
+        fuera = []
+        for i in range(puntas * 2):
+            radio = r if i % 2 == 0 else r * hondo
+            a = math.pi * i / puntas - math.pi / 2
+            fuera.append((math.cos(a) * radio, math.sin(a) * radio))
+        return [(fuera, True)]
+    return trazos
+
+
+def circulo(lados=72):
+    return poligono(lados)
+
+
+def lente(ancho=0.62):
+    """Dos arcos que se juntan arriba y abajo, como un ojo de pie. Son dos
+    trazos sueltos: si fueran uno, al cerrarlo saldría una raya en medio."""
+    def trazos(r):
+        fuera, pasos = [], 60
+        for lado in (1, -1):
+            arco = []
+            for i in range(pasos + 1):
+                t = -math.pi / 3 + (2 * math.pi / 3) * i / pasos
+                arco.append((lado * (math.cos(t) - math.cos(math.pi / 3)) * r / ancho,
+                             math.sin(t) * r))
+            fuera.append((arco, False))
+        return fuera
+    return trazos
+
+
+FORMAS = {
+    "hexagono":  poligono(6),
+    "triangulo": poligono(3, -math.pi / 2),
+    "rombo":     poligono(4, -math.pi / 2),
+    "octogono":  poligono(8, math.pi / 8),
+    "estrella":  estrella(6),
+    "anillo":    circulo(),
+    "lente":     lente(),
+}
+
+
+def degradado(lado):
+    """El degradado de la casa, en diagonal."""
+    im = Image.new("RGB", (lado, lado))
+    pinta = im.load()
+    for y in range(lado):
+        for x in range(lado):
+            t = (x / lado * 0.35 + y / lado * 0.65)
+            pinta[x, y] = tuple(round(ARRIBA[i] + (ABAJO[i] - ARRIBA[i]) * t) for i in range(3))
+    return im
+
+
+def dibujar(nombre, forma, destino):
+    lado = LADO * ESCALA
+    centro = lado / 2
+    mascara = Image.new("L", (lado, lado), 0)
+    d = ImageDraw.Draw(mascara)
+
+    def pintar(trazos, alfa, grueso):
+        for puntos, cerrado in trazos:
+            linea = [(centro + x, centro + y) for x, y in puntos]
+            if cerrado:
+                linea.append(linea[0])
+            d.line(linea, fill=alfa, width=round(grueso * ESCALA), joint="curve")
+
+    # La figura de fuera y la misma más pequeña por dentro
+    pintar(forma(R * ESCALA), 255, GRUESO_FUERA)
+    pintar(forma(R * DENTRO * ESCALA), ALFA_DENTRO, GRUESO_DENTRO)
+
+    # Marcas cortas por fuera, una por vértice de la figura
+    vertices = [p for puntos, _ in forma(R * ESCALA) for p in puntos]
+    paso = max(1, len(vertices) // 6)
+    for i in range(0, len(vertices), paso):
+        x, y = vertices[i]
+        largo = math.hypot(x, y) or 1
+        ux, uy = x / largo, y / largo
+        d.line([(centro + ux * (largo + 10 * ESCALA), centro + uy * (largo + 10 * ESCALA)),
+                (centro + ux * (largo + 26 * ESCALA), centro + uy * (largo + 26 * ESCALA))],
+               fill=ALFA_MARCA, width=round(GRUESO_MARCA * ESCALA))
+
+    # El núcleo: un rombo encendido con su halo
+    rombo = poligono(4, -math.pi / 2)
+    for radio, alfa in ((30, 45), (22, 110), (15, 255)):
+        puntos = rombo(radio * ESCALA)[0][0]
+        d.polygon([(centro + x, centro + y) for x, y in puntos], fill=alfa)
+    pintar(rombo(30 * ESCALA), 220, 2)
+
+    color = degradado(lado)
+    sello = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
+    sello.paste(color, (0, 0), mascara)
+    sello = sello.resize((LADO, LADO), Image.LANCZOS)
+    sello.save(destino)
+    return destino
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    carpeta = sys.argv[1]
+    cuales = sys.argv[2:] or list(FORMAS)
+    os.makedirs(carpeta, exist_ok=True)
+    for n in cuales:
+        if n not in FORMAS:
+            print("no conozco la forma «%s»; hay: %s" % (n, ", ".join(FORMAS)))
+            continue
+        print("hecho:", dibujar(n, FORMAS[n], os.path.join(carpeta, n + ".png")))

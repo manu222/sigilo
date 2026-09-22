@@ -1,15 +1,17 @@
 // Ficha del sistema que sale al abrir el primer terminal de la sesión.
-// En kitty el sello se pinta como imagen (sigilo.png, lo decide
-// sigilo-shell.sh); en otros terminales, con los bloques de sigilo.ansi.
+// El sello es sigilo.png, y lo cambia el guion «sello» (Super+Shift+G).
+// Con «auto», fastfetch lo pinta como imagen en los terminales que saben
+// (kitty y los de su familia) y lo apaña con bloques en los que no. El
+// fichero sigilo.ansi se queda como respaldo para terminales muy sosos.
 // Los colores van en formato «38;2;R;G;B», el mismo de los códigos ANSI.
 {
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": {
-    "type": "file-raw",
-    "source": "/home/manu/.config/fastfetch/sigilo.ansi",
-    "width": 35,
-    "height": 19,
-    "padding": { "top": 1, "left": 1, "right": 4 }
+    "type": "auto",
+    "source": "~/.config/fastfetch/sigilo.png",
+    "width": 30,
+    "height": 15,
+    "padding": { "top": 1, "left": 2, "right": 4 }
   },
   // Separación entre la etiqueta y el valor, ancho de las etiquetas y
   // barras de uso (memoria, disco) con los colores según lo lleno que esté
