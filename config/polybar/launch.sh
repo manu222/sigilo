@@ -46,6 +46,13 @@ done
 
 BL="$(ls -1 /sys/class/backlight 2>/dev/null | head -1)"
 [ -n "$BL" ] && export BACKLIGHT="$BL"
+# Sin brillo que controlar (sobremesa) el módulo de brillo no sale, y la
+# píldora del volumen, que comparte con él, se quedaría sin cerrar. Se usa
+# la variante que se cierra sola. La batería va en su propia píldora y
+# simplemente no aparece.
+if [ -z "$BL" ]; then
+    export MODULOS_DERECHA="musica ollama pulseaudio-solo red temperature cpu memory battery date systray"
+fi
 
 export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
 
