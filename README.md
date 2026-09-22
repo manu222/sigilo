@@ -97,6 +97,26 @@ que la necesita. Todos comprueban antes lo que van a tocar y guardan copia.
 Windows en un disco de datos). Lee lo que hace antes de lanzarlo: borra un
 disco entero, aunque se niega a tocar el del sistema.
 
+### En otra distro o con otro escritorio
+
+Sigilo es un escritorio i3 y funciona en cualquier distro basada en Arch
+(Arch, EndeavourOS, Manjaro…), traiga i3 o no. `sigilo-apps` instala i3, la
+barra y todo lo demás. Si ya usas KDE, GNOME u otro escritorio, no se borra
+nada: al entrar eliges la sesión «i3» en la pantalla de inicio y el otro
+escritorio sigue ahí.
+
+Sin i3 hay partes que no funcionan, porque hablan con él directamente: la
+barra de escritorios, los atajos, la chuleta, minimizar y maximizar,
+cerrar escritorio y el Alt+Tab. Los fondos animados, picom y skippy-xd
+también necesitan X11, así que no van en una sesión Wayland.
+
+Lo que sí se puede usar suelto en cualquier escritorio: kitty, el prompt y
+los alias (`sigilo-shell.sh`), fastfetch, bat, btop, los colores GTK, los
+iconos, el cursor, el tema de VS Code y la mayoría de menús de rofi.
+
+La pantalla de inicio (`instalar-acceso.sh`) es solo para lightdm. Con SDDM
+o GDM se entra igual a i3, pero con el aspecto de esa pantalla.
+
 ## Apps
 
 La lista está en `iso/grupos.yaml`: escritorio, copias, desarrollo,
