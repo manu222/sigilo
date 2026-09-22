@@ -2,29 +2,78 @@
 """Píldora de música para waybar (sesión Hyprland).
 
 La misma idea que polybar/scripts/musica: mientras suena algo (Spotify, el
-navegador, VLC, mpv… cualquier cosa que hable MPRIS) enseña unas barritas
-que se mueven con el sonido y el título. En pausa, las barras se paran y el
-título se apaga. Si no hay nada abierto, la píldora desaparece.
+navegador, VLC, mpv… cualquier cosa que hable MPRIS) enseña una onda que se
+mueve con el sonido y el título. En pausa, la onda se para y el título se
+apaga. Si no hay nada abierto, la píldora desaparece.
 
 Waybar quiere una línea JSON cada vez; los colores van con marcas de pango.
 
   musica              lo que lanza waybar (se queda escribiendo)
   musica --enfocar    salta a la ventana del reproductor (clic derecho)
+  musica --barras     enciende o apaga la onda (botón central)
 
-Las barras salen de cava (config en ~/.config/cava/barra), que solo se
-arranca mientras hay música.
+La onda es lo único que gasta de verdad (lleva un cava detrás), así que se
+puede apagar sin perder el título ni los controles. Lo elegido se recuerda
+en ~/.config/sigilo/musica-sin-barras.
+
+El sonido sale de cava (config en ~/.config/cava/barra), que solo se arranca
+mientras hay música.
 """
-import html, json, os, select, subprocess, sys, time
+import html, json, math, os, select, subprocess, sys, time
 
-BLOQUES = "▁▂▃▄▅▆▇█"
 MAX_TITULO = 20
-# Degradado de menta a lila, una por barra
+# Degradado de menta a lila, repartido a lo largo de la onda
 COLORES = ["#34d399", "#4fd0a8", "#6bc9b8", "#86c0c8", "#9fb5d4", "#b3a9dc", "#c1a3e0", "#c8aae5"]
+# La onda se dibuja con caracteres braille: cada uno son dos columnas de
+# puntos por cuatro de alto, así que con diez caracteres salen veinte puntos
+# de ancho, que ya se lee como una línea. Es la única forma de pintar una
+# curva en una barra que solo entiende texto.
+CELDAS = 10
+COLUMNAS = CELDAS * 2
+FILAS = 4
+BRAILLE = 0x2800
+IZQUIERDA = (0x01, 0x02, 0x04, 0x40)     # bits de los puntos, de arriba abajo
+DERECHA = (0x08, 0x10, 0x20, 0x80)
 CAVA_CONF = os.path.expanduser("~/.config/cava/barra")
+SIN_BARRAS = os.path.expanduser("~/.config/sigilo/musica-sin-barras")
+
+
+def hay_barras():
+    return not os.path.exists(SIN_BARRAS)
+
+
+def alternar_barras():
+    """Enciende o apaga la onda. El proceso que pinta la píldora mira este
+    fichero una vez por segundo, así que se entera solo."""
+    os.makedirs(os.path.dirname(SIN_BARRAS), exist_ok=True)
+    if hay_barras():
+        open(SIN_BARRAS, "w").write("si\n")
+        aviso = "Onda de música apagada"
+    else:
+        os.remove(SIN_BARRAS)
+        aviso = "Onda de música encendida"
+    subprocess.run(["notify-send", "-a", "Sigilo", "-i", "multimedia-player",
+                    "-t", "2000", "Música", aviso])
 
 # Nombre del reproductor en MPRIS -> clase de su ventana en Hyprland
 CLASES = {"spotify": "spotify", "firefox": "firefox", "brave": "brave-browser",
           "chromium": "chromium", "vlc": "vlc", "mpv": "mpv"}
+
+
+def fondo_actual():
+    """Nombre del fichero que se está usando de fondo de pantalla, si lo hay."""
+    try:
+        with open(os.path.expanduser("~/.config/sigilo/fondo-actual")) as f:
+            return os.path.basename(f.read().strip())
+    except OSError:
+        return ""
+
+
+def es_el_fondo(nombre, titulo):
+    """El fondo animado es un mpv más y, si lleva mpv-mpris cargado, se
+    anuncia como si fuera música. Se descarta comparándolo con el fichero
+    que está puesto de fondo."""
+    return nombre.lower().startswith("mpv") and titulo and titulo == fondo_actual()
 
 
 def reproductor():
@@ -37,6 +86,7 @@ def reproductor():
     except (OSError, subprocess.TimeoutExpired):
         return None
     filas = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 3]
+    filas = [f for f in filas if not es_el_fondo(f[0], f[3])]
     for estado in ("Playing", "Paused"):
         for f in filas:
             if f[1] == estado:
@@ -49,9 +99,37 @@ def recortar(t):
     return t if len(t) <= MAX_TITULO else t[:MAX_TITULO - 1] + "…"
 
 
-def barras(valores):
-    return "".join(f"<span color='{COLORES[i % 8]}'>{BLOQUES[min(max(v, 0), 7)]}</span>"
-                   for i, v in enumerate(valores))
+def onda(valores, fase):
+    """La onda de la píldora: una línea que se ondula siempre en el mismo
+    sitio y a la que la música le sube y le baja la altura en cada tramo.
+
+    A cada punto de la línea le toca una banda de cava (las ocho, repartidas
+    e interpoladas para que no haya escalones): donde pega fuerte, la onda
+    se estira. El vaivén lo pone el seno, que va avanzando con «fase»."""
+    # El golpe: las dos bandas más graves (bombo y bajo), que es lo que
+    # marca el ritmo. Con ellas se infla la onda entera; si solo se mira
+    # banda a banda, donde el seno pasa por cero no se nota nada.
+    graves = (valores[0] + valores[1]) / 14.0
+    celdas = []
+    for c in range(CELDAS):
+        marca = 0
+        for lado, bits in ((0, IZQUIERDA), (1, DERECHA)):
+            t = (c * 2 + lado) / (COLUMNAS - 1)
+            p = t * (len(valores) - 1)
+            a = int(p)
+            b = min(len(valores) - 1, a + 1)
+            nivel = (valores[a] + (valores[b] - valores[a]) * (p - a)) / 7.0
+            # los extremos se van apagando para que no acabe de golpe
+            borde = math.sin(math.pi * t) ** 0.35
+            altura = (math.sin(t * math.pi * 2.5 - fase) * 0.7 +
+                      math.sin(t * math.pi * 4.5 + fase * 1.6) * 0.3)
+            # En silencio apenas se mueve (una línea que respira) y con la
+            # música se abre hasta ocupar los cuatro puntos de alto
+            fila = round(1.6 - altura * (0.08 + (nivel * 0.4 + graves * 0.9) * 2.8) * borde)
+            marca |= bits[min(max(fila, 0), FILAS - 1)]
+        celdas.append(chr(BRAILLE + marca))
+    return "".join("<span color='%s'>%s</span>" % (COLORES[i * len(COLORES) // CELDAS], ch)
+                   for i, ch in enumerate(celdas))
 
 
 def escribir(texto, tooltip="", clase=""):
@@ -75,12 +153,19 @@ def main():
     info = None
     valores = [0] * 8
     antes = None
+    fase = 0.0
+    ultimo_marco = time.time()
     while True:
         ahora = time.time()
+        # La onda avanza por tiempo, no por fotograma, para que se mueva igual
+        # de rápido dé cava lo que dé; y con lo fuerte que suene, un poco más
+        paso = min(0.2, ahora - ultimo_marco)
+        ultimo_marco = ahora
+        fase += paso * (2.2 + 3.0 * (sum(valores) / (7.0 * len(valores))))
         if ahora - ultimo_repaso > 1:            # el reproductor se mira una vez por segundo
             info = reproductor()
             ultimo_repaso = ahora
-            sonando = info is not None and info[1] == "Playing"
+            sonando = info is not None and info[1] == "Playing" and hay_barras()
             if sonando and cava is None:
                 cava = subprocess.Popen(["cava", "-p", CAVA_CONF], stdout=subprocess.PIPE,
                                         stderr=subprocess.DEVNULL, text=True, bufsize=1)
@@ -106,8 +191,13 @@ def main():
                     valores = [int(x) for x in linea.strip().strip(";").split(";")][:8]
                 except ValueError:
                     pass
-            salida = f"{barras(valores)}  <span color='#c9d3ce'>{texto}</span>"
+            salida = f"{onda(valores, fase)}  <span color='#c9d3ce'>{texto}</span>"
             clase = "sonando"
+        elif estado == "Playing":
+            # Sonando pero con las barras apagadas: icono de música en menta
+            salida = f"<span color='#34d399'>\U000f0387</span>  <span color='#c9d3ce'>{texto}</span>"
+            clase = "sonando"
+            time.sleep(0.5)
         else:
             salida = f"<span color='#70837c'>\U000f03e4  {texto}</span>"
             clase = "pausa"
@@ -121,6 +211,8 @@ if __name__ == "__main__":
     try:
         if "--enfocar" in sys.argv:
             enfocar()
+        elif "--barras" in sys.argv:
+            alternar_barras()
         else:
             main()
     except (BrokenPipeError, KeyboardInterrupt):

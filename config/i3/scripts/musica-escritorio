@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Visualizador de música pegado al escritorio.
 
-Una tarjeta abajo en el centro con la carátula, el título, el artista y 48
-barras que se mueven con el sonido, en degradado de menta a lila. Vive por
+Una tarjeta abajo en el centro con la carátula, el título, el artista y una
+onda que se ondula al ritmo, en degradado de menta a lila. Vive por
 debajo de todas las ventanas, encima del fondo de pantalla: se ve en los
 escritorios vacíos y en los huecos, y nunca tapa nada ni recibe clics.
 
@@ -13,10 +13,17 @@ escritorios vacíos y en los huecos, y nunca tapa nada ni recibe clics.
   · El sonido lo mide cava (config en ~/.config/cava/escritorio), que solo
     corre mientras hay música.
 
-Lo arranca i3 al iniciar sesión. Para quitarlo, comenta su línea en el
-config de i3.
+  · En Hyprland se dibuja como una capa por debajo de las ventanas y va
+    buscándose la vida: se pone en la primera pantalla que no tenga nada
+    encima de ella y se muda sola cuando esa se ocupa y otra se queda
+    libre. Si están todas ocupadas se apaga entera (cava incluido): si no
+    se ve, no tiene sentido gastar en ella.
+
+La arranca la sesión al entrar y no tiene interruptor: lo que se enciende y
+se apaga a mano son las barritas de la barra (botón central encima de la
+música), que es lo que se ve siempre.
 """
-import hashlib, os, subprocess, sys, time, urllib.parse, urllib.request
+import hashlib, json, math, os, subprocess, sys, time, urllib.parse, urllib.request
 
 import cairo
 import gi
@@ -27,7 +34,8 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 # ── medidas y colores (cámbialos aquí) ───────────────────────
 ANCHO, ALTO = 760, 176          # tamaño de la tarjeta
 MARGEN_ABAJO = 56               # distancia al borde inferior de la pantalla
-BARRAS = 48
+BARRAS = 48                     # bandas que da cava (ver ~/.config/cava/escritorio)
+PUNTOS_ONDA = 140               # en cuántos trozos se parte la línea al dibujarla
 CARATULA = 96
 MENTA, LILA = (0x34 / 255, 0xd3 / 255, 0x99 / 255), (0xc8 / 255, 0xaa / 255, 0xe5 / 255)
 FONDO = (0x0b / 255, 0x10 / 255, 0x0e / 255, 0.78)
@@ -35,6 +43,35 @@ TEXTO, TEXTO_SUAVE = (0.91, 0.93, 0.92), (0.58, 0.64, 0.63)
 
 CAVA_CONF = os.path.expanduser("~/.config/cava/escritorio")
 CACHE = os.path.expanduser("~/.cache/sigilo-caratulas")
+PID = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "musica-escritorio.pid")
+HYPRLAND = bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"))
+# Con «musica-escritorio --depurar» va contando por la salida en qué estado
+# está (pantalla, si la tapan, qué suena, si se ve). Sirve para averiguar por
+# qué no sale sin tener que ir a ciegas.
+DEPURAR = "--depurar" in sys.argv
+
+# gtk-layer-shell solo existe en Wayland
+try:
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GtkLayerShell
+except (ValueError, ImportError):
+    GtkLayerShell = None
+
+
+def fondo_actual():
+    """Nombre del fichero que se está usando de fondo de pantalla, si lo hay."""
+    try:
+        with open(os.path.expanduser("~/.config/sigilo/fondo-actual")) as f:
+            return os.path.basename(f.read().strip())
+    except OSError:
+        return ""
+
+
+def es_el_fondo(nombre, titulo):
+    """El fondo animado es un mpv más y, si lleva mpv-mpris cargado, se
+    anuncia como si fuera música. Se descarta comparándolo con el fichero
+    que está puesto de fondo."""
+    return nombre.lower().startswith("mpv") and titulo and titulo == fondo_actual()
 
 
 def reproductor():
@@ -46,6 +83,7 @@ def reproductor():
     except (OSError, subprocess.TimeoutExpired):
         return None
     filas = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 4]
+    filas = [f for f in filas if not es_el_fondo(f[0], f[3])]
     for estado in ("Playing", "Paused"):
         for f in filas:
             if f[1] == estado:
@@ -80,29 +118,161 @@ class Visualizador(Gtk.Window):
         self.set_visual(self.get_screen().get_rgba_visual())
         self.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
         self.set_default_size(ANCHO, ALTO)
-        geo = Gdk.Display.get_default().get_primary_monitor() or Gdk.Display.get_default().get_monitor(0)
-        r = geo.get_geometry()
-        self.move(r.x + (r.width - ANCHO) // 2, r.y + r.height - ALTO - MARGEN_ABAJO)
+        self.pantalla = pantalla_de_la_barra()
+        if self.como_capa():
+            pass                                   # Hyprland la coloca por mí
+        else:
+            r = self.pantalla.get_geometry()
+            self.move(r.x + (r.width - ANCHO) // 2, r.y + r.height - ALTO - MARGEN_ABAJO)
         self.connect("draw", self.dibujar)
 
         self.info = None
         self.valores = [0.0] * BARRAS      # lo que se pinta (suavizado)
         self.objetivo = [0.0] * BARRAS     # lo último que dijo cava
         self.opacidad = 0.0                # para aparecer y desaparecer suave
+        self.fase = 0.0                    # por dónde va la ondulación
         self.cava = None
         self.arte_ruta = None
         self.arte = None
         self.ultima_musica = 0
 
+        self.tapada = False
+        if HYPRLAND:
+            GLib.timeout_add(1000, self.buscar_sitio)
+        if DEPURAR:
+            GLib.timeout_add(1000, self.contar)
         GLib.timeout_add(1000, self.revisar)
         GLib.timeout_add(33, self.animar)          # ~30 fotogramas por segundo
         GLib.timeout_add(3000, self.al_fondo)
+
+    def como_capa(self):
+        """En Wayland: una capa por debajo de las ventanas, abajo y centrada."""
+        if GtkLayerShell is None or not os.environ.get("WAYLAND_DISPLAY"):
+            return False
+        GtkLayerShell.init_for_window(self)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BACKGROUND)
+        try:
+            GtkLayerShell.set_namespace(self, "musica-escritorio")
+        except AttributeError:
+            pass
+        if self.pantalla:
+            GtkLayerShell.set_monitor(self, self.pantalla)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, True)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.BOTTOM, MARGEN_ABAJO)
+        GtkLayerShell.set_exclusive_zone(self, -1)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        return True
+
+    def hueco(self):
+        """Dónde está la tarjeta en coordenadas de todo el escritorio."""
+        r = self.pantalla.get_geometry() if self.pantalla else None
+        if not r:
+            return (0, 0, ANCHO, ALTO)
+        return self.hueco_en(r.x, r.y, r.width, r.height)
+
+    @staticmethod
+    def hueco_en(x, y, ancho, alto):
+        """El sitio que ocuparía la tarjeta en una pantalla: abajo y centrada."""
+        return (x + (ancho - ANCHO) // 2, y + alto - ALTO - MARGEN_ABAJO, ANCHO, ALTO)
+
+    def buscar_sitio(self):
+        """La primera pantalla que no tenga nada encima de la tarjeta.
+
+        Se prueban por orden: primero aquella en la que ya está (al entrar,
+        la de la barra), para que se quede quieta mientras siga despejada, y
+        luego las demás según las va contando Hyprland. En cuanto una está
+        libre, la tarjeta se muda ahí. Si están todas ocupadas se esconde y
+        se para cava: no tiene sentido gastar procesador en unas barras que
+        nadie ve.
+
+        Se mira una vez por segundo. Solo se cuentan las ventanas del
+        escritorio que cada pantalla tiene puesto ahora mismo."""
+        try:
+            m = subprocess.run(["hyprctl", "-j", "monitors"], capture_output=True, text=True, timeout=2)
+            c = subprocess.run(["hyprctl", "-j", "clients"], capture_output=True, text=True, timeout=2)
+            monitores = json.loads(m.stdout)
+            clientes = json.loads(c.stdout)
+        except Exception:
+            return True                    # si Hyprland no contesta, se deja como está
+
+        # Lo que se ve ahora mismo, por escritorio
+        ventanas = {}
+        visibles = {p["activeWorkspace"]["id"] for p in monitores}
+        for v in clientes:
+            wid = v.get("workspace", {}).get("id")
+            if wid not in visibles or v.get("hidden"):
+                continue
+            ventanas.setdefault(wid, []).append(v)
+
+        # En la que ya está primero, las demás detrás
+        donde_esta = self.pantalla.get_geometry() if self.pantalla else None
+        def primero(p):
+            if donde_esta and p["x"] == donde_esta.x and p["y"] == donde_esta.y:
+                return 0
+            return 1
+        display = Gdk.Display.get_default()
+
+        for p in sorted(monitores, key=primero):
+            escala = p.get("scale") or 1
+            x, y, w, h = self.hueco_en(p["x"], p["y"],
+                                       int(p["width"] / escala), int(p["height"] / escala))
+            libre = True
+            for v in ventanas.get(p["activeWorkspace"]["id"], []):
+                vx, vy = v.get("at", [0, 0])
+                vw, vh = v.get("size", [0, 0])
+                if vx < x + w and vx + vw > x and vy < y + h and vy + vh > y:
+                    libre = False
+                    break
+            if DEPURAR:
+                print("  %s escritorio %s hueco %s -> %s"
+                      % (p["name"], p["activeWorkspace"]["id"], (x, y, w, h),
+                         "libre" if libre else "ocupada"), flush=True)
+            if libre:
+                self.tapada = False
+                self.mudarse(display.get_monitor_at_point(p["x"] + 10, p["y"] + 10))
+                return True
+
+        self.tapada = True                 # ni una libre: a dormir
+        return True
+
+    def contar(self):
+        """Solo con --depurar: el estado, una vez por segundo."""
+        sitio = "—"
+        if self.pantalla:
+            r = self.pantalla.get_geometry()
+            sitio = "%dx%d en %d,%d" % (r.width, r.height, r.x, r.y)
+        print("pantalla=%s tapada=%s suena=%s opacidad=%.2f visible=%s cava=%s"
+              % (sitio, self.tapada, (self.info or {}).get("estado"),
+                 self.opacidad, self.get_visible(), self.cava is not None), flush=True)
+        return True
+
+    def mudarse(self, pantalla):
+        """Lleva la tarjeta a otra pantalla, si no estaba ya en ella.
+
+        Una capa no puede cambiarse de pantalla estando puesta, así que se
+        quita y se vuelve a poner; como se hace solo cuando de verdad
+        cambia, no se nota."""
+        if pantalla is None or pantalla == self.pantalla:
+            return
+        self.pantalla = pantalla
+        if GtkLayerShell is None or not os.environ.get("WAYLAND_DISPLAY"):
+            r = pantalla.get_geometry()
+            self.move(r.x + (r.width - ANCHO) // 2, r.y + r.height - ALTO - MARGEN_ABAJO)
+            return
+        estaba = self.get_visible()
+        if estaba:
+            self.hide()
+        GtkLayerShell.set_monitor(self, pantalla)
+        if estaba:
+            self.show_all()
+            self.get_window().input_shape_combine_region(cairo.Region(), 0, 0)
+            self.al_fondo()
 
     # ── estado del reproductor ───────────────────────────────
     def revisar(self):
         """Cada segundo: qué suena, arrancar o parar cava, carátula."""
         self.info = reproductor()
-        sonando = bool(self.info) and self.info["estado"] == "Playing"
+        sonando = bool(self.info) and self.info["estado"] == "Playing" and not self.tapada
         if sonando:
             self.ultima_musica = time.time()
             if self.cava is None:
@@ -135,12 +305,15 @@ class Visualizador(Gtk.Window):
 
     def animar(self):
         """Suaviza las barras y la opacidad, y muestra u oculta la ventana."""
-        visible = time.time() - self.ultima_musica < 4
+        visible = time.time() - self.ultima_musica < 4 and not self.tapada
         self.opacidad += (1.0 if visible else -1.0) * 0.08
         self.opacidad = min(max(self.opacidad, 0.0), 1.0)
+        # La onda avanza siempre, y un poco más rápido cuanto más fuerte suene
+        self.fase += 0.05 + 0.20 * (sum(self.valores) / len(self.valores)
+                                    if self.valores else 0.0)
         for i, v in enumerate(self.objetivo):
             # sube rápido y cae despacio, como un vúmetro
-            self.valores[i] += (v - self.valores[i]) * (0.6 if v > self.valores[i] else 0.18)
+            self.valores[i] += (v - self.valores[i]) * (0.75 if v > self.valores[i] else 0.30)
         if self.opacidad > 0 and not self.get_visible():
             self.show_all()
             self.get_window().input_shape_combine_region(cairo.Region(), 0, 0)
@@ -208,16 +381,57 @@ class Visualizador(Gtk.Window):
         estado = "en pausa" if info.get("estado") == "Paused" else "sonando"
         cr.show_text(f"{info.get('nombre', '').split('.')[0]} · {estado}")
 
-        # barras: de graves (izquierda) a agudos, degradado menta -> lila
-        bx, by, bw, bh = tx, 108, ANCHO - tx - 24, 50
-        paso = bw / BARRAS
-        for i, v in enumerate(self.valores):
-            t = i / (BARRAS - 1)
-            color = tuple(MENTA[k] * (1 - t) + LILA[k] * t for k in range(3))
-            alto = max(3, v * bh)
-            self.redondeado(cr, bx + i * paso + 1, by + bh - alto, paso - 3, alto, 2)
-            cr.set_source_rgba(*color, (0.55 + 0.45 * v) * a)
-            cr.fill()
+        # la onda: una línea que se ondula siempre en el mismo sitio y sube o
+        # baja de altura con lo fuerte que esté sonando, en degradado de
+        # menta (izquierda) a lila (derecha). No dibuja frecuencias: lo que
+        # manda es el nivel general, que es la media de lo que da cava.
+        ox, oy, ow, oh = tx, 104, ANCHO - tx - 24, 60
+        nivel = sum(self.valores) / len(self.valores) if self.valores else 0.0
+        # El golpe: la media de las ocho bandas más graves (el bombo y el
+        # bajo). Es lo que de verdad marca el ritmo, y con ella se infla y se
+        # desinfla la onda entera; si solo se mira banda a banda, donde el
+        # seno pasa por cero no se nota nada y parece que no reacciona.
+        graves = sum(self.valores[:8]) / 8 if self.valores else 0.0
+        medio = oy + oh / 2
+        puntos = []
+        for i in range(PUNTOS_ONDA + 1):
+            t = i / PUNTOS_ONDA
+            # A cada punto de la línea le toca una banda de cava (las 48,
+            # interpoladas para que no haya escalones): donde pega fuerte, la
+            # onda se estira ahí. Así sigue el ritmo de verdad y no solo el
+            # volumen general.
+            p = t * (BARRAS - 1)
+            a = int(p)
+            b = min(BARRAS - 1, a + 1)
+            banda = self.valores[a] + (self.valores[b] - self.valores[a]) * (p - a)
+            # los extremos se van apagando para que la línea no acabe de golpe
+            borde = math.sin(math.pi * t) ** 0.35
+            altura = (math.sin(t * math.pi * 4 - self.fase) * 0.60 +
+                      math.sin(t * math.pi * 7 + self.fase * 1.5) * 0.40)
+            amplitud = (0.04 + (banda * 0.45 + graves * 0.75) * 1.5) * (oh / 2)
+            puntos.append((ox + t * ow, medio - altura * amplitud * borde))
+
+        def trazo():
+            cr.move_to(*puntos[0])
+            for punto in puntos[1:]:
+                cr.line_to(*punto)
+
+        # el resplandor de detrás: la misma línea, gorda y casi transparente
+        cr.set_line_cap(cairo.LINE_CAP_ROUND)
+        cr.set_line_join(cairo.LINE_JOIN_ROUND)
+        for grosor, alfa in ((10, 0.09), (5, 0.16)):
+            trazo()
+            cr.set_source_rgba(*MENTA, alfa * (0.5 + 0.5 * nivel) * a)
+            cr.set_line_width(grosor)
+            cr.stroke()
+
+        degradado = cairo.LinearGradient(ox, 0, ox + ow, 0)
+        degradado.add_color_stop_rgba(0, *MENTA, a)
+        degradado.add_color_stop_rgba(1, *LILA, a)
+        trazo()
+        cr.set_source(degradado)
+        cr.set_line_width(2.4)
+        cr.stroke()
 
     @staticmethod
     def redondeado(cr, x, y, w, h, r):
@@ -238,16 +452,55 @@ class Visualizador(Gtk.Window):
         return texto + "…"
 
 
-def instancia_unica():
-    """Si ya hay uno abierto (i3 reiniciado), se cierra y queda este."""
-    ruta = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "musica-escritorio.pid")
+def pantalla_de_la_barra():
+    """La pantalla donde va la tarjeta: la misma que la barra.
+
+    En Hyprland es la del escritorio 1 (así lo elige waybar/lanzar); en i3,
+    la principal."""
+    display = Gdk.Display.get_default()
+    if HYPRLAND:
+        try:
+            r = subprocess.run(["hyprctl", "-j", "monitors"], capture_output=True, text=True, timeout=2)
+            pantallas = json.loads(r.stdout)
+            elegida = next((p for p in pantallas if p["activeWorkspace"]["id"] == 1), None) \
+                      or next((p for p in pantallas if p.get("focused")), None)
+            if elegida:
+                punto = display.get_monitor_at_point(elegida["x"] + 10, elegida["y"] + 10)
+                if punto:
+                    return punto
+        except Exception:
+            pass
+    return display.get_primary_monitor() or display.get_monitor(0)
+
+
+def otro_abierto():
+    """Devuelve el pid del que ya estaba abierto, o None."""
     try:
-        viejo = int(open(ruta).read().strip())
-        if viejo != os.getpid() and b"musica-escritorio" in open(f"/proc/{viejo}/cmdline", "rb").read():
-            os.kill(viejo, 15)
+        viejo = int(open(PID).read().strip())
     except (OSError, ValueError):
+        return None
+    if viejo == os.getpid():
+        return None
+    try:
+        if b"musica-escritorio" in open(f"/proc/{viejo}/cmdline", "rb").read():
+            return viejo
+    except OSError:
         pass
-    open(ruta, "w").write(str(os.getpid()))
+    return None
+
+
+def instancia_unica():
+    """Si ya hay uno abierto (sesión recargada), se cierra y queda este."""
+    viejo = otro_abierto()
+    if viejo:
+        try:
+            os.kill(viejo, 15)
+        except OSError:
+            pass
+    try:
+        open(PID, "w").write(str(os.getpid()))
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":

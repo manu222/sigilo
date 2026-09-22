@@ -30,6 +30,22 @@ CLASES = {"spotify": "Spotify", "firefox": "firefox", "brave": "Brave-browser",
           "chromium": "Chromium", "vlc": "vlc", "mpv": "mpv"}
 
 
+def fondo_actual():
+    """Nombre del fichero que se está usando de fondo de pantalla, si lo hay."""
+    try:
+        with open(os.path.expanduser("~/.config/sigilo/fondo-actual")) as f:
+            return os.path.basename(f.read().strip())
+    except OSError:
+        return ""
+
+
+def es_el_fondo(nombre, titulo):
+    """El fondo animado es un mpv más y, si lleva mpv-mpris cargado, se
+    anuncia como si fuera música. Se descarta comparándolo con el fichero
+    que está puesto de fondo."""
+    return nombre.lower().startswith("mpv") and titulo and titulo == fondo_actual()
+
+
 def reproductor():
     """(nombre, estado, artista, título) del reproductor que suena, o del
     que está en pausa si no suena ninguno. None si no hay ninguno."""
@@ -40,6 +56,7 @@ def reproductor():
     except (OSError, subprocess.TimeoutExpired):
         return None
     filas = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 3]
+    filas = [f for f in filas if not es_el_fondo(f[0], f[3])]
     for estado in ("Playing", "Paused"):
         for f in filas:
             if f[1] == estado:

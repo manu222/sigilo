@@ -114,6 +114,7 @@ poner() {
         tam=$(xrandr --current | sed -n 's/.*current \([0-9]*\) x \([0-9]*\).*/\1x\2/p')
         xwinwrap -g "${tam:-1920x1080}+0+0" -ni -s -nf -b -un -ov -fdt -argb -d -- \
             mpv -wid %WID --title=sigilo-fondo --input-ipc-server="$SOCKET" \
+                --load-scripts=no \
                 --loop-file=inf --no-audio --panscan=1.0 --hwdec=auto-safe \
                 --no-osc --osd-level=0 --no-input-default-bindings --input-vo-keyboard=no \
                 --stop-screensaver=no --cursor-autohide=no --really-quiet --no-terminal \

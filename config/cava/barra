@@ -21,4 +21,4 @@ bar_delimiter = 59
 frame_delimiter = 10
 
 [smoothing]
-noise_reduction = 70
+noise_reduction = 35

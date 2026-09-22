@@ -85,8 +85,10 @@
     },
 
     // ── música ──────────────────────────────────────────────────────────
-    // Barritas al ritmo (cava) y el título. Clic: pausa · rueda: canción
-    // siguiente/anterior · clic derecho: saltar a la ventana del reproductor
+    // Una onda al ritmo (cava, dibujada con braille) y el título. Clic:
+    // pausa · rueda: canción siguiente/anterior · clic derecho: saltar a la
+    // ventana del reproductor · clic central: enciende o apaga la onda (el
+    // título se queda)
     "custom/musica": {
         "exec": "~/.config/waybar/scripts/musica",
         "return-type": "json",
@@ -94,7 +96,8 @@
         "on-click": "playerctl play-pause",
         "on-scroll-up": "playerctl next",
         "on-scroll-down": "playerctl previous",
-        "on-click-right": "~/.config/waybar/scripts/musica --enfocar"
+        "on-click-right": "~/.config/waybar/scripts/musica --enfocar",
+        "on-click-middle": "~/.config/waybar/scripts/musica --barras"
     },
 
     // ── IA local (Ollama) ───────────────────────────────────────────────

@@ -37,7 +37,10 @@ poner() {
     #   sin sonido, en bucle y con la gráfica decodificando el vídeo
     #   image-display-duration=inf  para que una imagen no "termine"
     #   panscan=1.0                 rellena la pantalla recortando, sin bandas
-    local mpv="no-audio loop hwdec=auto panscan=1.0 image-display-duration=inf input-ipc-server=$SOCKET"
+    # load-scripts=no: sin esto, el mpv del fondo carga mpv-mpris y se
+    # anuncia como reproductor, así que la barra enseñaba el fondo de
+    # pantalla como si fuera la canción que suena.
+    local mpv="no-audio loop hwdec=auto panscan=1.0 image-display-duration=inf load-scripts=no input-ipc-server=$SOCKET"
     echo "=== $(date '+%F %T') $f" >> "$LOG"
     # -p: pausa si una ventana lo tapa entero · '*': todas las pantallas
     setsid -f mpvpaper -p -o "$mpv" '*' "$f" >>"$LOG" 2>&1
