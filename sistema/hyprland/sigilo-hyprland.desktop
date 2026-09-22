@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Sigilo (Hyprland)
+Comment=Hyprland con la configuración de Sigilo, esperando a que lightdm suelte la gráfica
+Exec=/usr/local/bin/sigilo-hyprland
+Type=Application
+DesktopNames=Hyprland
+Keywords=tiling;wayland;compositor;sigilo;

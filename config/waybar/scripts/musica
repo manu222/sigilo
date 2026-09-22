@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Píldora de música para waybar (sesión Hyprland).
+
+La misma idea que polybar/scripts/musica: mientras suena algo (Spotify, el
+navegador, VLC, mpv… cualquier cosa que hable MPRIS) enseña unas barritas
+que se mueven con el sonido y el título. En pausa, las barras se paran y el
+título se apaga. Si no hay nada abierto, la píldora desaparece.
+
+Waybar quiere una línea JSON cada vez; los colores van con marcas de pango.
+
+  musica              lo que lanza waybar (se queda escribiendo)
+  musica --enfocar    salta a la ventana del reproductor (clic derecho)
+
+Las barras salen de cava (config en ~/.config/cava/barra), que solo se
+arranca mientras hay música.
+"""
+import html, json, os, select, subprocess, sys, time
+
+BLOQUES = "▁▂▃▄▅▆▇█"
+MAX_TITULO = 20
+# Degradado de menta a lila, una por barra
+COLORES = ["#34d399", "#4fd0a8", "#6bc9b8", "#86c0c8", "#9fb5d4", "#b3a9dc", "#c1a3e0", "#c8aae5"]
+CAVA_CONF = os.path.expanduser("~/.config/cava/barra")
+
+# Nombre del reproductor en MPRIS -> clase de su ventana en Hyprland
+CLASES = {"spotify": "spotify", "firefox": "firefox", "brave": "brave-browser",
+          "chromium": "chromium", "vlc": "vlc", "mpv": "mpv"}
+
+
+def reproductor():
+    """(nombre, estado, artista, título) del que suena, o del que está en
+    pausa si no suena ninguno. None si no hay ninguno."""
+    try:
+        r = subprocess.run(["playerctl", "-a", "metadata", "--format",
+                            "{{playerName}}\t{{status}}\t{{artist}}\t{{title}}"],
+                           capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    filas = [l.split("\t") for l in r.stdout.splitlines() if l.count("\t") == 3]
+    for estado in ("Playing", "Paused"):
+        for f in filas:
+            if f[1] == estado:
+                return f
+    return None
+
+
+def recortar(t):
+    t = t.strip()
+    return t if len(t) <= MAX_TITULO else t[:MAX_TITULO - 1] + "…"
+
+
+def barras(valores):
+    return "".join(f"<span color='{COLORES[i % 8]}'>{BLOQUES[min(max(v, 0), 7)]}</span>"
+                   for i, v in enumerate(valores))
+
+
+def escribir(texto, tooltip="", clase=""):
+    print(json.dumps({"text": texto, "tooltip": tooltip, "class": clase}, ensure_ascii=False), flush=True)
+
+
+def enfocar():
+    """Lleva el foco a la ventana del reproductor que suena."""
+    info = reproductor()
+    if not info:
+        return
+    base = info[0].split(".")[0].lower()
+    clase = CLASES.get(base, base)
+    subprocess.run(["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "class:(?i){clase}" }})'],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def main():
+    cava = None
+    ultimo_repaso = 0
+    info = None
+    valores = [0] * 8
+    antes = None
+    while True:
+        ahora = time.time()
+        if ahora - ultimo_repaso > 1:            # el reproductor se mira una vez por segundo
+            info = reproductor()
+            ultimo_repaso = ahora
+            sonando = info is not None and info[1] == "Playing"
+            if sonando and cava is None:
+                cava = subprocess.Popen(["cava", "-p", CAVA_CONF], stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, text=True, bufsize=1)
+            elif not sonando and cava is not None:
+                cava.terminate(); cava = None
+                valores = [0] * 8
+
+        if info is None:
+            if antes != "":
+                escribir("")                     # sin texto: waybar esconde la píldora
+                antes = ""
+            time.sleep(1)
+            continue
+
+        nombre, estado, artista, titulo = info
+        completo = f"{titulo} · {artista}" if artista else titulo
+        texto = html.escape(recortar(completo))
+        if cava is not None:
+            listo, _, _ = select.select([cava.stdout], [], [], 0.2)
+            if listo:
+                linea = cava.stdout.readline()
+                try:
+                    valores = [int(x) for x in linea.strip().strip(";").split(";")][:8]
+                except ValueError:
+                    pass
+            salida = f"{barras(valores)}  <span color='#c9d3ce'>{texto}</span>"
+            clase = "sonando"
+        else:
+            salida = f"<span color='#70837c'>\U000f03e4  {texto}</span>"
+            clase = "pausa"
+            time.sleep(0.5)
+        if salida != antes:
+            escribir(salida, html.escape(completo), clase)
+            antes = salida
+
+
+if __name__ == "__main__":
+    try:
+        if "--enfocar" in sys.argv:
+            enfocar()
+        else:
+            main()
+    except (BrokenPipeError, KeyboardInterrupt):
+        pass

@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""Escritorios, aplicación con el foco y modo de teclado para waybar.
+
+Es la versión Hyprland de i3/scripts/escritorios y app-enfocada: mismos
+iconos, mismos nombres y el mismo aspecto (el escritorio activo en su
+píldora menta, los demás en gris, el número y los iconos de lo que tiene
+abierto, sin repetir, como mucho tres y "+N" si hay más).
+
+Por qué no el módulo de escritorios que trae waybar: la versión 0.15 aún
+manda las órdenes a Hyprland con la sintaxis antigua, y con la
+configuración en Lua el clic no hace nada. Con esto cada escritorio es un
+módulo propio de waybar con su propio clic (ver config.jsonc, custom/ws1…).
+
+Con varias pantallas, cada escritorio es el conjunto de todas (ver
+hypr/sigilo/escritorios.lua): el 1 son los ids 1, 11 y 21 de Hyprland, el
+2 son 2, 12 y 22… Aquí se juntan: un solo "1" con los iconos de lo que hay
+abierto en las tres pantallas.
+
+Cómo funciona: este programa escucha los eventos de Hyprland y, cuando algo
+cambia, deja en $XDG_RUNTIME_DIR/sigilo-barra/ un fichero por escritorio
+(ws1.json … ws10.json), otro con la aplicación (app.json) y otro con el modo
+(modo.json). Luego avisa a waybar con una señal y cada módulo relee su
+fichero. Solo avisa si el contenido ha cambiado de verdad.
+"""
+import html, json, os, signal, subprocess, sys, time
+
+sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
+import hypr
+
+SALIDA = os.path.join(hypr.RUNTIME, "sigilo-barra")
+SENAL = 8            # waybar escucha SIGRTMIN+8 ("signal": 8 en config.jsonc)
+ESCRITORIOS = 10
+MAX = 3              # iconos por escritorio antes de poner "+N"
+
+# Clase de ventana (en minúsculas) -> icono de Nerd Font. La misma lista que
+# en i3/scripts/escritorios; si añades una app, añádela en los dos sitios.
+ICONOS = {
+    "firefox": 0xf0239, "brave-browser": 0xf059f, "chromium": 0xf059f,
+    "google-chrome": 0xf02af,
+    "kitty": 0xf018d, "xfce4-terminal": 0xf018d, "alacritty": 0xf018d,
+    "code": 0xf0a1e, "code-oss": 0xf0a1e, "vscodium": 0xf0a1e,
+    "thunar": 0xf024b, "nautilus": 0xf024b, "pcmanfm": 0xf024b,
+    "claude": 0xf06c4,
+    "1password": 0xf030b, "seahorse": 0xf030b,
+    "spotify": 0xf04c7, "vlc": 0xf057c, "mpv": 0xf0567,
+    "discord": 0xf066f, "telegramdesktop": 0xf2c6, "telegram-desktop": 0xf2c6,
+    "steam": 0xf04d3, "gimp": 0xf02e9, "ristretto": 0xf02e9, "imv": 0xf02e9,
+    "evince": 0xf0226, "zathura": 0xf0226, "okular": 0xf0226,
+    "libreoffice": 0xf0219, "soffice": 0xf0219, "mousepad": 0xf039e, "gedit": 0xf039e,
+    "pavucontrol": 0xf057e, "blueman-manager": 0xf00af,
+    "nm-connection-editor": 0xf0317, "timeshift-gtk": 0xf0493,
+    "galculator": 0xf00ec, "thunderbird": 0xf01ee, "obsidian": 0xf0e34,
+}
+# Ventanas de terminal con un título conocido
+TITULOS = {"btop": 0xf0127, "IA local": 0xf06a9, "Redes": 0xf0317}
+GENERICO = 0xf08c6
+
+# Nombre bonito de la aplicación con el foco (mismo criterio que app-enfocada)
+NOMBRES = {
+    "xfce4-terminal": "Terminal", "kitty": "Terminal", "thunar": "Archivos",
+    "firefox": "Firefox", "brave-browser": "Brave", "chromium": "Chromium",
+    "google-chrome": "Chrome", "code": "VS Code", "code-oss": "VS Code",
+    "claude": "Claude", "1password": "1Password",
+    "org.pulseaudio.pavucontrol": "Sonido", "pavucontrol": "Sonido",
+    "nm-connection-editor": "Redes", "gimp": "GIMP", "vlc": "VLC", "mpv": "mpv",
+    "discord": "Discord", "telegram-desktop": "Telegram", "spotify": "Spotify",
+    "gedit": "Editor", "imv": "Imágenes",
+}
+GENERICAS = {"app", "client", "desktop", "gui", "bin", "linux", "electron", "wrapped"}
+LIMITE = 14
+
+
+def icono(v):
+    """Icono de una ventana: por su título (btop, IA local…), por su clase o el genérico."""
+    if v.get("title") in TITULOS:
+        return TITULOS[v["title"]]
+    clase = (v.get("class") or v.get("initialClass") or "").lower()
+    if clase in ICONOS:
+        return ICONOS[clase]
+    for k, g in ICONOS.items():          # org.pulseaudio.pavucontrol, firefox-esr…
+        if k in clase:
+            return g
+    return GENERICO
+
+
+def presentable(clase):
+    """com.anthropic.claude -> Claude, .blueman-manager-wrapped -> Blueman manager."""
+    if "." in clase:
+        tramos = [t for t in clase.split(".") if t]
+        while len(tramos) > 1 and tramos[-1].lower() in GENERICAS:
+            tramos.pop()
+        clase = tramos[-1] if tramos else clase
+    clase = clase.replace("-wrapped", "").replace("-", " ").replace("_", " ").strip()
+    return (clase[:1].upper() + clase[1:]) or "—"
+
+
+def nombre_app(v):
+    if not v:
+        return "escritorio"
+    clase = (v.get("class") or v.get("initialClass") or "").strip()
+    if not clase:
+        return (v.get("title") or "—")[:LIMITE]
+    return (NOMBRES.get(clase.lower()) or presentable(clase))[:LIMITE]
+
+
+urgentes = set()      # direcciones de ventanas que han pedido atención
+submapa = ""          # modo de teclado activo ("redimensionar"…)
+anterior = {}         # último contenido escrito de cada fichero
+
+
+def numero(wid):
+    """Escritorio (1…10) al que pertenece un id de Hyprland: 1, 11 y 21 son el 1."""
+    return (wid - 1) % ESCRITORIOS + 1
+
+
+def estado():
+    """Calcula lo que tiene que enseñar cada módulo."""
+    ventanas = hypr.consultar("clients") or []
+    pantallas = hypr.consultar("monitors") or []
+    activa = hypr.consultar("activewindow") or {}
+    # Un escritorio se enseña si tiene alguna ventana en alguna pantalla (los
+    # vacíos existen igual, porque son persistentes, pero no pintan nada)
+    existentes = {numero(w["id"]) for w in (hypr.consultar("workspaces") or [])
+                  if w["id"] > 0 and w.get("windows", 0) > 0}
+
+    enfocado = next((numero(m["activeWorkspace"]["id"]) for m in pantallas
+                     if m.get("focused") and m["activeWorkspace"]["id"] > 0), None)
+    visibles = {numero(m["activeWorkspace"]["id"]) for m in pantallas if m["activeWorkspace"]["id"] > 0}
+
+    # Iconos de cada escritorio, sin repetir, en el orden en que Hyprland
+    # lista las ventanas (que viene a ser el orden en que se abrieron)
+    por_ws = {}
+    for v in ventanas:
+        wid = v.get("workspace", {}).get("id", -1)
+        if wid < 1:
+            continue
+        lista = por_ws.setdefault(numero(wid), [])
+        g = icono(v)
+        if g not in lista:
+            lista.append(g)
+    ws_urgentes = {numero(v["workspace"]["id"]) for v in ventanas
+                   if v.get("address") in urgentes and v["workspace"]["id"] > 0}
+
+    ficheros = {}
+    for n in range(1, ESCRITORIOS + 1):
+        if n not in existentes and n != enfocado:
+            ficheros[f"ws{n}"] = ""              # vacío: waybar oculta el módulo
+            continue
+        ics = por_ws.get(n, [])
+        texto = f"<b>{n}</b>" if n == enfocado else str(n)
+        if ics:
+            extra = f" +{len(ics) - MAX}" if len(ics) > MAX else ""
+            iconos = " ".join(chr(g) for g in ics[:MAX]) + extra
+            # Como en polybar: en los escritorios sin foco los iconos van en
+            # #70837c, un poco más claros que el número (#556760)
+            if n != enfocado and n not in ws_urgentes:
+                iconos = f"<span color='#70837c'>{iconos}</span>"
+            texto += "  " + iconos
+        if n == enfocado:
+            clase = "activo"
+        elif n in ws_urgentes:
+            clase = "urgente"
+        elif n in visibles:
+            clase = "visible"
+        else:
+            clase = "normal"
+        ficheros[f"ws{n}"] = json.dumps({"text": texto, "class": ["escritorio", clase]}, ensure_ascii=False)
+
+    ficheros["app"] = json.dumps({"text": html.escape(nombre_app(activa)),
+                                  "tooltip": html.escape(activa.get("title", "") or "")},
+                                 ensure_ascii=False)
+    ficheros["modo"] = json.dumps({"text": html.escape(submapa), "class": "modo"}, ensure_ascii=False) if submapa else ""
+    return ficheros
+
+
+def pintar():
+    """Escribe los ficheros que hayan cambiado y, si hay alguno, avisa a waybar."""
+    cambio = False
+    for nombre, contenido in estado().items():
+        if anterior.get(nombre) == contenido:
+            continue
+        anterior[nombre] = contenido
+        ruta = os.path.join(SALIDA, nombre + ".json")
+        with open(ruta + ".tmp", "w") as f:
+            f.write(contenido + "\n" if contenido else "")
+        os.replace(ruta + ".tmp", ruta)          # nunca se lee a medio escribir
+        cambio = True
+    if cambio:
+        subprocess.run(["pkill", f"-RTMIN+{SENAL}", "-x", "waybar"])
+
+
+# Eventos que cambian algo de lo que se enseña. El título solo importa para
+# las ventanas con icono propio por título (btop…) y para el nombre de la app.
+INTERESAN = {"workspace", "workspacev2", "focusedmon", "focusedmonv2", "activewindowv2",
+             "openwindow", "closewindow", "movewindow", "movewindowv2",
+             "createworkspace", "destroyworkspace", "moveworkspace",
+             "windowtitlev2", "urgent", "submap", "monitoradded", "monitorremoved",
+             "configreloaded"}
+
+
+def main():
+    global submapa
+    if not hypr.en_hyprland():
+        sys.exit("escritorios: esto es para la sesión Hyprland (en i3 se usa i3/scripts/escritorios)")
+    os.makedirs(SALIDA, exist_ok=True)
+    anterior.clear()
+    pintar()
+    while True:
+        try:
+            for ev, datos in hypr.eventos():
+                if ev not in INTERESAN:
+                    continue
+                if ev == "urgent":
+                    urgentes.add("0x" + datos.removeprefix("0x"))
+                elif ev == "activewindowv2":
+                    urgentes.discard("0x" + datos.removeprefix("0x"))
+                elif ev == "closewindow":
+                    urgentes.discard("0x" + datos.removeprefix("0x"))
+                elif ev == "submap":
+                    submapa = datos
+                pintar()
+        except OSError:
+            pass
+        # Si se corta la conexión (Hyprland recargando), se reintenta
+        if not hypr.en_hyprland():
+            return
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    main()

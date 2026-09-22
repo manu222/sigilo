@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capturas de pantalla para i3.
+# Capturas de pantalla, en i3 y en Hyprland.
 #   captura full  -> pantalla completa
 #   captura sel   -> seleccion con el raton
 # Guarda el png en la carpeta de imagenes y ademas lo deja en el portapapeles.
@@ -10,10 +10,19 @@ DIR="$(xdg-user-dir PICTURES 2>/dev/null)"
 mkdir -p "$DIR"
 FILE="$DIR/captura-$(date +%Y-%m-%d_%H-%M-%S).png"
 
-case "${1:-full}" in
-    sel)  scrot -s "$FILE" || exit 0 ;;
-    *)    scrot     "$FILE" || exit 1 ;;
-esac
-
-command -v xclip >/dev/null && xclip -selection clipboard -t image/png -i "$FILE"
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    # Wayland: grim hace la foto y slurp deja elegir la zona con el ratón.
+    case "${1:-full}" in
+        sel)  zona=$(slurp -b '07100d88' -c '34d399ff' -w 2) || exit 0
+              grim -g "$zona" "$FILE" || exit 1 ;;
+        *)    grim "$FILE" || exit 1 ;;
+    esac
+    command -v wl-copy >/dev/null && wl-copy --type image/png < "$FILE"
+else
+    case "${1:-full}" in
+        sel)  scrot -s "$FILE" || exit 0 ;;
+        *)    scrot     "$FILE" || exit 1 ;;
+    esac
+    command -v xclip >/dev/null && xclip -selection clipboard -t image/png -i "$FILE"
+fi
 notify-send -i "$FILE" "Captura guardada" "$(basename "$FILE")"

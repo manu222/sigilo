@@ -12,4 +12,6 @@ if [ -d /usr/lib/rofi ] && ls /usr/lib/rofi | grep -q emoji; then
                     entry { placeholder: "busca en inglés: heart, check, arrow…"; }' \
         -mesg "<span foreground='#70837c'>Enter escribe · Shift+Enter copia</span>"
 fi
-notify-send -a Emojis -i face-smile "Emojis" "Falta el plugin: sudo pacman -S rofi-emoji noto-fonts-emoji xdotool"
+# Para escribir el emoji donde está el cursor, rofi-emoji usa xdotool en i3
+# y wtype en Hyprland
+notify-send -a Emojis -i face-smile "Emojis" "Falta el plugin: sudo pacman -S rofi-emoji noto-fonts-emoji xdotool wtype"

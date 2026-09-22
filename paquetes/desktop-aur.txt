@@ -1,16 +1,12 @@
-# Paquetes del AUR (y locales).
-# Instalar con:  yay -S --needed - < paquetes-aur.txt
+# Paquetes instalados en el equipo «desktop» (aur). Solo de referencia:
+# la lista que instala Sigilo es iso/grupos.yaml (extra/sigilo-apps).
 1password
-alttab
 bibata-cursor-theme-bin
 bruno-bin
 burpsuite
 claude-desktop
 ffuf
 i3lock-color
-nvidia-580xx-dkms
-nvidia-580xx-utils
-opencl-nvidia-580xx
 rofi-greenclip
 seclists
 skippy-xd-git

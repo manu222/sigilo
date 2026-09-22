@@ -27,6 +27,15 @@ configuration {
     sorting-method:      "fzf";
 /* Terminal que usa rofi para los programas que lo necesitan */
     terminal:            "kitty";
+/* Con el ratón basta un clic para elegir (de serie hace falta doble clic:
+   el primero solo marca la fila). Vale para todos los menús de Sigilo. */
+    me-select-entry:     "";
+    me-accept-entry:     "MousePrimary";
+/* La fila bajo el ratón se marca sola, igual que al moverse con las
+   flechas, así se ve qué vas a elegir antes de hacer clic */
+    hover-select:        true;
+/* Un clic fuera del menú lo cierra */
+    click-to-exit:       true;
 }
 /* Aspecto del lanzador principal */
 @theme "~/.config/rofi/sigilo.rasi"

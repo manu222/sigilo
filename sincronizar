@@ -35,6 +35,10 @@ PIEZAS=(
     gtk-4.0/gtk.css
     skippy-xd/skippy-xd.rc
     cava
+    # Sesión Hyprland: su configuración y la de su barra
+    hypr
+    waybar
+    nwg-drawer/drawer.css
 )
 
 # Lo que nunca entra: cachés, copias de seguridad y basura de git
@@ -66,21 +70,30 @@ cp -a "$HOME"/.local/share/applications/sigilo-*.desktop "$REPO/extra/aplicacion
     && printf '  %-34s ok\n' "aplicaciones (.desktop)"
 
 # ── lista de paquetes ─────────────────────────────────────────────────────
+# Cada equipo apunta los suyos en su propio fichero (paquetes/<equipo>-*.txt).
+# Antes había una sola lista y el último equipo en sincronizar pisaba la del
+# otro: el sobremesa borraba los drivers del portátil y al revés. Estas
+# listas son solo para consultar qué hay en cada máquina; lo que instala
+# Sigilo sale de iso/grupos.yaml.
+EQUIPO=$(cat /etc/hostname 2>/dev/null || uname -n)
+mkdir -p "$REPO/paquetes"
+OFI="$REPO/paquetes/$EQUIPO-oficiales.txt"
+AUR="$REPO/paquetes/$EQUIPO-aur.txt"
 echo
-echo "Anotando los paquetes instalados"
+echo "Anotando los paquetes instalados en «$EQUIPO»"
 {
-    echo "# Paquetes de los repositorios oficiales."
-    echo "# Instalar con:  sudo pacman -S --needed - < paquetes-oficiales.txt"
+    echo "# Paquetes instalados en el equipo «$EQUIPO» (oficiales). Solo de referencia:"
+    echo "# la lista que instala Sigilo es iso/grupos.yaml (extra/sigilo-apps)."
     pacman -Qqen 2>/dev/null
-} > "$REPO/paquetes-oficiales.txt"
+} > "$OFI"
 {
-    echo "# Paquetes del AUR (y locales)."
-    echo "# Instalar con:  yay -S --needed - < paquetes-aur.txt"
+    echo "# Paquetes instalados en el equipo «$EQUIPO» (aur). Solo de referencia:"
+    echo "# la lista que instala Sigilo es iso/grupos.yaml (extra/sigilo-apps)."
     pacman -Qqem 2>/dev/null
-} > "$REPO/paquetes-aur.txt"
+} > "$AUR"
 printf '  oficiales: %s\n  AUR:       %s\n' \
-    "$(($(wc -l < "$REPO/paquetes-oficiales.txt") - 2))" \
-    "$(($(wc -l < "$REPO/paquetes-aur.txt") - 2))"
+    "$(($(wc -l < "$OFI") - 2))" \
+    "$(($(wc -l < "$AUR") - 2))"
 
 echo
 echo "Listo. Para guardar los cambios:"

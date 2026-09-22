@@ -12,3 +12,8 @@ config/**/cache/
 
 # Carpetas que crean las herramientas de escritorio y no pintan nada aquí
 .vscode/
+
+# Marca del modo prueba de Hyprland (ver config/hypr/scripts/vigilante)
+config/hypr/prueba*
+config/hypr/sin-atomic*
+config/hypr/omitir*

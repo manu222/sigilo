@@ -34,10 +34,19 @@ confirmar() {   # $1 pregunta  $2 texto del si
     [ "$r" = "1" ]
 }
 
+# Cerrar la sesión en la que estés, i3 o Hyprland
+salir() {
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        hyprctl dispatch 'hl.dsp.exit()'
+    else
+        i3-msg exit
+    fi
+}
+
 case "$i" in
   0) ~/.config/i3/scripts/bloqueo & ;;
   1) systemctl suspend ;;
-  2) confirmar "cerrar sesión"    "Sí, salir"     && i3-msg exit ;;
+  2) confirmar "cerrar sesión"    "Sí, salir"     && salir ;;
   3) confirmar "reiniciar"        "Sí, reiniciar" && systemctl reboot ;;
   4) confirmar "apagar el equipo" "Sí, apagar"    && systemctl poweroff ;;
 esac

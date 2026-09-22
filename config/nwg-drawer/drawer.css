@@ -1,0 +1,47 @@
+/* ============================================================================
+ *  nwg-drawer · la rejilla de aplicaciones del botón Apps (sesión Hyprland)
+ *  Fondo oscuro translúcido (Hyprland lo desenfoca por detrás), iconos
+ *  grandes y el buscador arriba. Menta al pasar por encima, como en rofi.
+ * ============================================================================ */
+
+window {
+    background-color: rgba(7, 11, 9, 0.82);
+    color: #e7edea;
+    font-family: "Inter", sans-serif;
+}
+
+/* Buscador */
+entry {
+    background-color: #15201c;
+    color: #e7edea;
+    border: 1px solid #1a2320;
+    border-radius: 999px;
+    padding: 8px 16px;
+    margin-top: 40px;
+    font-size: 15px;
+    caret-color: #34d399;
+}
+entry:focus { border-color: #34d399; }
+
+/* Cada aplicación */
+button, image {
+    background: none;
+    border: none;
+    color: #c9d3ce;
+}
+button {
+    border-radius: 14px;
+    padding: 10px;
+}
+button:hover, button:focus {
+    background-color: #15201c;
+    color: #e7edea;
+    box-shadow: inset 0 0 0 1px #34d399;
+}
+
+/* Fila de categorías y línea de estado de abajo */
+#category-button { border-radius: 999px; padding: 4px 12px; margin: 0 4px; color: #94a3a0; }
+#category-button:hover, #category-button:focus { color: #c8aae5; box-shadow: inset 0 0 0 1px #c8aae5; }
+#pinned-box { border-bottom: 1px solid #1a2320; padding-bottom: 6px; }
+#files-box { background-color: #0a0f0d; border-radius: 14px; padding: 6px; }
+#status-label { color: #70837c; }

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Buscador de archivos de todo el equipo.
-#   Enter      abre el archivo con su programa
+#   Enter      elige con qué programa abrirlo (el de siempre, el primero)
 #   Alt+1      abre la carpeta que lo contiene
 #   Alt+2      copia la ruta al portapapeles
 # Salen primero los de tu carpeta personal y /datos, y después el resto del
 # sistema. Se saltan cachés, carpetas de sistema virtuales (/proc, /sys…)
 # y las copias de Timeshift, que repetirían todo el sistema varias veces.
 set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
 TEMA=~/.config/rofi/sigilo-lista.rasi
 LUPA=$'\U000f0c7d'
 
@@ -65,19 +66,24 @@ except BrokenPipeError:
 '
 }
 
+# Aquí sin pipefail: al elegir un archivo rofi se cierra antes de que fd
+# termine de recorrer el disco, y fd muere por la tubería rota (código 141).
+# Con pipefail ese 141 tapaba el código de rofi (0 = Intro, 10 = Alt+1…) y
+# por eso al elegir un archivo no se abría nada.
+set +o pipefail
 sel=$(listar | rofi -dmenu -i -show-icons -async-pre-read 40 -p "archivos" -theme "$TEMA" \
       -kb-custom-1 "Alt+1" -kb-custom-2 "Alt+2" \
       -theme-str "window { width: 52em; } listview { lines: 10; }
                   textbox-sello { content: \"$LUPA\"; text-color: #c8aae5; }
                   entry { placeholder: \"nombre o trozo de la ruta, en todo el equipo\"; }" \
-      -mesg "<span foreground='#70837c'>Enter abre · Alt+1 abre la carpeta · Alt+2 copia la ruta</span>")
+      -mesg "<span foreground='#70837c'>Enter elige programa · Alt+1 abre la carpeta · Alt+2 copia la ruta</span>")
 codigo=$?
 [ -z "$sel" ] && exit 0
 ruta="${sel/#\~/$HOME}"
 
 case $codigo in
-    0)  xdg-open "$ruta" >/dev/null 2>&1 & ;;
-    10) xdg-open "$(dirname "$ruta")" >/dev/null 2>&1 & ;;
-    11) printf '%s' "$ruta" | xclip -selection clipboard
+    0)  ~/.config/rofi/scripts/abrir-con "$ruta" ;;
+    10) abrir "$(dirname "$ruta")" ;;
+    11) printf '%s' "$ruta" | copiar
         notify-send -a Archivos -i edit-copy "Ruta copiada" "$sel" ;;
 esac

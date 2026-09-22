@@ -14,6 +14,13 @@
 # Deteccion: se le pregunta a pacman por i3lock-color. En Arch sustituye a
 # i3lock y su binario se sigue llamando "i3lock".
 
+# En la sesión Hyprland el bloqueo lo hace hyprlock, con el mismo aspecto
+# (hypr/hyprlock.conf). i3lock allí no puede bloquear.
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    pidof hyprlock >/dev/null || exec hyprlock
+    exit 0
+fi
+
 export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
 LOG="${XDG_CACHE_HOME:-$HOME/.cache}/bloqueo.log"
 SELLO="$HOME/.config/i3/sello-bloqueo.png"

@@ -30,7 +30,8 @@ while IFS= read -r -d '' ruta; do
 done < <(find "$ORIGEN" -type f -print0)
 
 chmod +x "$DESTINO"/i3/scripts/* "$DESTINO"/polybar/scripts/* \
-         "$DESTINO"/polybar/launch.sh "$DESTINO"/rofi/scripts/* 2>/dev/null || true
+         "$DESTINO"/polybar/launch.sh "$DESTINO"/rofi/scripts/* \
+         "$DESTINO"/hypr/scripts/* "$DESTINO"/waybar/scripts/* 2>/dev/null || true
 
 # ~/.local/bin en el PATH de la sesión gráfica (herramientas de pipx)
 grep -qs '.local/bin' "$HOME/.xprofile" || \
@@ -55,9 +56,9 @@ else
 fi
 
 echo
-echo "Hecho. Faltan los paquetes:"
-echo "    sudo pacman -S --needed - < $REPO/paquetes-oficiales.txt"
-echo "    yay -S --needed - < $REPO/paquetes-aur.txt"
+echo "Hecho. Faltan los paquetes, que se eligen por grupos:"
+echo "    $REPO/extra/sigilo-apps"
+echo "(en $REPO/paquetes/ está lo que tiene instalado cada equipo, por si quieres comparar)"
 echo
 echo "Y una línea en tu ~/.bashrc:"
 echo "    [ -f ~/.config/sigilo-shell.sh ] && . ~/.config/sigilo-shell.sh"

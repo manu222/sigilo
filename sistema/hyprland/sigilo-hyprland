@@ -1,0 +1,24 @@
+#!/bin/sh
+# Arranca la sesión Hyprland de Sigilo desde lightdm.
+#
+# Por qué existe: en el sobremesa (RTX 3070, tres pantallas), si Hyprland
+# arranca directamente desde lightdm, la imagen se queda congelada nada más
+# entrar. Desde una terminal de texto arranca bien. La diferencia es que
+# lightdm usa su propio servidor X para la pantalla de acceso y tarda un
+# momento en soltar la gráfica; si Hyprland llega antes, las pantallas se
+# quedan esperando un cambio de fotograma que era de lightdm y ya nunca
+# llega ("Cannot commit when a page-flip is awaiting" en el registro).
+#
+# La solución es esperar a que ese servidor X haya terminado de cerrarse
+# (como mucho 6 segundos) y dar un segundo más de margen antes de arrancar.
+# En equipos donde no pasa nada, la espera es de un segundo.
+
+for _ in $(seq 30); do
+    pgrep -x Xorg >/dev/null || break
+    sleep 0.2
+done
+sleep 1
+
+# start-hyprland es el lanzador oficial: si Hyprland se cae, lo vuelve a
+# abrir en modo seguro en vez de dejarte en una pantalla negra
+exec start-hyprland "$@"

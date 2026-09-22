@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Arranca waybar en la sesión Hyprland (al entrar y con Super+Shift+R).
+#
+# La barra va solo en una pantalla: la del escritorio 1, que en cada
+# equipo es la principal (en el sobremesa, la del centro). Como el nombre
+# de esa pantalla cambia de un equipo a otro, se mira aquí y se pone en
+# una copia de la configuración antes de arrancar.
+
+DIR="$HOME/.config/waybar"
+COPIA="${XDG_RUNTIME_DIR:-/tmp}/sigilo-waybar.jsonc"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/waybar.log"
+
+pkill -x waybar 2>/dev/null
+pkill -f "waybar/scripts/escritorios" 2>/dev/null
+for _ in $(seq 15); do pgrep -x waybar >/dev/null || break; sleep 0.1; done
+pkill -9 -x waybar 2>/dev/null
+
+# Pantalla del escritorio 1; si todavía no existe, la que tenga el foco
+pantalla=$(hyprctl workspaces -j 2>/dev/null | python3 -c '
+import json, sys
+try: ws = json.load(sys.stdin)
+except Exception: ws = []
+print(next((w["monitor"] for w in ws if w.get("id") == 1), ""))')
+[ -z "$pantalla" ] && pantalla=$(hyprctl monitors -j 2>/dev/null | python3 -c '
+import json, sys
+try: ms = json.load(sys.stdin)
+except Exception: ms = []
+print(next((m["name"] for m in ms if m.get("focused")), ms[0]["name"] if ms else ""))')
+
+sed "s|\"output\": \"PANTALLA\"|\"output\": \"$pantalla\"|" "$DIR/config.jsonc" > "$COPIA"
+
+echo "=== $(date '+%F %T') barra en ${pantalla:-(todas)}" >> "$LOG"
+# Si no se ha averiguado la pantalla, mejor la barra en todas que en ninguna
+[ -z "$pantalla" ] && sed -i '/"output": ""/d' "$COPIA"
+setsid -f waybar -c "$COPIA" -s "$DIR/style.css" >>"$LOG" 2>&1
+
+# El que rellena los escritorios, la app con el foco y el modo de teclado.
+# Espera un momento a que waybar esté lista para recibir su señal.
+setsid -f sh -c "sleep 1; exec '$DIR/scripts/escritorios'" >>"$LOG" 2>&1

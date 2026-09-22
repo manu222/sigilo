@@ -1,0 +1,202 @@
+// ============================================================================
+//  Waybar · la barra de Sigilo en Hyprland
+//  Las mismas píldoras que la polybar de i3. Aquí las esquinas redondas y
+//  los colores los pone style.css, sin trucos de glifos: waybar sabe
+//  dibujar cajas redondeadas de verdad.
+//
+//  Solo sale en una pantalla: la que tenga el escritorio 1. El script
+//  «lanzar» cambia "output" antes de arrancarla, así que no hace falta
+//  tocarlo a mano en cada equipo.
+// ============================================================================
+{
+    "layer": "top",
+    "position": "top",
+    "output": "PANTALLA",
+    // Flotante, con aire alrededor, como la de i3. waybar reserva sola el
+    // hueco de arriba para que las ventanas no se metan debajo; el aire
+    // entre la barra y las ventanas lo pone style.css (margin-bottom de la
+    // caja de dentro), porque waybar no cuenta su propio margen de abajo.
+    // El alto (44 px) también está en style.css, en min-height.
+    "margin-top": 14,
+    "margin-left": 44,
+    "margin-right": 44,
+    "spacing": 0,
+
+    "modules-left":  ["custom/apps", "group/escritorios", "custom/modo", "custom/app"],
+    "modules-right": ["custom/musica", "custom/ollama", "pulseaudio", "backlight", "network",
+                      "group/sistema", "battery", "clock", "tray"],
+
+    // ── botón de aplicaciones ───────────────────────────────────────────
+    // Clic: menú por carpetas (Desarrollo › Editores…), el mismo de i3; los
+    // submenús se abren al poner el ratón encima. Volver a pulsar lo cierra.
+    // Clic derecho: todas las apps en rejilla a pantalla completa.
+    "custom/apps": {
+        "format": "<span color='#c8aae5' size='14pt' rise='-1pt'>󰊠</span> <b>Apps</b>",
+        "tooltip": false,
+        "on-click": "~/.config/sigilo/menu-apps",
+        "on-click-right": "pkill -x nwg-drawer || nwg-drawer -ovl -nofs -term kitty"
+    },
+
+    // ── escritorios ─────────────────────────────────────────────────────
+    // Un módulo por escritorio (1 a 10) para que cada uno tenga su clic. El
+    // clic llama a sigilo.ir(n) (hypr/sigilo/escritorios.lua), que con
+    // varias pantallas cambia las tres a la vez.
+    // Los rellena scripts/escritorios, que escucha a Hyprland y deja lo que
+    // hay que pintar en $XDG_RUNTIME_DIR/sigilo-barra/; los que no existen
+    // salen vacíos y waybar los esconde.
+    "group/escritorios": {
+        "orientation": "horizontal",
+        "modules": ["custom/ws1", "custom/ws2", "custom/ws3", "custom/ws4", "custom/ws5",
+                    "custom/ws6", "custom/ws7", "custom/ws8", "custom/ws9", "custom/ws10"]
+    },
+    "custom/ws1": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws1.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(1)'" },
+    "custom/ws2": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws2.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(2)'" },
+    "custom/ws3": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws3.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(3)'" },
+    "custom/ws4": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws4.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(4)'" },
+    "custom/ws5": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws5.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(5)'" },
+    "custom/ws6": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws6.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(6)'" },
+    "custom/ws7": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws7.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(7)'" },
+    "custom/ws8": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws8.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(8)'" },
+    "custom/ws9": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws9.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(9)'" },
+    "custom/ws10": { "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/ws10.json\" 2>/dev/null", "return-type": "json", "interval": "once", "signal": 8, "tooltip": false,
+                     "on-click": "hyprctl eval 'sigilo.ir(10)'" },
+
+    // Modo de teclado activo (Super+R para redimensionar), en ámbar
+    "custom/modo": {
+        "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/modo.json\" 2>/dev/null",
+        "return-type": "json", "interval": "once", "signal": 8, "tooltip": false
+    },
+
+    // ── aplicación con el foco ──────────────────────────────────────────
+    // El nombre de la app y no el título, que crece sin control (el título
+    // completo sale al pasar el ratón)
+    "custom/app": {
+        "exec": "cat \"$XDG_RUNTIME_DIR/sigilo-barra/app.json\" 2>/dev/null",
+        "return-type": "json", "interval": "once", "signal": 8
+    },
+
+    // ── música ──────────────────────────────────────────────────────────
+    // Barritas al ritmo (cava) y el título. Clic: pausa · rueda: canción
+    // siguiente/anterior · clic derecho: saltar a la ventana del reproductor
+    "custom/musica": {
+        "exec": "~/.config/waybar/scripts/musica",
+        "return-type": "json",
+        "escape": false,
+        "on-click": "playerctl play-pause",
+        "on-scroll-up": "playerctl next",
+        "on-scroll-down": "playerctl previous",
+        "on-click-right": "~/.config/waybar/scripts/musica --enfocar"
+    },
+
+    // ── IA local (Ollama) ───────────────────────────────────────────────
+    // Desaparece si el servicio no está en marcha. Lila: listo. Menta:
+    // hay un modelo en memoria. Clic: preguntar. Derecho: descargarlo.
+    "custom/ollama": {
+        "exec": "~/.config/waybar/scripts/ollama",
+        "return-type": "json",
+        "interval": 10,
+        "on-click": "~/.config/i3/scripts/ia",
+        "on-click-right": "~/.config/polybar/scripts/ollama.sh descargar"
+    },
+
+    // ── volumen ─────────────────────────────────────────────────────────
+    // Clic: silenciar · derecho: elegir salida o micro · central: mezclador
+    // · rueda: subir y bajar
+    "pulseaudio": {
+        "format": "<span color='#34d399' size='14pt' rise='-1pt'>{icon}</span> {volume}%",
+        "format-muted": "<span color='#70837c' size='14pt' rise='-1pt'>󰖁</span> <span color='#70837c'>--</span>",
+        "format-icons": { "default": ["󰕿", "󰖀", "󰕾"] },
+        "scroll-step": 5,
+        "on-click": "~/.config/i3/scripts/volumen-brillo volume_mute",
+        "on-click-right": "~/.config/rofi/scripts/sonido",
+        "on-click-middle": "pavucontrol",
+        "tooltip-format": "{desc}"
+    },
+
+    // ── brillo (solo en portátiles; en el sobremesa no sale) ────────────
+    "backlight": {
+        "format": "<span color='#c99d6b' size='14pt' rise='-1pt'>󰃟</span> {percent}%",
+        "on-scroll-up": "~/.config/i3/scripts/volumen-brillo brightness_up",
+        "on-scroll-down": "~/.config/i3/scripts/volumen-brillo brightness_down",
+        "tooltip": false
+    },
+
+    // ── red: solo el icono; el nombre de la red al pasar el ratón ──────
+    // Clic: menú de wifi · derecho: nmtui
+    "network": {
+        "format-wifi": "<span color='#6fc9c0' size='14pt' rise='-1pt'>{icon}</span>",
+        "format-icons": ["󰤟", "󰤢", "󰤥", "󰤨"],
+        "format-ethernet": "<span color='#8aa9c4' size='14pt' rise='-1pt'>󰈀</span>",
+        "format-disconnected": "<span color='#e0777d' size='14pt' rise='-1pt'>󰖪</span>",
+        "tooltip-format-wifi": "{essid} · {signalStrength}%",
+        "tooltip-format-ethernet": "{ifname} · {ipaddr}",
+        "on-click": "~/.config/rofi/scripts/wifi",
+        "on-click-right": "~/.config/i3/scripts/terminal --titulo Redes --tam 90x26 -- nmtui"
+    },
+
+    // ── temperatura, CPU y memoria en una sola píldora ──────────────────
+    // Clic en cualquiera: btop
+    "group/sistema": {
+        "orientation": "horizontal",
+        "modules": ["temperature", "cpu", "memory"]
+    },
+    "temperature": {
+        // Sensor del procesador Intel (coretemp). En AMD sería k10temp:
+        // cambia la ruta por /sys/devices/pci0000:00/0000:00:18.3/hwmon
+        "hwmon-path-abs": "/sys/devices/platform/coretemp.0/hwmon",
+        "input-filename": "temp1_input",
+        "critical-threshold": 82,
+        "format": "<span color='#8aa9c4' size='14pt' rise='-1pt'>󰔏</span> {temperatureC}°",
+        "format-critical": "<span color='#e0777d' size='14pt' rise='-1pt'>󰔏</span> <span color='#e0777d'>{temperatureC}°</span>",
+        "interval": 3,
+        "on-click": "~/.config/polybar/scripts/sistema.sh",
+        "tooltip": false
+    },
+    "cpu": {
+        "format": "<span color='#8aa9c4' size='14pt' rise='-1pt'>󰻠</span> {usage}%",
+        "interval": 3,
+        "on-click": "~/.config/polybar/scripts/sistema.sh",
+        "tooltip": false
+    },
+    "memory": {
+        "format": "<span color='#b79ad4' size='14pt' rise='-1pt'>󰍛</span> {percentage}%",
+        "interval": 3,
+        "on-click": "~/.config/polybar/scripts/sistema.sh",
+        "tooltip-format": "{used:0.1f} de {total:0.1f} GB"
+    },
+
+    // ── batería (en el sobremesa no aparece) ────────────────────────────
+    "battery": {
+        "states": { "baja": 15 },
+        "format": "{icon} {capacity}%",
+        "format-charging": "<span color='#34d399' size='14pt' rise='-1pt'>󰂄</span> {capacity}%",
+        "format-icons": ["<span color='#e0777d' size='14pt' rise='-1pt'>󰁺</span>", "<span color='#c99d6b' size='14pt' rise='-1pt'>󰁼</span>", "<span color='#c99d6b' size='14pt' rise='-1pt'>󰁾</span>",
+                         "<span color='#b8c9a0' size='14pt' rise='-1pt'>󰂀</span>", "<span color='#34d399' size='14pt' rise='-1pt'>󰁹</span>"],
+        "on-click": "~/.config/polybar/scripts/bateria.sh"
+    },
+
+    // ── reloj ───────────────────────────────────────────────────────────
+    // Clic: fecha larga · derecho: calendario
+    "clock": {
+        "format": "<span color='#34d399' size='14pt' rise='-1pt'>󰅐</span> {:%d %b  %H:%M}",
+        "format-alt": "<span color='#34d399' size='14pt' rise='-1pt'>󰅐</span> {:%A, %d de %B de %Y  %H:%M:%S}",
+        "interval": 1,
+        "locale": "es_ES.UTF-8",
+        "tooltip": false,
+        "on-click-right": "~/.config/rofi/scripts/calendario"
+    },
+
+    "tray": {
+        "icon-size": 18,
+        "spacing": 8
+    }
+}

@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Menú de aplicaciones por carpetas, para el botón «Apps» de la barra.
+
+Es el mismo menú que en i3 abre jgmenu (Desarrollo › Editores › VS Code…),
+pintado con rofi, porque jgmenu solo funciona en X11. Lee el mismo fichero,
+~/.config/jgmenu/sigilo.csv, que genera extra/organizar-apps a partir de
+~/Aplicaciones, así que las dos sesiones enseñan exactamente lo mismo.
+
+  · Se abre y se cierra con el mismo botón Apps de la barra (y con Esc).
+  · Se entra en una carpeta con Intro y se vuelve con «‹ Volver» o Esc.
+  · «Todas las aplicaciones» abre la rejilla a pantalla completa
+    (nwg-drawer), que es lo mismo que el clic derecho en «Apps».
+  · Escribir filtra dentro de la carpeta en la que estés.
+"""
+import os, signal, subprocess, sys
+
+RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+PID = os.path.join(RUNTIME, "sigilo-menu-apps.pid")
+CSV = os.path.expanduser("~/.config/jgmenu/sigilo.csv")
+TEMA = os.path.expanduser("~/.config/rofi/sigilo-lista.rasi")
+REJILLA = "pkill -x nwg-drawer || nwg-drawer -ovl -nofs -term kitty"
+VOLVER = "‹ Volver"
+# Desplegable pegado al botón Apps (la barra está arriba a la izquierda)
+POSICION = ("window { location: north west; anchor: north west; x-offset: 50px; y-offset: 66px; width: 24em; }\n"
+            "listview { lines: 12; }")
+
+
+def leer():
+    """Devuelve {etiqueta: [(nombre, orden, icono)]}; la raíz es la etiqueta "".
+    Una orden "^checkout(t_x)" abre la carpeta con esa etiqueta."""
+    menus, actual = {"": []}, ""
+    try:
+        lineas = open(CSV, encoding="utf-8").read().splitlines()
+    except OSError:
+        return menus
+    for l in lineas:
+        l = l.strip()
+        if not l or l.startswith("^sep"):
+            continue
+        if l.startswith("^tag(") and l.endswith(")"):
+            actual = l[5:-1]
+            menus.setdefault(actual, [])
+            continue
+        nombre, _, resto = l.partition(",")
+        orden, _, icono = resto.rpartition(",")
+        if not orden:                      # línea sin icono
+            orden, icono = resto, ""
+        if orden.startswith("rofi -show drun"):
+            nombre, orden, icono = "Todas las aplicaciones", REJILLA, "view-app-grid"
+        menus[actual].append((nombre, orden, icono))
+    return menus
+
+
+def elegir(opciones, titulo):
+    """Enseña la lista en rofi y devuelve el índice elegido, o None con Esc.
+
+    Apunta el pid de rofi para que un segundo clic en el botón Apps pueda
+    cerrarlo (ver cerrar_si_abierto)."""
+    filas = []
+    for nombre, orden, icono in opciones:
+        texto = nombre + ("  ›" if orden.startswith("^checkout(") else "")
+        filas.append(f"{texto}\0icon\x1f{icono or 'application-x-executable'}")
+    p = subprocess.Popen(["rofi", "-dmenu", "-i", "-show-icons", "-format", "i", "-no-custom",
+                          "-p", titulo, "-theme", TEMA, "-theme-str", POSICION],
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        with open(PID, "w") as f:
+            f.write(str(p.pid))
+    except OSError:
+        pass
+    salida, _ = p.communicate("\n".join(filas))
+    try:
+        os.remove(PID)
+    except OSError:
+        pass
+    if p.returncode != 0 or not salida.strip():
+        return None
+    return int(salida.strip())
+
+
+def cerrar_si_abierto():
+    """Si el menú ya está abierto, lo cierra y no abre otro. Así el botón
+    Apps de la barra funciona como un interruptor."""
+    try:
+        pid = int(open(PID).read().strip())
+    except (OSError, ValueError):
+        return False
+    try:
+        nombre = open(f"/proc/{pid}/comm").read().strip()
+    except OSError:
+        return False
+    if nombre != "rofi":            # ese pid ya es de otro proceso
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return False
+    try:
+        os.remove(PID)
+    except OSError:
+        pass
+    return True
+
+
+def main():
+    if cerrar_si_abierto():
+        return
+    if not os.path.exists(CSV):
+        # Primera vez: que organizar-apps prepare las carpetas y el menú
+        subprocess.run([os.path.expanduser("~/dotfiles/extra/organizar-apps"), "-q"])
+    menus = leer()
+    if not menus[""]:
+        os.execvp("sh", ["sh", "-c", REJILLA])
+    pila = [("", "apps")]                  # carpetas por las que has entrado
+    while pila:
+        etiqueta, titulo = pila[-1]
+        opciones = menus.get(etiqueta, [])
+        if len(pila) > 1:
+            opciones = [(VOLVER, "^volver", "go-previous")] + opciones
+        i = elegir(opciones, titulo)
+        if i is None:                      # Esc: fuera del todo
+            return
+        nombre, orden, _ = opciones[i]
+        if orden == "^volver":
+            pila.pop()
+        elif orden.startswith("^checkout(") and orden.endswith(")"):
+            pila.append((orden[10:-1], nombre.lower()))
+        else:
+            subprocess.Popen(["setsid", "-f", "sh", "-c", orden],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+"""Menú de aplicaciones de Sigilo, con submenús que se abren al pasar el ratón.
+
+Es el sustituto de jgmenu (que solo funciona en X11) y hace lo mismo: las
+carpetas de ~/Aplicaciones en columnas, y basta con poner el ratón encima
+de una para ver lo que tiene al lado. Lee el mismo fichero que jgmenu,
+~/.config/jgmenu/sigilo.csv, que genera extra/organizar-apps.
+
+  · Ratón encima de una carpeta -> se abre su columna (con su animación)
+  · El marco es siempre del mismo tamaño (tres columnas). Si bajas más
+    hondo, las columnas se desplazan hacia la izquierda dentro del marco
+  · Clic en una app            -> la abre y se cierra el menú
+  · Escribir                   -> busca entre todas las apps
+  · Esc, clic fuera o perder el foco -> se cierra
+  · Volver a lanzarlo (botón Apps)   -> se cierra el que estaba abierto
+
+Funciona en las dos sesiones:
+  · En Hyprland se dibuja como una "capa" (gtk-layer-shell), igual que la
+    barra o las notificaciones: se clava debajo del botón Apps de SU
+    pantalla y el compositor no la deja salirse de ella.
+  · Si falta gtk-layer-shell, o en i3, es una ventana normal y la coloca
+    el gestor de ventanas (regla «menu-apps» en hypr/sigilo/reglas.lua).
+"""
+import json, os, signal, subprocess, sys
+
+import gi
+# Hay que pedir la versión de cada parte ANTES de importarla: si no, gi coge
+# la más nueva que encuentre (Gdk 4) y choca con Gtk 3.
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("Pango", "1.0")
+from gi.repository import Gdk, GLib, Gtk, Pango
+
+# gtk-layer-shell solo existe en Wayland; si no está, se sigue sin él
+try:
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GtkLayerShell
+except (ValueError, ImportError):
+    GtkLayerShell = None
+
+CSV = os.path.expanduser("~/.config/jgmenu/sigilo.csv")
+# Con este fichero el botón Apps funciona como interruptor: si ya hay un
+# menú abierto, el segundo lanzamiento lo cierra en vez de abrir otro.
+# (No vale con un «pkill» desde la barra: la propia orden del botón lleva
+# el nombre del script y se mataría a sí misma.)
+PID = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "sigilo-menu-apps.pid")
+REJILLA = "nwg-drawer -ovl -nofs -term kitty"
+# El menú reserva desde el principio el sitio de tres columnas y no se
+# mueve más: al pasar por una carpeta solo aparece su columna dentro del
+# marco. Así no rebota en cada salto (la capa se anima al cambiar de
+# tamaño, y hacerlo en cada hover mareaba).
+ANCHO_COL = 230      # ancho de cada columna
+COLUMNAS_A_LA_VEZ = 3
+ALTO = 460           # alto del menú, fijo
+# La barra empieza a 44 px del borde; entre su parte de abajo y las ventanas
+# hay un hueco, y las ventanas (y este menú) empiezan justo al acabarse:
+#   14 (aire de arriba) + 44 (alto de la barra) + 16 (hueco) = 74
+MARGEN_X = 44
+MARGEN_Y = 74
+
+CSS = """
+/* Opaco a propósito: con el fondo de pantalla detrás, un menú translúcido
+   se lee fatal y se confunde con lo que hay debajo */
+window.menu { background-color: #0a0f0d; }
+.marco { background-color: #0a0f0d; border: 1px solid #1a2320; border-radius: 14px; }
+.columna { background-color: transparent; }
+.columna:not(:first-child) { border-left: 1px solid #1a2320; }
+.fila {
+    color: #94a3a0; padding: 7px 12px; border-radius: 9px;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+.fila:hover, .fila.activa { background-color: #15201c; color: #e7edea; }
+.fila.abierta { background-color: #15201c; color: #3ee8a8; }
+.fila.especial { color: #c8aae5; }
+.fila.especial:hover { background-color: #1d1829; color: #c8aae5; }
+.flecha { color: #556760; }
+.buscador {
+    background-color: #0a0f0d; color: #e7edea; border: 0;
+    border-bottom: 1px solid #1a2320; padding: 9px 12px;
+    caret-color: #34d399;
+}
+.buscador image { color: #c8aae5; }
+.vacio { color: #70837c; padding: 12px; }
+"""
+
+
+def leer(csv=CSV):
+    """{etiqueta: [(nombre, orden, icono)]} tal y como lo escribe organizar-apps."""
+    menus, actual = {"": []}, ""
+    try:
+        lineas = open(csv, encoding="utf-8").read().splitlines()
+    except OSError:
+        return menus
+    for l in lineas:
+        l = l.strip()
+        if not l or l.startswith("^sep"):
+            continue
+        if l.startswith("^tag(") and l.endswith(")"):
+            actual = l[5:-1]
+            menus.setdefault(actual, [])
+            continue
+        nombre, _, resto = l.partition(",")
+        orden, _, icono = resto.rpartition(",")
+        if not orden:
+            orden, icono = resto, ""
+        if orden.startswith("rofi -show drun"):
+            nombre, orden, icono = "Todas las aplicaciones", REJILLA, "view-app-grid"
+        menus[actual].append((nombre, orden, icono))
+    return menus
+
+
+def es_carpeta(orden):
+    return orden.startswith("^checkout(") and orden.endswith(")")
+
+
+def etiqueta_de(orden):
+    return orden[10:-1]
+
+
+def todas_las_apps(menus):
+    """Lista plana (nombre, orden, icono) de todo lo que no es carpeta."""
+    fuera, vistos = [], set()
+    for etiqueta, filas in menus.items():
+        for nombre, orden, icono in filas:
+            if es_carpeta(orden) or orden in vistos:
+                continue
+            vistos.add(orden)
+            fuera.append((nombre, orden, icono))
+    fuera.sort(key=lambda x: x[0].lower())
+    return fuera
+
+
+def columna_con_barra(caja):
+    """Mete una columna en su hueco, siempre del mismo ancho y alto."""
+    scroll = Gtk.ScrolledWindow()
+    scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scroll.set_size_request(ANCHO_COL, -1)
+    scroll.add(caja)
+    return scroll
+
+
+class Menu(Gtk.Window):
+    def __init__(self):
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.set_name("menu-apps")
+        self.get_style_context().add_class("menu")
+        self.set_title("menu-apps")
+        self.set_decorated(False)
+        self.set_resizable(False)
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG)   # flotante en i3 y en Hyprland
+        self.set_keep_above(True)
+        self.set_app_paintable(True)
+        pantalla = self.get_screen()
+        visual = pantalla.get_rgba_visual()
+        if visual:
+            self.set_visual(visual)                     # esquinas redondeadas sin fondo negro
+
+        self.menus = leer()
+        self.apps = todas_las_apps(self.menus)
+
+        marco = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        marco.get_style_context().add_class("marco")
+        self.add(marco)
+
+        self.buscador = Gtk.SearchEntry()
+        self.buscador.get_style_context().add_class("buscador")
+        self.buscador.set_placeholder_text("busca una aplicación…")
+        self.buscador.set_width_chars(18)
+        self.buscador.connect("search-changed", self.al_buscar)
+        marco.pack_start(self.buscador, False, False, 0)
+
+        self.columnas = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.columnas.set_valign(Gtk.Align.FILL)
+        # Todas las columnas van dentro de un carril que no puede pasar del
+        # ancho de la pantalla: si se abren más de las que caben, el carril
+        # se desplaza a la derecha en vez de salirse al monitor de al lado.
+        self.carril = Gtk.ScrolledWindow()
+        self.carril.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER)
+        self.carril.set_size_request(ANCHO_COL * COLUMNAS_A_LA_VEZ, ALTO)
+        self.carril.add(self.columnas)
+        marco.pack_start(self.carril, True, True, 0)
+
+        self.niveles = []          # [(revealer, caja, etiqueta)]
+        self.pintar_columna("", 0)
+
+        # Al perder el foco se cierra, pero solo después de haberlo tenido:
+        # así no se cierra sola mientras el gestor de ventanas la coloca
+        self.enfocada = False
+        self.connect("key-press-event", self.al_teclear)
+        self.connect("focus-in-event", self.al_enfocar)
+        self.connect("focus-out-event", self.al_desenfocar)
+        self.connect("button-press-event", self.al_pulsar)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        # Que la ventana se ajuste a lo que enseña en cada momento
+        self.set_default_size(-1, -1)
+        self.como_capa()
+
+    def como_capa(self):
+        """En Wayland, clavar el menú a su pantalla como una capa."""
+        if GtkLayerShell is None or not os.environ.get("WAYLAND_DISPLAY"):
+            return
+        GtkLayerShell.init_for_window(self)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+        try:
+            GtkLayerShell.set_namespace(self, "menu-apps")
+        except AttributeError:
+            pass                                   # versiones viejas
+        # A la pantalla donde está el ratón, que es la del botón que lo abre
+        pantalla = self.pantalla_actual()
+        if pantalla:
+            GtkLayerShell.set_monitor(self, pantalla)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, MARGEN_Y)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, MARGEN_X)
+        # Los márgenes se cuentan desde el borde de la pantalla, no desde
+        # donde acaba la barra: si no, se sumaban los dos huecos y el menú
+        # salía muy por debajo del botón
+        GtkLayerShell.set_exclusive_zone(self, -1)
+        # Teclado solo mientras el menú tiene el foco, para poder escribir
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.ON_DEMAND)
+
+    def pantalla_actual(self):
+        """La pantalla donde hay que abrir el menú: la que tiene el foco.
+
+        En Wayland una aplicación no puede preguntar dónde está el ratón
+        (por eso antes salía siempre en la de la izquierda), así que se lo
+        preguntamos a Hyprland, que sí lo sabe, y buscamos esa pantalla por
+        su esquina, que es lo único que entienden las dos partes. En i3
+        vale con mirar dónde está el ratón."""
+        display = Gdk.Display.get_default()
+        if display is None:
+            return None
+        if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+            try:
+                r = subprocess.run(["hyprctl", "-j", "monitors"], capture_output=True,
+                                   text=True, timeout=2)
+                for m in json.loads(r.stdout):
+                    if m.get("focused"):
+                        esquina = display.get_monitor_at_point(m["x"] + 10, m["y"] + 10)
+                        if esquina:
+                            return esquina
+            except Exception:
+                pass
+        try:
+            puntero = display.get_default_seat().get_pointer()
+            _p, x, y = puntero.get_position()
+            return display.get_monitor_at_point(x, y)
+        except Exception:
+            return display.get_primary_monitor() or display.get_monitor(0)
+
+    def al_enfocar(self, *_):
+        self.enfocada = True
+        return False
+
+    def al_desenfocar(self, *_):
+        if self.enfocada:
+            self.cerrar()
+        return False
+
+    # ── pintar ───────────────────────────────────────────────────────────
+    def fila(self, nombre, orden, icono, nivel):
+        """Una fila: icono, texto y, si es carpeta, su flecha."""
+        boton = Gtk.EventBox()
+        boton.get_style_context().add_class("fila")
+        if orden == REJILLA or orden.startswith("/home") or orden.startswith("thunar"):
+            boton.get_style_context().add_class("especial")
+        caja = Gtk.Box(spacing=10)
+        img = Gtk.Image.new_from_icon_name(icono or "application-x-executable", Gtk.IconSize.LARGE_TOOLBAR)
+        caja.pack_start(img, False, False, 0)
+        texto = Gtk.Label(label=nombre, xalign=0)
+        texto.set_ellipsize(Pango.EllipsizeMode.END)
+        caja.pack_start(texto, True, True, 0)
+        if es_carpeta(orden):
+            caja.pack_start(Gtk.Label(label="›"), False, False, 0)
+        boton.add(caja)
+        # Con el ratón encima: se abre la carpeta, o se marca la app
+        boton.connect("enter-notify-event", lambda *_: self.al_entrar(boton, orden, nivel))
+        boton.connect("button-press-event", lambda *_: self.al_hacer_clic(orden, nivel))
+        boton.orden = orden
+        return boton
+
+    def ajustar_carril(self):
+        """Enseña la última columna abierta, desplazando el carril si hace falta."""
+        def al_final():
+            aj = self.carril.get_hadjustment()
+            aj.set_value(aj.get_upper() - aj.get_page_size())
+            return False
+        GLib.timeout_add(160, al_final)
+
+    def pintar_columna(self, etiqueta, nivel):
+        """Enseña el contenido de una etiqueta en la columna nivel."""
+        self.cerrar_desde(nivel)
+        caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        caja.set_border_width(6)
+        caja.get_style_context().add_class("columna")
+        caja.set_valign(Gtk.Align.START)
+        filas = self.menus.get(etiqueta, [])
+        if not filas:
+            vacio = Gtk.Label(label="aquí no hay nada", xalign=0)
+            vacio.get_style_context().add_class("vacio")
+            caja.pack_start(vacio, False, False, 0)
+        for nombre, orden, icono in filas:
+            caja.pack_start(self.fila(nombre, orden, icono, nivel), False, False, 0)
+
+        scroll = columna_con_barra(caja)
+
+        # La columna se abre deslizándose: es la animación del submenú
+        revelador = Gtk.Revealer()
+        revelador.set_transition_type(Gtk.RevealerTransitionType.SLIDE_RIGHT)
+        revelador.set_transition_duration(140)
+        revelador.add(scroll)
+        self.columnas.pack_start(revelador, False, False, 0)
+        revelador.show_all()
+        revelador.set_reveal_child(True)
+        self.niveles.append((revelador, caja, etiqueta))
+        self.ajustar_carril()
+
+    def cerrar_desde(self, nivel):
+        """Quita las columnas abiertas a partir de ese nivel."""
+        while len(self.niveles) > nivel:
+            revelador, _, _ = self.niveles.pop()
+            revelador.set_reveal_child(False)
+            GLib.timeout_add(150, lambda r=revelador: (r.destroy(), False)[1])
+
+    def marcar(self, nivel, fila, clase):
+        _, caja, _ = self.niveles[nivel]
+        for hijo in caja.get_children():
+            ctx = hijo.get_style_context()
+            ctx.remove_class("abierta")
+            ctx.remove_class("activa")
+        if fila is not None:
+            fila.get_style_context().add_class(clase)
+
+    # ── qué hacer ────────────────────────────────────────────────────────
+    def al_entrar(self, fila, orden, nivel):
+        if es_carpeta(orden):
+            self.marcar(nivel, fila, "abierta")
+            self.pintar_columna(etiqueta_de(orden), nivel + 1)
+        else:
+            self.marcar(nivel, fila, "activa")
+            self.cerrar_desde(nivel + 1)
+        return False
+
+    def al_hacer_clic(self, orden, nivel):
+        if es_carpeta(orden):
+            return True                      # ya se abrió al pasar el ratón
+        self.lanzar(orden)
+        return True
+
+    def al_pulsar(self, _w, evento):
+        # Clic en el hueco que no es ninguna fila: cerrar
+        if evento.window == self.get_window():
+            self.cerrar()
+        return False
+
+    def al_buscar(self, entrada):
+        texto = entrada.get_text().strip().lower()
+        self.cerrar_desde(0)
+        if not texto:
+            self.pintar_columna("", 0)
+            return
+        caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        caja.set_border_width(6)
+        caja.get_style_context().add_class("columna")
+        encontrados = [a for a in self.apps if texto in a[0].lower()][:12]
+        if not encontrados:
+            vacio = Gtk.Label(label="nada con ese nombre", xalign=0)
+            vacio.get_style_context().add_class("vacio")
+            caja.pack_start(vacio, False, False, 0)
+        for nombre, orden, icono in encontrados:
+            caja.pack_start(self.fila(nombre, orden, icono, 0), False, False, 0)
+        scroll = columna_con_barra(caja)
+        revelador = Gtk.Revealer()
+        revelador.set_transition_type(Gtk.RevealerTransitionType.CROSSFADE)
+        revelador.set_transition_duration(120)
+        revelador.add(scroll)
+        self.columnas.pack_start(revelador, False, False, 0)
+        revelador.show_all()
+        revelador.set_reveal_child(True)
+        self.niveles.append((revelador, caja, "buscar"))
+
+    def al_teclear(self, _w, evento):
+        tecla = Gdk.keyval_name(evento.keyval)
+        if tecla == "Escape":
+            if len(self.niveles) > 1:
+                self.cerrar_desde(len(self.niveles) - 1)
+            else:
+                self.cerrar()
+            return True
+        if tecla == "Return":
+            # Intro abre lo primero de la última columna que no sea carpeta
+            _, caja, _ = self.niveles[-1]
+            for hijo in caja.get_children():
+                orden = getattr(hijo, "orden", "")
+                if orden and not es_carpeta(orden):
+                    self.lanzar(orden)
+                    return True
+        return False
+
+    def lanzar(self, orden):
+        subprocess.Popen(["setsid", "-f", "sh", "-c", orden],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.cerrar()
+
+    def cerrar(self, *_):
+        Gtk.main_quit()
+
+
+def ya_abierto():
+    """Si hay otro menú abierto, lo cierra y dice que sí."""
+    try:
+        pid = int(open(PID).read().strip())
+    except (OSError, ValueError):
+        return False
+    try:
+        orden = open(f"/proc/{pid}/cmdline", "rb").read().decode(errors="replace")
+    except OSError:
+        return False
+    if "menu-apps" not in orden or pid == os.getpid():
+        return False                       # ese pid ya es de otro programa
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return False
+    return True
+
+
+def main():
+    if ya_abierto():
+        return
+    try:
+        with open(PID, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
+    # El nombre con el que lo ven las reglas de ventana (clase en Hyprland)
+    GLib.set_prgname("menu-apps")
+    if not os.path.exists(CSV):
+        subprocess.run([os.path.expanduser("~/dotfiles/extra/organizar-apps"), "-q"])
+    css = Gtk.CssProvider()
+    css.load_from_data(CSS.encode())
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    ventana = Menu()
+    ventana.show_all()
+    ventana.present()
+    Gtk.main()
+    try:
+        os.remove(PID)
+    except OSError:
+        pass
+
+
+if __name__ == "__main__":
+    main()

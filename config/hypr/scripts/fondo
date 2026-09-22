@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Fondo de pantalla en la sesión Hyprland, sea imagen o vídeo.
+#
+#   fondo <archivo>     pone ese fondo en todas las pantallas y lo recuerda
+#   fondo --restaurar   vuelve a poner el último (lo lanza Hyprland al entrar)
+#   fondo --pausar      congela el vídeo en el fotograma actual / lo reanuda
+#
+# Recuerda el fondo en el mismo sitio que el script de i3
+# (~/.config/sigilo/fondo-actual), así las dos sesiones comparten fondo.
+#
+# Lo pinta mpvpaper, que es mpv dibujando detrás de las ventanas. Vale para
+# vídeos y para imágenes, y con -p se pausa solo mientras una ventana tapa
+# el fondo entero (lo que en i3 hace fondo-vigia). Si no hay fondo guardado
+# se queda el color de fondo de Sigilo, que pone Hyprland.
+
+ESTADO="${XDG_CONFIG_HOME:-$HOME/.config}/sigilo/fondo-actual"
+SOCKET="${XDG_RUNTIME_DIR:-/tmp}/sigilo-fondo-hypr.sock"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/fondo-hypr.log"
+mkdir -p "$(dirname "$ESTADO")" "$(dirname "$LOG")"
+
+# Manda una orden a mpv por su socket (no hace falta socat: con python basta)
+orden() {
+    python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.send((sys.argv[2]+"\n").encode())' \
+        "$SOCKET" "$1" 2>/dev/null
+}
+
+poner() {
+    local f="$1"
+    [ -f "$f" ] || { echo "no existe: $f" >> "$LOG"; return 1; }
+    command -v mpvpaper >/dev/null || {
+        notify-send -u critical "Fondo" "Falta mpvpaper (yay -S mpvpaper)"; return 1; }
+
+    pkill -x mpvpaper 2>/dev/null
+    rm -f "$SOCKET"
+
+    # Opciones de mpv:
+    #   sin sonido, en bucle y con la gráfica decodificando el vídeo
+    #   image-display-duration=inf  para que una imagen no "termine"
+    #   panscan=1.0                 rellena la pantalla recortando, sin bandas
+    local mpv="no-audio loop hwdec=auto panscan=1.0 image-display-duration=inf input-ipc-server=$SOCKET"
+    echo "=== $(date '+%F %T') $f" >> "$LOG"
+    # -p: pausa si una ventana lo tapa entero · '*': todas las pantallas
+    setsid -f mpvpaper -p -o "$mpv" '*' "$f" >>"$LOG" 2>&1
+    printf '%s\n' "$f" > "$ESTADO"
+}
+
+case "${1:-}" in
+    --restaurar)
+        f=$(cat "$ESTADO" 2>/dev/null)
+        [ -n "$f" ] && poner "$f"
+        ;;
+    --pausar)
+        orden "cycle pause"
+        ;;
+    ""|-h|--help)
+        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+    *)
+        poner "$(realpath "$1")"
+        ;;
+esac
+exit 0

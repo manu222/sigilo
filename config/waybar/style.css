@@ -1,0 +1,142 @@
+/* ============================================================================
+ *  Waybar · aspecto de Sigilo
+ *  Colores de la paleta (los mismos que polybar/config.ini):
+ *    fondo barra #0b100e · píldora #15201c · texto #94a3a0 · apagado #70837c
+ *    menta #34d399 · lila #c8aae5 · fondo lila #1d1829 · rojo #e0777d
+ * ============================================================================ */
+
+* {
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    font-size: 14px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* La ventana de waybar es transparente y la barra que se ve es la caja de
+   dentro. Así la caja puede llevar margen por abajo: es el aire entre la
+   barra y las ventanas (en i3 lo hacía "gaps top"), que waybar no sabe
+   reservar por sí sola.
+   Fondo opaco y del mismo color que en polybar (#0b100e): así los iconos
+   de la bandeja, que no saben ser transparentes, encajan siempre. */
+window#waybar {
+    background: transparent;
+    color: #94a3a0;
+}
+window#waybar > box {
+    background: #0b100e;
+    border-radius: 16px;
+    min-height: 44px;
+    margin-bottom: 16px;
+}
+
+tooltip {
+    background: #0a0f0d;
+    border: 1px solid #1a2320;
+    border-radius: 10px;
+}
+tooltip label { color: #e7edea; }
+
+/* ── la píldora de siempre ─────────────────────────────────────────────── */
+/* Todos los módulos son una píldora igual; cada uno solo cambia lo suyo */
+#custom-apps,
+#custom-musica,
+#custom-ollama,
+#pulseaudio,
+#backlight,
+#network,
+#sistema,
+#battery,
+#clock,
+#tray {
+    background: #15201c;
+    border-radius: 999px;
+    padding: 0 13px;
+    margin: 6px 3px;
+}
+
+/* Los tres de dentro del grupo "sistema" no llevan píldora propia: la
+   comparten, como temperatura+cpu+memoria en polybar */
+#temperature, #cpu, #memory {
+    background: transparent;
+    padding: 0 5px;
+    margin: 0;
+}
+
+.modules-left  { margin-left: 6px; }
+.modules-right { margin-right: 6px; }
+
+/* ── Apps: lila, para que no se confunda con el escritorio activo ─────── */
+#custom-apps {
+    background: #1d1829;
+    color: #c8aae5;
+    padding: 0 14px;
+}
+#custom-apps:hover { background: #2c2342; }
+
+/* ── escritorios ──────────────────────────────────────────────────────── */
+/* Como en polybar: los escritorios van sueltos sobre el fondo de la barra
+   (número en #556760 e iconos en #70837c, que los pone el script) y solo
+   el activo lleva píldora menta. Cada uno es un módulo custom/wsN y trae
+   su clase desde scripts/escritorios. */
+#escritorios { padding: 0 2px; }
+.escritorio {
+    color: #556760;
+    padding: 0 10px;
+    margin: 6px 1px;
+    border-radius: 999px;
+}
+/* El que tienes delante: menta */
+.escritorio.activo  { background: #34d399; color: #06130d; }
+/* Los que se ven en otra pantalla (solo sin escritorios juntos) */
+.escritorio.visible { background: #15201c; color: #94a3a0; }
+.escritorio.urgente { background: #e0777d; color: #070b09; }
+
+/* Modo de teclado (redimensionar…): ámbar, como en polybar */
+#custom-modo {
+    background: #c99d6b;
+    color: #070b09;
+    border-radius: 999px;
+    padding: 0 12px;
+    margin: 6px 3px;
+}
+
+/* ── aplicación con el foco: texto suelto, sin píldora ────────────────── */
+#custom-app {
+    color: #94a3a0;
+    padding: 0 10px;
+}
+
+#pulseaudio.muted { color: #70837c; }
+#clock { color: #e7edea; }
+#battery.baja:not(.charging) { color: #e0777d; }
+
+#tray { padding: 0 10px; }
+#tray > .needs-attention { background: #e0777d; border-radius: 999px; }
+
+/* ── al pasar el ratón ─────────────────────────────────────────────────────
+   Elegido en el muestrario: se aclara el fondo, el texto pasa a blanco roto
+   y aparece una rayita debajo, todo en 150 ms. La mano como puntero la
+   pone waybar sola en todo lo que tiene clic. El botón Apps usa su lila. */
+#custom-apps, #custom-musica, #custom-ollama, #pulseaudio, #backlight,
+#network, #sistema, #battery, #clock, .escritorio {
+    transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+#custom-musica:hover, #custom-ollama:hover, #pulseaudio:hover, #backlight:hover,
+#network:hover, #sistema:hover, #battery:hover, #clock:hover {
+    background-color: #1b2723;
+    color: #e7edea;
+    box-shadow: inset 0 -2px 0 #34d399;
+}
+#sistema:hover #temperature, #sistema:hover #cpu, #sistema:hover #memory { color: #e7edea; }
+#custom-apps:hover {
+    background-color: #2c2342;
+    color: #e7edea;
+    box-shadow: inset 0 -2px 0 #c8aae5;
+}
+.escritorio.normal:hover, .escritorio.visible:hover {
+    background-color: #1b2723;
+    color: #e7edea;
+    box-shadow: inset 0 -2px 0 #34d399;
+}

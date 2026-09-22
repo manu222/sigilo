@@ -2,8 +2,11 @@
 # Menu de ventana: cerrar, minimizar, maximizar, mosaico y cambio de
 # escritorio, con el raton y sin memorizar atajos.
 #
-# Actua sobre la ventana con el foco. Como en i3 pulsar sobre una ventana ya
-# le da el foco, al abrir el menu con un clic sobre ella siempre acierta.
+# Actua sobre la ventana con el foco. Como pulsar sobre una ventana ya le da
+# el foco, al abrir el menu con un clic sobre ella siempre acierta.
+#
+# Sirve en las dos sesiones: en i3 pregunta y manda con i3-msg; en Hyprland,
+# con hyprctl (y las órdenes en Lua, hl.dsp…).
 #
 # Las etiquetas se adaptan al estado real: las dos entradas que alternan
 # ("maximizar" y "mosaico") dicen lo que van a hacer, no las dos opciones
@@ -13,6 +16,18 @@ set -uo pipefail
 ICO=~/.config/rofi/iconos
 TEMA=~/.config/rofi/sigilo-lista.rasi
 
+if en_hyprland; then
+    estado=$(hyprctl -j activewindow 2>/dev/null | python3 -c '
+import json, sys
+try: v = json.load(sys.stdin)
+except Exception: v = {}
+nombre = (v.get("title") or "ventana")[:40]
+flota = "si" if v.get("floating") else "no"
+# fullscreen: 0 normal, 1 maximizada, 2 pantalla completa
+pantalla = "si" if v.get("fullscreen", 0) else "no"
+print("%s\t%s\t%s" % (nombre, flota, pantalla))
+' 2>/dev/null) || estado=$'ventana\tno\tno'
+else
 estado=$(i3-msg -t get_tree 2>/dev/null | python3 -c '
 import json, sys
 
@@ -37,6 +52,7 @@ if str(f.get("window")) in maxim:
     pantalla = "si"
 print("%s\t%s\t%s" % (nombre, flota, pantalla))
 ' 2>/dev/null) || estado=$'ventana\tno\tno'
+fi
 
 titulo=$(cut -f1 <<<"$estado")
 flota=$(cut -f2 <<<"$estado")
@@ -57,6 +73,22 @@ i=$( { fila "Cerrar"                      cerrar
               -p "$titulo" \
               -mesg "<span foreground=\"$MUTE\">minimizar aparta la ventana · la recuperas con ❖ + -</span>" )
 [ -z "$i" ] && exit 0
+
+if en_hyprland; then
+    d() { hyprctl dispatch "$1" >/dev/null; }
+    case "$i" in
+      0) d 'hl.dsp.window.close()' ;;
+      # Minimizar = al escritorio especial "minimizadas" (se recupera con ❖ + -)
+      1) d 'hl.dsp.window.move({ workspace = "special:minimizadas", follow = false })' ;;
+      2) d 'hl.dsp.window.fullscreen({ mode = "maximized" })' ;;
+      3) d 'hl.dsp.window.float()' ;;
+      4) n=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10' | rofi -dmenu -no-custom -no-show-icons \
+                -theme "$TEMA" -theme-str 'listview { lines: 5; } window { width: 26em; }' \
+                -p "escritorio")
+         [ -n "$n" ] && d "hl.dsp.window.move({ workspace = $n, follow = true })" ;;
+    esac
+    exit 0
+fi
 
 case "$i" in
   0) i3-msg kill ;;

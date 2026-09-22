@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Elegir con qué programa abrir un archivo.
+
+    abrir-con <archivo>
+
+Sale una lista con el programa de siempre arriba del todo (así Intro dos
+veces abre como antes) y debajo todo lo que puede abrirlo.
+
+De dónde sale cada grupo:
+  1. lo que dice «gio mime <tipo>»: el programa por defecto y los que se
+     han registrado para ese tipo o para otro del que hereda. Un .py, por
+     ejemplo, hereda de texto plano, así que salen también los editores.
+  2. si es un archivo de texto, además todos los editores y entornos de
+     desarrollo instalados (VS Code, Neovim, LibreOffice Writer…), aunque
+     no se hayan registrado para ese tipo concreto. Esto es lo que hacía
+     falta para que VS Code saliera al abrir un .txt.
+  3. «Otra aplicación…», que enseña todo lo que hay instalado.
+
+Los .desktop se leen de /usr/share/applications, /usr/local/share/applications
+y ~/.local/share/applications. El programa por defecto lo dice xdg-mime,
+que lee tu ~/.config/mimeapps.list.
+"""
+import configparser, os, shutil, subprocess, sys
+
+TEMA = os.path.expanduser("~/.config/rofi/sigilo-lista.rasi")
+CARPETAS = ["/usr/share/applications", "/usr/local/share/applications",
+            os.path.expanduser("~/.local/share/applications")]
+# Se considera editor lo que dice serlo (TextEditor o IDE) o lo que declara
+# abrir algún tipo de texto. Así entran VS Code, Neovim o LibreOffice Writer
+# y no se cuelan los lanzadores de Python o los intérpretes.
+CAT_EDITOR = ("TextEditor", "IDE")
+
+
+def tipo_mime(ruta):
+    if os.path.isdir(ruta):
+        return "inode/directory"
+    r = subprocess.run(["xdg-mime", "query", "filetype", ruta], capture_output=True, text=True)
+    return (r.stdout.strip().split(";")[0]) or "application/octet-stream"
+
+
+def es_texto(mime):
+    return mime.startswith("text/") or mime in (
+        "application/json", "application/xml", "application/javascript",
+        "application/x-shellscript", "application/x-yaml", "inode/x-empty")
+
+
+def datos(fichero):
+    """(nombre, icono, categorías, tipos) de un .desktop, o None si no sirve."""
+    for carpeta in CARPETAS:
+        ruta = os.path.join(carpeta, fichero)
+        if not os.path.exists(ruta):
+            continue
+        cfg = configparser.RawConfigParser(strict=False)
+        cfg.optionxform = str
+        try:
+            cfg.read(ruta, encoding="utf-8")
+            e = cfg["Desktop Entry"]
+        except Exception:
+            return None
+        if e.get("Hidden", "").lower() == "true" or e.get("Type", "Application") != "Application":
+            return None
+        return (e.get("Name", fichero), e.get("Icon", "application-x-executable"),
+                e.get("Categories", ""), e.get("MimeType", ""))
+    return None
+
+
+def ruta_desktop(fichero):
+    for carpeta in CARPETAS:
+        ruta = os.path.join(carpeta, fichero)
+        if os.path.exists(ruta):
+            return ruta
+    return fichero
+
+
+def por_defecto(mime):
+    r = subprocess.run(["xdg-mime", "query", "default", mime], capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def registrados(mime):
+    """.desktop que gio da por buenos para ese tipo, herencia incluida."""
+    if not shutil.which("gio"):
+        return []
+    r = subprocess.run(["gio", "mime", mime], capture_output=True, text=True)
+    fuera = []
+    for linea in r.stdout.splitlines():
+        l = linea.strip()
+        if l.endswith(".desktop") and l not in fuera:
+            fuera.append(l)
+    return fuera
+
+
+def todos_los_desktop():
+    vistos = []
+    for carpeta in CARPETAS:
+        if os.path.isdir(carpeta):
+            for f in sorted(os.listdir(carpeta)):
+                if f.endswith(".desktop") and f not in vistos:
+                    vistos.append(f)
+    return vistos
+
+
+def editores():
+    """Editores y entornos de desarrollo instalados."""
+    fuera = []
+    for fichero in todos_los_desktop():
+        d = datos(fichero)
+        if not d:
+            continue
+        if any(c in d[2].split(";") for c in CAT_EDITOR) or "text/" in d[3]:
+            fuera.append(fichero)
+    return fuera
+
+
+def sin_repetir(listas):
+    fuera, vistos = [], set()
+    for lista in listas:
+        for f in lista:
+            if f not in vistos and datos(f):
+                vistos.add(f)
+                fuera.append(f)
+    return fuera
+
+
+def lanzar(fichero, ruta):
+    """Abre el archivo con ese .desktop, desenganchado de este menú."""
+    if shutil.which("gio"):
+        orden = ["gio", "launch", ruta_desktop(fichero), ruta]
+    else:
+        orden = ["dex", "-a", ruta_desktop(fichero)]
+    subprocess.Popen(["setsid", "-f"] + orden,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def menu(ficheros, titulo, mensaje, extra=None):
+    """Lista en rofi; devuelve el .desktop elegido, "otra" o None."""
+    filas = []
+    for f in ficheros:
+        nombre, icono = datos(f)[:2]
+        filas.append(f"{nombre}\0icon\x1f{icono}")
+    if extra:
+        filas.append(f"{extra}\0icon\x1fview-app-grid")
+    r = subprocess.run(
+        ["rofi", "-dmenu", "-i", "-show-icons", "-format", "i", "-no-custom",
+         "-p", titulo, "-theme", TEMA,
+         "-theme-str", "window { width: 34em; }\nlistview { lines: 9; }",
+         "-mesg", f"<span foreground='#70837c'>{mensaje}</span>"],
+        input="\n".join(filas), capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    i = int(r.stdout.strip())
+    return ficheros[i] if i < len(ficheros) else "otra"
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit("uso: abrir-con <archivo>")
+    ruta = os.path.abspath(os.path.expanduser(sys.argv[1]))
+    mime = tipo_mime(ruta)
+    predeterminado = por_defecto(mime)
+
+    candidatos = sin_repetir([
+        [predeterminado] if predeterminado else [],
+        registrados(mime),
+        editores() if es_texto(mime) else [],
+    ])
+
+    elegido = menu(candidatos, os.path.basename(ruta)[:28],
+                   f"{mime}   ·   el primero es el de siempre   ·   Esc cancela",
+                   extra="Otra aplicación…")
+    if elegido is None:
+        return
+    if elegido == "otra":
+        elegido = menu(sin_repetir([todos_los_desktop()]), "abrir con",
+                       "cualquier programa instalado")
+        if elegido in (None, "otra"):
+            return
+    lanzar(elegido, ruta)
+
+
+if __name__ == "__main__":
+    main()

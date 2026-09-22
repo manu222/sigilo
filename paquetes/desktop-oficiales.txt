@@ -1,5 +1,5 @@
-# Paquetes de los repositorios oficiales.
-# Instalar con:  sudo pacman -S --needed - < paquetes-oficiales.txt
+# Paquetes instalados en el equipo «desktop» (oficiales). Solo de referencia:
+# la lista que instala Sigilo es iso/grupos.yaml (extra/sigilo-apps).
 accountsservice
 acpi
 adw-gtk-theme
@@ -28,7 +28,6 @@ btop
 btrfs-progs
 cantarell-fonts
 cava
-cronie
 cryptsetup
 cups
 cups-browsed
@@ -39,6 +38,7 @@ dex
 dialog
 diffutils
 discord
+dmenu
 dmidecode
 dmraid
 dnsmasq
@@ -53,6 +53,7 @@ dunst
 e2fsprogs
 efibootmgr
 efitools
+egl-wayland
 endeavouros-branding
 endeavouros-keyring
 endeavouros-mirrorlist
@@ -85,7 +86,7 @@ foomatic-db-gutenprint-ppds
 foomatic-db-nonfree
 foomatic-db-nonfree-ppds
 foomatic-db-ppds
-gedit
+galculator
 ghidra
 ghostscript
 gimp
@@ -102,7 +103,6 @@ gsfonts
 gsimplecal
 gst-libav
 gst-plugin-pipewire
-gst-plugin-va
 gst-plugins-bad
 gst-plugins-ugly
 gutenprint
@@ -120,10 +120,11 @@ hwdetect
 hwinfo
 hydra
 i3-wm
+i3blocks
+i3status
 imv
 inetutils
 inotify-tools
-intel-media-driver
 intel-ucode
 inter-font
 inxi
@@ -141,8 +142,9 @@ libgsf
 libopenraw
 libreoffice-fresh
 libreoffice-fresh-es
-libva-intel-driver
+libva-nvidia-driver
 libvirt
+libxnvctrl
 lightdm
 lightdm-slick-greeter
 linux
@@ -188,11 +190,17 @@ nss-mdns
 ntfs-3g
 ntp
 numlockx
+nvidia-open
+nvidia-open-lts
+nvidia-settings
+nvidia-utils
 nwg-look
 obs-studio
 obsidian
 ollama
+ollama-cuda
 openbsd-netcat
+opencl-nvidia
 openssh
 os-prober
 pacman-contrib
@@ -213,12 +221,14 @@ poppler-glib
 power-profiles-daemon
 python
 python-defusedxml
+python-i3ipc
 python-jinja
 python-packaging
 python-pillow
 python-pipx
 python-pyqt5
 python-reportlab
+python-xlib
 qbittorrent
 qemu-desktop
 radare2
@@ -252,7 +262,6 @@ texinfo
 thunar
 thunar-archive-plugin
 thunar-volman
-timeshift
 tldr
 ttf-bitstream-vera
 ttf-dejavu
@@ -269,8 +278,6 @@ uv
 virt-manager
 vlc
 volatility3
-vulkan-intel
-vulkan-nouveau
 welcome
 wget
 which
@@ -285,12 +292,12 @@ xdg-user-dirs
 xdg-user-dirs-gtk
 xdg-utils
 xdotool
+xed
 xf86-input-libinput
 xfce4-terminal
 xfsprogs
 xl2tpd
 xorg-server
-xorg-server-xephyr
 xorg-xdpyinfo
 xorg-xinit
 xorg-xinput

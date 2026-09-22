@@ -67,7 +67,13 @@ i=$( for f in "${rutas[@]}"; do
 [ -z "$i" ] && exit 0
 
 ruta="${rutas[$i]}"
-~/.config/i3/scripts/fondo "$ruta" || exit 1
+# Cada sesión pinta el fondo a su manera (feh/xwinwrap en i3, mpvpaper en
+# Hyprland), pero las dos guardan el elegido en el mismo sitio
+if en_hyprland; then
+    ~/.config/hypr/scripts/fondo "$ruta" || exit 1
+else
+    ~/.config/i3/scripts/fondo "$ruta" || exit 1
+fi
 if es_video "$ruta"; then
     notify-send -a Fondos -i "$(miniatura "$ruta")" "Fondo animado" "$(basename "$ruta")"
 else

@@ -6,9 +6,12 @@
 TEMA=~/.config/rofi/sigilo-lista.rasi
 ICONO=$'\U000f00ec'
 
+# Portapapeles: wl-copy en Wayland (Hyprland), xclip en X11 (i3)
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then COPIAR="wl-copy"; else COPIAR="xclip -selection clipboard"; fi
+
 if [ -d /usr/lib/rofi ] && ls /usr/lib/rofi | grep -q calc; then
     exec rofi -show calc -modi calc -no-show-match -no-sort -no-persist-history \
-        -calc-command "echo -n '{result}' | xclip -selection clipboard" \
+        -calc-command "echo -n '{result}' | $COPIAR" \
         -theme "$TEMA" \
         -theme-str "window { width: 38em; } listview { lines: 6; }
                     textbox-sello { content: \"$ICONO\"; text-color: #c8aae5; }

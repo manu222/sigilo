@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Chuleta de atajos de i3, pintada a mano en el terminal.
+"""Chuleta de atajos, pintada a mano en el terminal.
 
-Se genera leyendo ~/.config/i3/config, asi que no se queda desfasada.
+Se genera leyendo los atajos de verdad, asi que no se queda desfasada:
+  · en i3, del fichero ~/.config/i3/config
+  · en Hyprland, de «hyprctl binds», con la descripción que lleva cada
+    atajo en ~/.config/hypr/sigilo/atajos.lua
 Se abre en una ventana flotante y centrada con Super+F1.
 """
-import html, os, re, shutil, sys
+import html, json, os, re, shutil, subprocess, sys
+
+HYPRLAND = bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"))
 
 CFG = os.environ.get("I3CFG", os.path.expanduser("~/.config/i3/config"))
 
@@ -69,6 +74,10 @@ TECLAS = {
     "XF86MonBrightnessUp": "Brillo +", "XF86MonBrightnessDown": "Brillo -", "period": ".", "comma": ",",
     "Mod4": "❖", "Mod1": "Alt",
     "button1": "Clic", "button2": "Clic central", "button3": "Clic derecho",
+    # nombres que usa Hyprland
+    "SUPER": "❖", "ALT": "Alt", "CTRL": "Ctrl", "SHIFT": "Shift",
+    "left": "←", "right": "→", "up": "↑", "down": "↓",
+    "mouse:272": "Clic", "mouse:273": "Clic derecho", "mouse:274": "Clic central",
 }
 DIR = {"left":"a la izquierda","right":"a la derecha","up":"arriba","down":"abajo",
        "h":"a la izquierda","l":"a la derecha","k":"arriba","j":"abajo"}
@@ -177,6 +186,30 @@ def leer():
             cur.append((tecla, m.group(3)))
     if cur: secciones.append((sec, cur))
     return variables, secciones
+
+# Bits de modificador que da «hyprctl binds» (modmask), en el orden en que
+# se escriben: ❖ + Ctrl + Alt + Shift + tecla
+MODS_HYPR = [(64, "SUPER"), (4, "CTRL"), (8, "ALT"), (1, "SHIFT")]
+
+def leer_hypr():
+    """Atajos de Hyprland como pares (combinación, descripción). Solo los del
+    modo normal y con descripción (los del modo redimensionar se quedan fuera,
+    como en i3)."""
+    try:
+        r = subprocess.run(["hyprctl", "-j", "binds"], capture_output=True, text=True, timeout=3)
+        binds = json.loads(r.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return []
+    pares = []
+    for b in binds:
+        if b.get("submap") or not b.get("description"):
+            continue
+        tecla = b.get("key", "")
+        if len(tecla) == 1:
+            tecla = tecla.lower()
+        mods = [n for bit, n in MODS_HYPR if b.get("modmask", 0) & bit]
+        pares.append(("+".join(mods + [tecla]), b["description"]))
+    return pares
 
 SHELL = os.path.expanduser("~/.config/sigilo-shell.sh")
 
@@ -293,7 +326,8 @@ CATEGORIAS = [
     "Maximizar sin tapar la barra", "Pantalla completa", "Mover la ventana", "Soltar del mosaico",
     "Apartar (minimizar)", "Recuperar la apartada", "Centrar la flotante",
     "Modo redimensionar", "Siguiente ventana al lado", "Siguiente ventana debajo",
-    "Apilar en pestañas", "Apilar en lista", "Volver al mosaico",
+    "Apilar en pestañas", "Apilar en lista", "Siguiente pestaña", "Volver al mosaico",
+    "Cambiar la división", "Mover con el ratón", "Redimensionar con el ratón",
     "Menú de la ventana", "Matar ventana a ratón"]),
  ("Escritorios", VIOLET, [
     "Ir al escritorio", "Llevar la ventana a otro", "Escritorio anterior",
@@ -302,7 +336,7 @@ CATEGORIAS = [
     "Menú de utilidades", "Preguntar a la IA local", "Calculadora", "Emojis y símbolos",
     "Portapapeles", "Notificaciones", "Captura con selección", "Captura completa",
     "Redes wifi", "Bluetooth", "Salida y micro de sonido", "Fondos de pantalla", "Pausar el fondo animado"]),
- ("Sistema", RED, ["Recargar config", "Reiniciar i3"]),
+ ("Sistema", RED, ["Recargar config", "Reiniciar i3", "Recargar config y barra"]),
  ("Teclas multimedia", OLIVE, [
     "Subir volumen", "Bajar volumen", "Silenciar", "Silenciar micro",
     "Subir brillo", "Bajar brillo", "Reproducir / pausa", "Pista siguiente", "Pista anterior"]),
@@ -348,18 +382,22 @@ def recoger():
     - Foco y mover en cuatro direcciones pasan a una sola fila.
     - Los diez escritorios pasan a una fila «❖ + 1 … 0».
     """
-    v, secciones = leer()
+    if HYPRLAND:
+        # En Hyprland la descripción ya viene hecha; lo que se guarda para el
+        # buscador es la propia combinación, que se "pulsa" con wtype
+        v, pares = {}, [(t, d, t) for t, d in leer_hypr()]
+    else:
+        v, secciones = leer()
+        pares = [(t, a_bonita(a, v), expandir(a, v)) for _, binds in secciones for t, a in binds]
     acciones = {}          # desc -> {"teclas": [...], "cmd": str}
     orden = []
-    for _, binds in secciones:
-        for t, a in binds:
-            k, d = k_bonita(t, v), a_bonita(a, v)
-            cmd = expandir(a, v)
+    for t, d, cmd in pares:
+            k = k_bonita(t, v)
             m = re.match(r"^Foco (.+)$", d)
             if m and m[1] in FLECHAS:
                 d, cmd = "Mover el foco", ""
                 k = re.sub(r"[←→↑↓hjkl]$", "", k).rstrip(" +") + " + ← ↓ ↑ →"
-                if "h" in t.split("+")[-1] or t.endswith(("$left", "$right", "$up", "$down")):
+                if t.split("+")[-1] in ("h", "j", "k", "l") or t.endswith(("$left", "$right", "$up", "$down")):
                     k = k.replace("← ↓ ↑ →", "h j k l")
             m = re.match(r"^Mover (a la izquierda|a la derecha|arriba|abajo)$", d)
             if m:
@@ -416,6 +454,25 @@ def bloque_cat(nombre, color, filas):
     return out
 
 
+# Nombre de cada modificador para wtype
+WTYPE_MODS = {"SUPER": "logo", "CTRL": "ctrl", "ALT": "alt", "SHIFT": "shift"}
+
+def pulsar(combinacion):
+    """En Hyprland el buscador "pulsa" el atajo elegido con wtype, como si lo
+    hubieras tecleado tú. Así vale para cualquier atajo, también los que en
+    atajos.lua son una función y no una orden suelta."""
+    partes = combinacion.split("+")
+    mods = [WTYPE_MODS[m] for m in partes[:-1] if m in WTYPE_MODS]
+    tecla = partes[-1]
+    if tecla.startswith("mouse:"):
+        return                                   # los del ratón no se pueden pulsar
+    args = ["wtype"]
+    for m in mods: args += ["-M", m]
+    args += ["-k", tecla]
+    for m in reversed(mods): args += ["-m", m]
+    subprocess.Popen(args)
+
+
 def buscar():
     """Buscador: escribe lo que quieres hacer y Enter lo ejecuta."""
     import subprocess
@@ -443,19 +500,25 @@ def buscar():
     r = subprocess.run(
         ["rofi", "-dmenu", "-i", "-markup-rows", "-format", "i", "-p", "atajos",
          "-theme", os.path.expanduser("~/.config/rofi/sigilo-lista.rasi"),
-         "-theme-str", 'window { width: 56em; } listview { lines: 12; } '
-                       'textbox-sello { content: "❖"; text-color: #c8aae5; } '
+         # Cada regla en su línea: rofi lee una cadena "…" hasta la ÚLTIMA
+         # comilla de la línea, así que dos cadenas en la misma línea se
+         # juntan en una sola (y salía el texto del tema en el menú)
+         "-theme-str", 'window { width: 56em; } listview { lines: 12; }\n'
+                       'textbox-sello { content: "❖"; text-color: #c8aae5; }\n'
                        'entry { placeholder: "¿qué quieres hacer? wifi, captura, escritorio…"; }',
          "-mesg", "<span foreground='#70837c'>Enter lo hace · los de la terminal se copian</span>"],
         input="\n".join(filas), capture_output=True, text=True)
     if r.returncode != 0 or not r.stdout.strip():
         return
     tipo, cmd = acciones[int(r.stdout.strip())]
-    if tipo == "i3" and cmd:
+    if tipo == "i3" and cmd and HYPRLAND:
+        pulsar(cmd)
+    elif tipo == "i3" and cmd:
         subprocess.Popen(["i3-msg", "-q", cmd])
     elif tipo == "shell":
         palabra = cmd.split()[0]
-        subprocess.run(["xclip", "-selection", "clipboard"], input=palabra, text=True)
+        copiar = ["wl-copy"] if os.environ.get("WAYLAND_DISPLAY") else ["xclip", "-selection", "clipboard"]
+        subprocess.run(copiar, input=palabra, text=True)
         subprocess.Popen(["notify-send", "-a", "Sigilo", "-i", "edit-copy",
                           "Copiado", f"«{palabra}»: pégalo en la terminal"])
 
