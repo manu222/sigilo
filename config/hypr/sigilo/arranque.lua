@@ -26,6 +26,14 @@ hl.on("hyprland.start", function()
     -- a gsettings, que es de donde los leen las apps GTK en Wayland
     hl.exec_cmd(HOME .. "/.config/i3/scripts/import-gsettings")
 
+    -- El cambiador de ventanas de Alt+Tab, esperando con el panel hecho para
+    -- que salga al momento (hypr/scripts/alternador)
+    hl.exec_cmd(HOME .. "/.config/hypr/scripts/alternador")
+
+    -- La tarjeta de música del escritorio: siempre en marcha, igual que en
+    -- i3. Ella sola se esconde cuando le pasa una ventana por encima
+    hl.exec_cmd(HOME .. "/.config/i3/scripts/musica-escritorio")
+
     -- Programas con arranque automático (~/.config/autostart)
     hl.exec_cmd("dex --autostart --environment Hyprland")
     -- Carpetas de ~/Aplicaciones y menú al día

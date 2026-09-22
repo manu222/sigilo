@@ -168,3 +168,7 @@ hl.layer_rule({ name = "rejilla-de-apps", match = { namespace = "nwg-drawer" }, 
 -- ve el fondo de pantalla a través de él
 hl.layer_rule({ name = "menu-apps",       match = { namespace = "menu-apps" },     blur = false,
                 animation = "popin 70%" })
+-- El panel de Alt+Tab ocupa la pantalla entera (el velo), así que aquí no
+-- vale un «popin»: se escalaría la pantalla entera. Aparece fundiéndose
+hl.layer_rule({ name = "alternador",      match = { namespace = "alternador" },    blur = false,
+                animation = "fade" })

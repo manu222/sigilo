@@ -80,7 +80,7 @@ PY
 
 paso "Duplicados y restos"
 for p in greenclip dunst picom polybar; do n=$(pgrep -xc "$p"); [ "$n" -le 1 ] && ok "$p: $n copia" || mal "$p: $n copias"; done
-for s in botones-ventana escritorios app-enfocada fondo-vigia "ventanas vigilar" musica-escritorio; do n=$(pgrep -fc "scripts/$s"); [ "$n" -le 1 ] && ok "$s: $n" || mal "$s: $n copias"; done
+for s in botones-ventana escritorios app-enfocada fondo-vigia "ventanas vigilar" musica-escritorio alternador; do n=$(pgrep -fc "scripts/$s"); [ "$n" -le 1 ] && ok "$s: $n" || mal "$s: $n copias"; done
 h=$(pacman -Qdtq 2>/dev/null | wc -l); [ "$h" -eq 0 ] && ok "sin paquetes huérfanos" || ojo "$h huérfanos (limpiar los quita): $(pacman -Qdtq | tr '\n' ' ')"
 f=$(systemctl --failed --no-legend | wc -l); [ "$f" -eq 0 ] && ok "ningún servicio caído" || { mal "$f servicios caídos"; systemctl --failed --no-legend | sed 's/^/      /'; }
 fu=$(systemctl --user --failed --no-legend | wc -l); [ "$fu" -eq 0 ] && ok "ningún servicio de usuario caído" || { mal "$fu servicios de usuario caídos"; systemctl --user --failed --no-legend | sed 's/^/      /'; }

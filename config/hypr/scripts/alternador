@@ -1,0 +1,690 @@
+#!/usr/bin/env python3
+"""Alt+Tab de Sigilo: la lista de todas las ventanas mientras mantienes Alt.
+
+Es lo que hacen Windows y KDE y lo que en i3 hacía skippy-xd: mantienes Alt
+pulsado, sale un panel en el centro con TODO lo que tienes abierto (esté en
+el escritorio que esté y en la pantalla que esté), cada Tab baja una, y al
+soltar Alt saltas a la elegida.
+
+  · Alt+Tab (y un toque rápido)  -> a la ventana anterior, sin ver el panel
+  · Alt sujeto + Tab             -> bajar una · Alt+Shift+Tab, subir
+  · flechas                      -> lo mismo, por si prefieres eso
+  · clic en una fila             -> saltar a esa
+  · Intro                        -> saltar a la marcada · Esc, dejarlo estar
+  · soltar Alt                   -> saltar a la marcada
+
+Al lado de la lista sale una vista del escritorio en el que vive la ventana
+marcada, para saber a qué vas antes de ir. Wayland no deja mirar en vivo lo
+que pinta otro programa, así que no es una ventanita en movimiento: es una
+foto que se va haciendo con grim cuando el escritorio lleva un par de
+segundos quieto. Se guardan en $XDG_RUNTIME_DIR/sigilo-vistas y se van con
+la sesión.
+
+El orden es por uso reciente: la primera de la lista es en la que estás y la
+segunda la de antes, así que Alt+Tab suelto va y viene entre las dos últimas
+(Hyprland ya lleva esa cuenta: es el «focusHistoryID» de cada ventana).
+
+Si la ventana está en otro escritorio, las tres pantallas se van con ella:
+de eso ya se encarga hypr/sigilo/escritorios.lua, que mantiene las pantallas
+a la vez en el mismo número.
+
+Cómo se usa: se queda arrancado desde el principio de la sesión (lo lanza
+hypr/sigilo/arranque.lua) con el panel hecho y escondido, para que aparezca
+en el momento. Los atajos no lo vuelven a lanzar, solo le dan un toque:
+
+    kill -USR1 $(cat $XDG_RUNTIME_DIR/sigilo-alternador.pid)   abrir/bajar
+    kill -USR2 ...                                             abrir/subir
+"""
+import json, os, signal, subprocess, sys, threading, time
+
+import gi
+# La versión de cada parte se pide ANTES de importarla, o gi coge Gdk 4 y
+# choca con Gtk 3
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("Pango", "1.0")
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango
+
+try:
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GtkLayerShell
+except (ValueError, ImportError):
+    GtkLayerShell = None
+
+# Enganchar una señal del sistema al bucle de GTK. En las versiones nuevas de
+# GLib está en su propio módulo y la de siempre avisa de que está anticuada
+try:
+    gi.require_version("GLibUnix", "2.0")
+    from gi.repository import GLibUnix
+    atender_senal = GLibUnix.signal_add
+except (ValueError, ImportError):
+    atender_senal = GLib.unix_signal_add
+
+sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
+import hypr
+
+PID = os.path.join(hypr.RUNTIME, "sigilo-alternador.pid")
+ESCRITORIOS = 10     # los mismos que en hypr/sigilo/escritorios.lua
+# Lo ancho lo pone el contenido: la lista ocupa lo que ocupen los títulos
+# (recortados a esta cuenta de letras) y al lado va la vista previa. Forzar
+# un ancho mayor no sirve de nada: el marco se estira, el contenido se queda
+# a un lado y el panel parece descentrado aunque no lo esté.
+LETRAS_TITULO = 30
+# De alto sí se mira la pantalla: hasta dos tercios de ella, y a partir de
+# ahí la lista se desliza. Los topes son para que en una pantalla enorme no
+# quede ridículo de grande ni en una pequeña se salga.
+PARTE_ALTO, ALTO_MIN, ALTO_MAX = 0.62, 320, 780
+ANCHO_VISTA = 380               # ancho de la foto del escritorio
+# Las fotos se hacen cuando no pasa nada durante este rato (segundos), para
+# no retratar a media animación ni una vez por cada tecla
+ESPERA_FOTO = 1.5
+# Cada tanto, aunque no pase nada, se mira si algún escritorio de los que
+# están a la vista se quedó sin foto y se le hace (segundos)
+REPASO = 15
+VISTAS = os.path.join(hypr.RUNTIME, "sigilo-vistas")
+# Los avisos de Hyprland tras los que merece la pena volver a retratar
+INTERESAN = ("workspace", "workspacev2", "focusedmon", "openwindow",
+             "closewindow", "movewindow", "fullscreen")
+# Mientras el panel está abierto no se hacen fotos: saldría él mismo
+ABIERTO = threading.Event()
+# Un diario de las fotos, por si algún escritorio no se retrata y hay que
+# mirar por qué. Vive en la memoria (se va con la sesión) y se vacía solo
+# cuando se hace grande.
+DIARIO = os.path.join(hypr.RUNTIME, "sigilo-alternador.log")
+
+
+def apuntar(texto):
+    try:
+        if os.path.exists(DIARIO) and os.path.getsize(DIARIO) > 120_000:
+            os.remove(DIARIO)
+        with open(DIARIO, "a") as f:
+            f.write("%s  %s\n" % (time.strftime("%H:%M:%S"), texto))
+    except OSError:
+        pass
+# Cuánto se espera al teclado antes de dar por hecho que fue un toque rápido
+# y que Alt ya está suelto (milisegundos)
+ESPERA_FOCO = 400
+ESPERA_MODIFICADORES = 60
+
+CSS = """
+/* Opaco: encima del fondo de pantalla un panel translúcido no se lee */
+/* La capa ocupa la pantalla entera; lo único que se ve de ella es este
+   velo, que apaga un poco lo de detrás para que el panel destaque */
+window.alternador { background-color: rgba(5, 8, 7, 0.38); }
+.marco {
+    background-color: #0a0f0d; border: 1px solid #1a2320;
+    border-radius: 18px; padding: 12px;
+}
+.fila {
+    color: #94a3a0; padding: 12px 16px; border-radius: 12px;
+    font-size: 15px;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+.fila:hover { background-color: #121b18; color: #c9d3ce; }
+.fila.activa { background-color: #15201c; color: #e7edea; }
+.icono { font-family: "JetBrainsMono Nerd Font"; font-size: 26px; color: #70837c; }
+.fila.activa .icono { color: #34d399; }
+.donde { color: #556760; font-size: 12px; }
+.fila.activa .donde { color: #7e8f88; }
+.vacio { color: #70837c; padding: 24px 16px; font-size: 15px; }
+"""
+
+
+def tabla_de_la_barra():
+    """Los iconos y los nombres bonitos de cada aplicación ya están hechos en
+    el guion de escritorios de la barra; se cargan de ahí para no tener dos
+    listas que mantener. Si no se puede, se tira con lo genérico."""
+    import importlib.machinery, importlib.util
+    ruta = os.path.expanduser("~/.config/waybar/scripts/escritorios")
+    try:
+        spec = importlib.util.spec_from_loader(
+            "escritorios", importlib.machinery.SourceFileLoader("escritorios", ruta))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+BARRA = tabla_de_la_barra()
+
+
+def icono(v):
+    if BARRA:
+        return chr(BARRA.icono(v))
+    return "6"
+
+
+def nombre(v):
+    """Nombre de la aplicación, como lo enseña la barra."""
+    if BARRA:
+        return BARRA.nombre_app(v)
+    return (v.get("class") or "—")
+
+
+def donde(v):
+    """En qué escritorio está, con el número que ves en la barra."""
+    ws = v.get("workspace") or {}
+    n = ws.get("id", 0)
+    if n < 1:
+        nom = (ws.get("name") or "").replace("special:", "")
+        return "Minimizadas" if nom == "minimizadas" else (nom.capitalize() or "Aparte")
+    return "Escritorio %d" % ((n - 1) % ESCRITORIOS + 1)
+
+
+def ventanas():
+    """Todas las ventanas abiertas, la más reciente primero.
+
+    Hyprland numera en «focusHistoryID» por cuándo tuvo el foco cada una: la
+    que lo tiene ahora es la 0, la de antes la 1, y así. Si algún día deja de
+    darlo, se quedan en el orden en que vengan."""
+    lista = hypr.consultar("clients") or []
+    lista = [v for v in lista if v.get("mapped", True) and v.get("class") is not None]
+    lista.sort(key=lambda v: v.get("focusHistoryID", 0))
+    return lista
+
+
+class Alternador(Gtk.Window):
+    def __init__(self):
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.get_style_context().add_class("alternador")
+        self.set_app_paintable(True)
+        pantalla = self.get_screen()
+        visual = pantalla.get_rgba_visual()
+        if visual:
+            self.set_visual(visual)
+
+        self.lista, self.marcada, self.filas = [], 0, []
+        self.monitores = []
+        self.con_foco = False
+
+        self.caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.scroll = Gtk.ScrolledWindow()
+        self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scroll.set_max_content_height(ALTO_MIN)
+        self.scroll.set_propagate_natural_height(True)
+        # Sin esto la lista pide cero de ancho y se queda como una rendija
+        self.scroll.set_propagate_natural_width(True)
+        self.scroll.add(self.caja)
+        # A la derecha, la foto del escritorio de la ventana marcada
+        self.vista = Gtk.Image()
+        self.esquema = Gtk.DrawingArea()
+        self.esquema.set_size_request(ANCHO_VISTA, int(ANCHO_VISTA * 9 / 16))
+        self.esquema.connect("draw", self.dibujar_esquema)
+        self.sin_vista = Gtk.Label()
+        self.sin_vista.get_style_context().add_class("sin-vista")
+        self.sin_vista.set_line_wrap(True)
+        columna = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        columna.get_style_context().add_class("vista")
+        columna.set_valign(Gtk.Align.CENTER)
+        columna.set_size_request(ANCHO_VISTA, -1)
+        columna.pack_start(self.vista, False, False, 0)
+        columna.pack_start(self.esquema, False, False, 0)
+        columna.pack_start(self.sin_vista, False, False, 0)
+        self.columna_vista = columna
+
+        dentro = Gtk.Box(spacing=14)
+        dentro.pack_start(self.scroll, True, True, 0)
+        dentro.pack_start(columna, False, False, 0)
+
+        self.marco = Gtk.Box()
+        self.marco.get_style_context().add_class("marco")
+        self.marco.add(dentro)
+        # La ventana es del tamaño de la pantalla, así que el panel se centra
+        # solo pidiéndolo aquí; antes lo colocaba el compositor y salía en una
+        # esquina y del tamaño que le parecía
+        self.marco.set_halign(Gtk.Align.CENTER)
+        self.marco.set_valign(Gtk.Align.CENTER)
+        self.add(self.marco)
+
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.connect("button-press-event", self.al_clicar_fuera)
+
+        self.connect("key-press-event", self.al_pulsar)
+        self.connect("key-release-event", self.al_soltar)
+        self.connect("focus-in-event", self.al_enfocar)
+        self.connect("delete-event", lambda *_: self.esconder() or True)
+
+        hojas = Gtk.CssProvider()
+        hojas.load_from_data(CSS.encode())
+        Gtk.StyleContext.add_provider_for_screen(
+            pantalla, hojas, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+        self.preparar_capa()
+
+    # ── colocación ───────────────────────────────────────────────────────
+    def preparar_capa(self):
+        """En Hyprland es una «capa» por encima de todo y con el teclado para
+        ella sola, que es lo que hace falta para enterarse de cuándo sueltas
+        Alt. En i3 es una ventana normal y la centra el gestor."""
+        if GtkLayerShell is None:
+            self.set_position(Gtk.WindowPosition.CENTER)
+            self.set_keep_above(True)
+            self.set_decorated(False)
+            return
+        GtkLayerShell.init_for_window(self)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+        try:
+            GtkLayerShell.set_namespace(self, "alternador")
+        except AttributeError:
+            pass
+        # Clavada a los cuatro lados: la capa ocupa la pantalla entera y es
+        # dentro de ella donde se centra el panel
+        for lado in (GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM,
+                     GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT):
+            GtkLayerShell.set_anchor(self, lado, True)
+        GtkLayerShell.set_exclusive_zone(self, -1)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+
+    def pantalla_de_ahora(self):
+        """La pantalla con el foco. En Wayland no se puede preguntar dónde
+        está el ratón, así que se lo preguntamos a Hyprland y la buscamos por
+        su esquina, que es lo único que entienden los dos."""
+        display = Gdk.Display.get_default()
+        if display is None:
+            return None
+        for m in (hypr.consultar("monitors") or []):
+            if m.get("focused"):
+                esquina = display.get_monitor_at_point(m["x"] + 10, m["y"] + 10)
+                if esquina:
+                    return esquina
+        return display.get_primary_monitor() or display.get_monitor(0)
+
+    # ── pintar ───────────────────────────────────────────────────────────
+    def fila(self, v, i):
+        caja = Gtk.EventBox()
+        caja.get_style_context().add_class("fila")
+        linea = Gtk.Box(spacing=16)
+
+        ico = Gtk.Label(label=icono(v))
+        ico.get_style_context().add_class("icono")
+        linea.pack_start(ico, False, False, 0)
+
+        texto = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        titulo = Gtk.Label(label=v.get("title") or nombre(v), xalign=0)
+        titulo.set_ellipsize(Pango.EllipsizeMode.END)
+        titulo.set_width_chars(LETRAS_TITULO)
+        titulo.set_max_width_chars(LETRAS_TITULO)
+        texto.pack_start(titulo, False, False, 0)
+        pie = Gtk.Label(label="%s · %s" % (nombre(v), donde(v)), xalign=0)
+        pie.get_style_context().add_class("donde")
+        pie.set_ellipsize(Pango.EllipsizeMode.END)
+        pie.set_max_width_chars(LETRAS_TITULO)
+        texto.pack_start(pie, False, False, 0)
+        linea.pack_start(texto, True, True, 0)
+
+        caja.add(linea)
+        caja.connect("button-press-event", self.al_clicar, i)
+        # El ratón también marca la fila, para que al hacer clic no haya sorpresa
+        caja.connect("enter-notify-event", self.al_pasar, i)
+        return caja
+
+    def pintar(self):
+        for hijo in self.caja.get_children():
+            self.caja.remove(hijo)
+        self.filas = []
+        if not self.lista:
+            vacio = Gtk.Label(label="No hay ninguna ventana abierta")
+            vacio.get_style_context().add_class("vacio")
+            self.caja.pack_start(vacio, False, False, 0)
+        for i, v in enumerate(self.lista):
+            f = self.fila(v, i)
+            self.filas.append(f)
+            self.caja.pack_start(f, False, False, 0)
+        self.caja.show_all()
+        self.marcar(self.marcada)
+
+    def marcar(self, i):
+        if not self.filas:
+            return
+        self.marcada = i % len(self.filas)
+        for j, f in enumerate(self.filas):
+            ctx = f.get_style_context()
+            (ctx.add_class if j == self.marcada else ctx.remove_class)("activa")
+        self.a_la_vista()
+        self.pintar_vista()
+
+    def pintar_vista(self):
+        """La vista del escritorio donde vive la ventana marcada.
+
+        Primero se intenta la foto; si de ese escritorio no hay ninguna
+        (porque no has pasado por él en toda la sesión), se dibuja el plano
+        con lo que Hyprland sabe: dónde está cada ventana y cuánto ocupa."""
+        ventana = self.lista[self.marcada] if self.lista else None
+        wid = ((ventana or {}).get("workspace") or {}).get("id", 0)
+        ruta = os.path.join(VISTAS, "%d.png" % wid)
+        if wid >= 1 and os.path.exists(ruta):
+            try:
+                foto = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                    ruta, ANCHO_VISTA, -1, True)
+                self.vista.set_from_pixbuf(foto)
+                self.vista.show()
+                self.esquema.hide()
+                self.sin_vista.hide()
+                return
+            except Exception:
+                pass
+        self.vista.clear()
+        self.vista.hide()
+        self.esquema.show()
+        self.esquema.queue_draw()
+        self.sin_vista.set_text("Todavía sin foto de ese escritorio: esto es "
+                                "dónde tienes cada ventana")
+        self.sin_vista.show()
+
+    def dibujar_esquema(self, area, cr):
+        """El plano del escritorio: la pantalla y las ventanas en su sitio."""
+        ancho = area.get_allocated_width()
+        alto = area.get_allocated_height()
+        ventana = self.lista[self.marcada] if self.lista else None
+        wid = ((ventana or {}).get("workspace") or {}).get("id", 0)
+        suyas = [v for v in self.lista
+                 if (v.get("workspace") or {}).get("id") == wid]
+
+        def caja(x, y, w, h, r=6):
+            cr.new_sub_path()
+            cr.arc(x + w - r, y + r, r, -1.5708, 0)
+            cr.arc(x + w - r, y + h - r, r, 0, 1.5708)
+            cr.arc(x + r, y + h - r, r, 1.5708, 3.1416)
+            cr.arc(x + r, y + r, r, 3.1416, 4.7124)
+            cr.close_path()
+
+        # La pantalla de ese escritorio: la que contiene a sus ventanas
+        pantalla = None
+        if suyas:
+            cx = suyas[0]["at"][0] + suyas[0]["size"][0] / 2
+            cy = suyas[0]["at"][1] + suyas[0]["size"][1] / 2
+            for m in (self.monitores or []):
+                if (m["x"] <= cx < m["x"] + m["width"] and
+                        m["y"] <= cy < m["y"] + m["height"]):
+                    pantalla = m
+                    break
+        if pantalla is None:
+            pantalla = (self.monitores or [None])[0]
+        if pantalla is None:
+            return False
+
+        # El marco de la pantalla, a escala, centrado en el hueco
+        proporcion = pantalla["height"] / pantalla["width"]
+        mw = ancho
+        mh = mw * proporcion
+        if mh > alto:
+            mh = alto
+            mw = mh / proporcion
+        mx, my = (ancho - mw) / 2, (alto - mh) / 2
+        escala = mw / pantalla["width"]
+
+        caja(mx, my, mw, mh, 8)
+        cr.set_source_rgba(0.04, 0.06, 0.05, 1)
+        cr.fill_preserve()
+        cr.set_source_rgba(0.14, 0.19, 0.16, 1)
+        cr.set_line_width(1)
+        cr.stroke()
+
+        for v in suyas:
+            x = mx + (v["at"][0] - pantalla["x"]) * escala
+            y = my + (v["at"][1] - pantalla["y"]) * escala
+            w = max(8, v["size"][0] * escala)
+            h = max(8, v["size"][1] * escala)
+            esta = v is ventana
+            caja(x, y, w, h, 4)
+            if esta:
+                cr.set_source_rgba(0.20, 0.83, 0.60, 0.22)
+            else:
+                cr.set_source_rgba(0.08, 0.13, 0.11, 1)
+            cr.fill_preserve()
+            if esta:
+                cr.set_source_rgba(0.24, 0.83, 0.60, 1)
+            else:
+                cr.set_source_rgba(0.14, 0.19, 0.16, 1)
+            cr.stroke()
+            # El icono de la aplicación, en medio de su rectángulo
+            cr.select_font_face("JetBrainsMono Nerd Font")
+            cr.set_font_size(min(18, h * 0.5, w * 0.5))
+            simbolo = icono(v)
+            ext = cr.text_extents(simbolo)
+            cr.move_to(x + (w - ext.width) / 2 - ext.x_bearing,
+                       y + (h - ext.height) / 2 - ext.y_bearing)
+            if esta:
+                cr.set_source_rgba(0.20, 0.83, 0.60, 1)
+            else:
+                cr.set_source_rgba(0.44, 0.51, 0.49, 1)
+            cr.show_text(simbolo)
+        return False
+
+    def a_la_vista(self):
+        """Si la lista es larga, deslizarla para que se vea la marcada."""
+        f = self.filas[self.marcada]
+        ajuste = self.scroll.get_vadjustment()
+        alto_fila = f.get_allocated_height() or 60
+        arriba = self.marcada * alto_fila
+        if arriba < ajuste.get_value():
+            ajuste.set_value(arriba)
+        elif arriba + alto_fila > ajuste.get_value() + ajuste.get_page_size():
+            ajuste.set_value(arriba + alto_fila - ajuste.get_page_size())
+
+    # ── abrir y cerrar ───────────────────────────────────────────────────
+    def mover(self, paso):
+        if not self.get_visible():
+            self.abrir(paso)
+        elif self.filas:
+            self.marcar(self.marcada + paso)
+
+    def abrir(self, paso):
+        self.lista = ventanas()
+        self.monitores = hypr.consultar("monitors") or []
+        if len(self.lista) < 2:
+            return
+        self.marcada = paso % len(self.lista)   # Alt+Tab marca ya la anterior
+        self.pintar()
+        pantalla = self.pantalla_de_ahora()
+        if GtkLayerShell is not None and pantalla:
+            GtkLayerShell.set_monitor(self, pantalla)
+        self.a_la_medida(pantalla)
+        self.con_foco = False
+        ABIERTO.set()
+        self.show_all()
+        self.pintar_vista()          # show_all enseña los dos; deja solo el que toca
+        self.present()
+        # Si en este rato no nos ha llegado el teclado, es que fue un toque
+        # rápido (o que no hay foco que valga): se salta y punto
+        GLib.timeout_add(ESPERA_FOCO, self.si_no_llega_el_foco)
+
+    def a_la_medida(self, pantalla):
+        """Lo único que se ajusta a la pantalla es hasta dónde puede crecer la
+        lista antes de ponerse a deslizar. Lo ancho lo pone el contenido."""
+        if pantalla is None:
+            return
+        caja = pantalla.get_workarea()
+        alto = min(max(int(caja.height * PARTE_ALTO), ALTO_MIN), ALTO_MAX)
+        self.scroll.set_max_content_height(alto)
+
+    def si_no_llega_el_foco(self):
+        if self.get_visible() and not self.con_foco:
+            self.aceptar()
+        return False
+
+    def al_enfocar(self, *_):
+        self.con_foco = True
+        # Los modificadores llegan justo después del foco, así que se mira un
+        # pelín más tarde: si Alt ya está suelto, fue un toque rápido
+        GLib.timeout_add(ESPERA_MODIFICADORES, self.comprobar_alt)
+        return False
+
+    def comprobar_alt(self):
+        if not self.get_visible():
+            return False
+        try:
+            mapa = Gdk.Keymap.get_for_display(Gdk.Display.get_default())
+            if not (mapa.get_modifier_state() & Gdk.ModifierType.MOD1_MASK):
+                self.aceptar()
+        except Exception:
+            pass
+        return False
+
+    def esconder(self):
+        self.hide()
+        self.con_foco = False
+        ABIERTO.clear()
+
+    def aceptar(self):
+        if not self.get_visible():
+            return
+        elegida = self.lista[self.marcada] if self.filas else None
+        self.esconder()
+        if not elegida:
+            return
+        # Primero el escritorio y luego la ventana. Cambiar de escritorio a
+        # mano (sigilo.ir) mueve las tres pantallas a la vez, que es como
+        # están montados aquí; si se salta directamente a la ventana, solo
+        # se entera la pantalla en la que vive y las otras dos se quedan
+        # descolgadas en otro número.
+        wid = (elegida.get("workspace") or {}).get("id", 0)
+        if wid >= 1:
+            subprocess.run(["hyprctl", "eval", "sigilo.ir(%d)" % ((wid - 1) % ESCRITORIOS + 1)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+        hypr.despachar('hl.dsp.focus({ window = "address:%s" })' % elegida["address"])
+
+    # ── teclado y ratón ──────────────────────────────────────────────────
+    def al_pulsar(self, _w, ev):
+        t = ev.keyval
+        atras = bool(ev.state & Gdk.ModifierType.SHIFT_MASK) or t == Gdk.KEY_ISO_Left_Tab
+        if t in (Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab):
+            self.marcar(self.marcada + (-1 if atras else 1))
+        elif t in (Gdk.KEY_Down, Gdk.KEY_Right):
+            self.marcar(self.marcada + 1)
+        elif t in (Gdk.KEY_Up, Gdk.KEY_Left):
+            self.marcar(self.marcada - 1)
+        elif t == Gdk.KEY_Escape:
+            self.esconder()
+        elif t in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
+            self.aceptar()
+        return True
+
+    def al_soltar(self, _w, ev):
+        if ev.keyval in (Gdk.KEY_Alt_L, Gdk.KEY_Alt_R,
+                         Gdk.KEY_Meta_L, Gdk.KEY_Meta_R):
+            self.aceptar()
+        return True
+
+    def al_clicar_fuera(self, _w, ev):
+        """Un clic en el velo, fuera del panel, lo cierra sin cambiar nada."""
+        caja = self.marco.get_allocation()
+        dentro = (caja.x <= ev.x <= caja.x + caja.width and
+                  caja.y <= ev.y <= caja.y + caja.height)
+        if not dentro:
+            self.esconder()
+        return True
+
+    def al_pasar(self, _w, _ev, i):
+        self.marcar(i)
+        return False
+
+    def al_clicar(self, _w, _ev, i):
+        self.marcar(i)
+        self.aceptar()
+        return True
+
+
+def retratar(solo_los_que_falten=False):
+    """Una foto de lo que se ve ahora en cada pantalla, guardada por escritorio.
+
+    grim saca la pantalla entera; con «-s 0.25» sale a un cuarto de tamaño,
+    que para una vista previa sobra y apenas cuesta. Se escribe primero a un
+    fichero aparte y luego se cambia de nombre, para que el panel nunca se
+    encuentre una foto a medio hacer.
+
+    Con «solo_los_que_falten» se salta los escritorios que ya tienen foto.
+    Es el repaso de cada poco: si por lo que sea un escritorio se quedó sin
+    retratar (pasaste de largo, había una animación, grim falló esa vez), en
+    cuanto vuelvas a estar en él un rato se le hace la foto que le falta."""
+    if ABIERTO.is_set():
+        apuntar("no retrato: el panel está abierto")
+        return
+    try:
+        os.makedirs(VISTAS, exist_ok=True)
+    except OSError:
+        apuntar("no retrato: no puedo crear %s" % VISTAS)
+        return
+    for m in (hypr.consultar("monitors") or []):
+        wid = (m.get("activeWorkspace") or {}).get("id", 0)
+        if wid < 1:
+            continue
+        destino = os.path.join(VISTAS, "%d.png" % wid)
+        if solo_los_que_falten and os.path.exists(destino):
+            continue
+        nuevo = destino + ".nuevo"
+        try:
+            subprocess.run(["grim", "-o", m["name"], "-s", "0.25", nuevo],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                           timeout=5, check=True)
+            os.replace(nuevo, destino)
+            apuntar("foto de %s -> escritorio %d" % (m["name"], wid))
+        except Exception as e:
+            apuntar("falla la foto de %s (escritorio %d): %s" % (m["name"], wid, e))
+            try:
+                os.remove(nuevo)
+            except OSError:
+                pass
+
+
+def fotografo():
+    """Va retratando los escritorios cuando se quedan quietos.
+
+    Escucha los avisos de Hyprland y, en cuanto pasan unos segundos sin que
+    ocurra nada, hace la tanda de fotos. Así hay una foto reciente de cada
+    escritorio por el que has pasado sin estar todo el rato capturando."""
+    aviso = threading.Event()
+
+    def escuchar():
+        while True:
+            try:
+                for ev, _ in hypr.eventos():
+                    if ev in INTERESAN:
+                        aviso.set()
+            except OSError as e:
+                apuntar("se corta la escucha de avisos: %s" % e)
+            if not hypr.en_hyprland():
+                apuntar("Hyprland ya no está: dejo de escuchar")
+                return
+            time.sleep(1)
+
+    threading.Thread(target=escuchar, daemon=True).start()
+    time.sleep(2)
+    retratar()                                  # una primera tanda al entrar
+    while True:
+        if not aviso.wait(REPASO):
+            retratar(solo_los_que_falten=True)  # repaso: los que se quedaron sin foto
+            continue
+        while aviso.is_set():                   # esperar a que se calme
+            aviso.clear()
+            time.sleep(ESPERA_FOTO)
+        retratar()
+
+
+def instancia_unica():
+    """Deja el PID a mano para los atajos, y se lleva por delante al anterior."""
+    try:
+        viejo = int(open(PID).read().strip())
+        if viejo != os.getpid():
+            os.kill(viejo, 15)
+    except (OSError, ValueError, ProcessLookupError):
+        pass
+    try:
+        open(PID, "w").write(str(os.getpid()))
+    except OSError:
+        pass
+
+
+if __name__ == "__main__":
+    instancia_unica()
+    ventana = Alternador()
+    threading.Thread(target=fotografo, daemon=True).start()
+    atender_senal(GLib.PRIORITY_DEFAULT, signal.SIGUSR1,
+                  lambda: (ventana.mover(1), True)[1])
+    atender_senal(GLib.PRIORITY_DEFAULT, signal.SIGUSR2,
+                  lambda: (ventana.mover(-1), True)[1])
+    if "--mostrar" in sys.argv:
+        GLib.idle_add(ventana.mover, 1)
+    Gtk.main()

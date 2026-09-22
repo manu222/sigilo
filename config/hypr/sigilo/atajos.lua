@@ -69,16 +69,21 @@ for _, d in ipairs(direcciones) do
     tecla(SUPER .. " + SHIFT + " .. d[1], hl.dsp.window.move({ direction = d[2] }), "Mover " .. d[3])
 end
 
--- Alt+Tab pasa de una ventana a otra del escritorio y la trae delante.
--- (La vista con miniaturas, como skippy-xd en i3, llega en la fase 3.)
-tecla(ALT .. " + Tab", function()
-    hl.dispatch(hl.dsp.window.cycle_next())
-    hl.dispatch(hl.dsp.window.bring_to_top())
-end, "Cambiar de ventana")
-tecla(ALT .. " + SHIFT + Tab", function()
-    hl.dispatch(hl.dsp.window.cycle_next({ next = false }))
-    hl.dispatch(hl.dsp.window.bring_to_top())
-end, "Ventana anterior")
+-- Alt+Tab: la lista de TODAS las ventanas abiertas mientras mantienes Alt,
+-- estén en el escritorio y la pantalla que estén, la última usada primero
+-- (hypr/scripts/alternador). Un toque rápido va y viene entre las dos
+-- últimas, como en Windows.
+--
+-- Los atajos no lanzan el programa: le dan un toque al que ya está en
+-- marcha desde el principio de la sesión, que es lo que hace que el panel
+-- salga al momento. Si no estuviera, la segunda mitad de la orden lo
+-- arranca. El PID lo deja él mismo en $XDG_RUNTIME_DIR.
+local function toque(senal)
+    return ejecutar('kill -' .. senal .. ' "$(cat "$XDG_RUNTIME_DIR/sigilo-alternador.pid")"'
+                    .. ' 2>/dev/null || ' .. hyprs .. 'alternador --mostrar')
+end
+tecla(ALT .. " + Tab",         toque("USR1"), "Cambiar de ventana")
+tecla(ALT .. " + SHIFT + Tab", toque("USR2"), "Ventana anterior")
 tecla(SUPER .. " + Tab", ejecutar("rofi -show window"), "Lista de ventanas")
 
 
