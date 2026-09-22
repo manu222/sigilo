@@ -21,9 +21,9 @@ hl.monitor({
 -- vídeos va perfecto, y en el escritorio normal evita el parpadeo que da
 -- en algunos monitores cuando la frecuencia sube y baja con cada cosa que
 -- se mueve.
--- De momento apagado (0) mientras se pone a punto el sobremesa. Cuando todo
--- vaya fino se puede probar a ponerlo en 2.
-hl.config({ misc = { vrr = 0 } })
+-- 0 = apagado · 1 = siempre · 2 = solo a pantalla completa.
+-- Si en algún equipo se ve parpadeo, se pone a 0.
+hl.config({ misc = { vrr = 2 } })
 
 -- Fichero propio del equipo, si lo hay
 local f = io.open("/etc/hostname", "r")

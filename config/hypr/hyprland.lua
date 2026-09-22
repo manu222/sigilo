@@ -24,14 +24,16 @@
 -- no carga ningún atajo, esta tecla sigue funcionando.
 hl.bind("CTRL + ALT + Delete", hl.dsp.exit())
 
--- Registro de Hyprland activado mientras se pone a punto en cada equipo:
--- queda en $XDG_RUNTIME_DIR/hypr/<instancia>/hyprland.log. Viene apagado
--- de serie; cuando todo vaya bien se puede volver a poner a true.
-hl.config({ debug = { disable_logs = false } })
+-- El registro de Hyprland, apagado: escribe mucho y no hace falta para nada
+-- en el día a día. Si algo se porta raro, se pone a false y queda en
+-- $XDG_RUNTIME_DIR/hypr/<instancia>/hyprland.log (ojo: esa carpeta se borra
+-- al reiniciar, así que cópialo antes si lo necesitas).
+hl.config({ debug = { disable_logs = true } })
 
--- Para buscar qué parte da problemas en un equipo nuevo: los módulos que
--- aparezcan en ~/.config/hypr/omitir (uno por línea, p. ej. "aspecto") no
--- se cargan. Sin ese fichero se carga todo.
+-- Salida de emergencia para un equipo nuevo: los módulos que aparezcan en
+-- ~/.config/hypr/omitir (uno por línea, p. ej. "aspecto") no se cargan. Sin
+-- ese fichero se carga todo, que es lo normal. Sirve para ir descartando
+-- qué parte es la que no le sienta bien a esa gráfica.
 local omitir = {}
 do
     local f = io.open(os.getenv("HOME") .. "/.config/hypr/omitir", "r")
@@ -56,9 +58,3 @@ cargar("entrada")     -- teclado, ratón y comportamiento del foco
 cargar("atajos")      -- todos los atajos de teclado y ratón
 cargar("reglas")      -- qué ventanas flotan, dónde y con qué tamaño
 cargar("arranque")    -- lo que se lanza al entrar en la sesión
-
--- Red de seguridad para las pruebas (ver scripts/vigilante). Va aquí y no
--- en arranque.lua para que funcione aunque ese módulo se omita.
-hl.on("hyprland.start", function()
-    hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/vigilante")
-end)

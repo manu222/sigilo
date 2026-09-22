@@ -166,13 +166,6 @@ tecla(SUPER .. " + SHIFT + O", ejecutar(rofis .. "sonido"),       "Salida y micr
 tecla(SUPER .. " + SHIFT + F", ejecutar(rofis .. "fondos"),       "Fondos de pantalla")
 tecla(SUPER .. " + P",         ejecutar(rofis .. "portapapeles"), "Portapapeles")
 
--- Modo prueba (ver scripts/vigilante): confirma que la pantalla va bien
--- para que la sesión no se cierre sola a los 45 segundos
-tecla(SUPER .. " + ALT + Return",
-      ejecutar("touch \"$XDG_RUNTIME_DIR/hypr-prueba-ok\" && notify-send 'Hyprland' 'Confirmado: la sesión se queda abierta'"),
-      nil)   -- sin descripción: no sale en la chuleta
-
-
 -- ── teclas multimedia ────────────────────────────────────────────────────
 -- "locked" = también funcionan con la pantalla bloqueada
 local vb = i3s .. "volumen-brillo "
