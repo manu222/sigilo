@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""Dibuja sellos de Sigilo con distintas formas.
+"""Dibuja los sellos de Sigilo.
 
-Todos siguen el mismo lenguaje que el de siempre: una figura de líneas
-finas, la misma figura repetida más pequeña por dentro, unas marcas cortas
-por fuera y un rombo encendido en el centro, con el degradado de la casa
-(menta arriba, verde azulado abajo).
+Todos hablan el mismo idioma: líneas finas, un degradado de dos colores y,
+donde pega, un rombo encendido en el centro. Hay dos familias:
 
-    extra/dibujar-sellos config/sigilo/sellos       los dibuja todos ahí
-    extra/dibujar-sellos . rombo estrella           solo esos
+  · las geométricas (hexágono, rombo, estrella…), que llevan además la
+    misma figura repetida más pequeña por dentro y unas marcas por fuera
+  · las del tema (escudo, candado, llave, chip, red, radar, huella,
+    terminal), que son dibujos y no repiten nada dentro
 
-Para cambiarles el color, extra/tintar-sello. Para añadir una forma nueva,
-basta con una función que devuelva sus trazos y meterla en FORMAS: el resto
-(el interior, las marcas, el núcleo y el degradado) es igual para todas.
-Cada forma devuelve una lista de trazos, y cada trazo es (puntos, cerrado):
-así una figura puede tener varias piezas sueltas, como la lente, que son
-dos arcos que no se tocan por los lados.
+    extra/dibujar-sellos config/sigilo/sellos          los dibuja todos
+    extra/dibujar-sellos . candado radar               solo esos
+    extra/dibujar-sellos . candado:brasa rombo:nieve   y en otro color
 
-Se dibuja a cuatro veces el tamaño y luego se reduce, que es la manera de
-que las líneas salgan suaves sin tener que pelearse con el antialias.
+Los colores son los de la paleta de Sigilo (PALETAS, abajo). Cada figura
+trae el suyo puesto, pero se le puede pedir cualquiera. Para teñir un PNG
+que ya exista sin volver a dibujarlo está extra/tintar-sello.
+
+Para inventar una figura: una función que devuelva sus trazos —una lista de
+(puntos, si se cierra)— en un círculo de radio 1, y una línea en FIGURAS
+diciendo si lleva figura interior, marcas y rombo. El resto es igual para
+todas.
+
+Se dibuja a cuatro veces el tamaño y luego se reduce: es la manera de que
+las líneas salgan suaves sin pelearse con el antialias.
 """
 import math
 import os
@@ -27,121 +33,254 @@ from PIL import Image, ImageDraw
 
 LADO = 380
 ESCALA = 4
-R = 150                      # radio de la figura de fuera
-DENTRO = 0.70                # cuánto encoge la figura de dentro
-ARRIBA = (0x3e, 0xe8, 0xa8)  # menta
-ABAJO = (0x5f, 0xa6, 0xc6)   # verde azulado
-
-GRUESO_FUERA = 5
+R = 150                  # radio de la figura, sobre un lienzo de 380
+DENTRO = 0.70            # cuánto encoge la figura interior
+GRUESO = 5
 GRUESO_DENTRO = 1.5
 GRUESO_MARCA = 2
-ALFA_DENTRO = 140            # la figura de dentro va más apagada
+ALFA_DENTRO = 140
 ALFA_MARCA = 185
+
+PALETAS = {              # (color de arriba, color de abajo)
+    "menta": ((0x3e, 0xe8, 0xa8), (0x5f, 0xa6, 0xc6)),
+    "cian":  ((0x8f, 0xe3, 0xdc), (0x4d, 0x94, 0xa8)),
+    "lila":  ((0xd7, 0xbf, 0xf0), (0x8f, 0x7f, 0xb0)),
+    "ambar": ((0xe3, 0xc0, 0x8a), (0xb0, 0x7a, 0x4a)),
+    "brasa": ((0xf0, 0x99, 0x9e), (0xb8, 0x55, 0x5c)),
+    "nieve": ((0xe7, 0xed, 0xea), (0x8f, 0xa3, 0x9c)),
+}
+
+
+# ── ayudas para dibujar ──────────────────────────────────────────────────
+def arco(cx, cy, radio, desde, hasta, pasos=48, ancho=1.0):
+    """Trozo de circunferencia, en grados y en sentido de reloj."""
+    a, b = math.radians(desde), math.radians(hasta)
+    return [(cx + math.cos(a + (b - a) * i / pasos) * radio * ancho,
+             cy + math.sin(a + (b - a) * i / pasos) * radio) for i in range(pasos + 1)]
 
 
 def poligono(lados, giro=0.0):
-    """Un polígono regular, con el giro que se le diga."""
-    def trazos(r):
-        return [([(math.cos(2 * math.pi * i / lados + giro) * r,
-                   math.sin(2 * math.pi * i / lados + giro) * r)
-                  for i in range(lados)], True)]
+    def trazos():
+        return [([(math.cos(2 * math.pi * i / lados + giro),
+                   math.sin(2 * math.pi * i / lados + giro)) for i in range(lados)], True)]
     return trazos
 
 
 def estrella(puntas=6, hondo=0.48):
-    """Una estrella: se alternan un punto lejos y otro cerca del centro."""
-    def trazos(r):
+    def trazos():
         fuera = []
         for i in range(puntas * 2):
-            radio = r if i % 2 == 0 else r * hondo
+            radio = 1 if i % 2 == 0 else hondo
             a = math.pi * i / puntas - math.pi / 2
             fuera.append((math.cos(a) * radio, math.sin(a) * radio))
         return [(fuera, True)]
     return trazos
 
 
-def circulo(lados=72):
-    return poligono(lados)
-
-
 def lente(ancho=0.62):
-    """Dos arcos que se juntan arriba y abajo, como un ojo de pie. Son dos
-    trazos sueltos: si fueran uno, al cerrarlo saldría una raya en medio."""
-    def trazos(r):
-        fuera, pasos = [], 60
+    """Dos arcos que se juntan arriba y abajo, como un ojo de pie. Van
+    sueltos: si fueran un trazo cerrado saldría una raya por el medio."""
+    def trazos():
+        fuera = []
         for lado in (1, -1):
-            arco = []
-            for i in range(pasos + 1):
-                t = -math.pi / 3 + (2 * math.pi / 3) * i / pasos
-                arco.append((lado * (math.cos(t) - math.cos(math.pi / 3)) * r / ancho,
-                             math.sin(t) * r))
-            fuera.append((arco, False))
+            pico = math.cos(math.pi / 3)
+            fuera.append(([(lado * (math.cos(t) - pico) / ancho, math.sin(t))
+                           for t in [(-math.pi / 3 + (2 * math.pi / 3) * i / 60)
+                                     for i in range(61)]], False))
         return fuera
     return trazos
 
 
-FORMAS = {
-    "hexagono":  poligono(6),
-    "triangulo": poligono(3, -math.pi / 2),
-    "rombo":     poligono(4, -math.pi / 2),
-    "octogono":  poligono(8, math.pi / 8),
-    "estrella":  estrella(6),
-    "anillo":    circulo(),
-    "lente":     lente(),
+# ── las figuras del tema ─────────────────────────────────────────────────
+def escudo():
+    """Un escudo: hombros rectos arriba, los lados bajando y punta abajo."""
+    def trazos():
+        lado = [(0.70, -0.10)]
+        for i in range(1, 25):                   # de los hombros a la punta
+            t = i / 24
+            lado.append((0.70 * (1 - t ** 2.3), -0.10 + 1.00 * t))
+        p = [(-0.70, -0.84), (0.70, -0.84)] + lado
+        p += [(-x, y) for x, y in reversed(lado)]
+        return [(p, True)]
+    return trazos
+
+
+def candado():
+    """Un candado. El rombo hace de cerradura, por eso va más abajo."""
+    def trazos():
+        cuerpo = [(-0.56, 0.00), (0.56, 0.00), (0.56, 1.00), (-0.56, 1.00)]
+        # El arco acaba justo en el borde de arriba del cuerpo: si entra, el
+        # candado parece un bolso
+        asa = arco(0, 0.00, 0.36, 180, 360, 44)
+        return [(cuerpo, True), (asa, False)]
+    return trazos
+
+
+def llave():
+    """Una llave: el anillo a la izquierda, el paletón a la derecha."""
+    def trazos():
+        anillo = arco(-0.52, 0, 0.36, 0, 360, 48)
+        caña = [(-0.16, 0), (0.92, 0)]
+        dientes = [([(x, 0), (x, 0.34)], False) for x in (0.52, 0.74)]
+        return [(anillo, True), (caña, False)] + dientes
+    return trazos
+
+
+def chip():
+    """Un microprocesador, con sus patillas."""
+    def trazos():
+        caja = [(-0.60, -0.60), (0.60, -0.60), (0.60, 0.60), (-0.60, 0.60)]
+        patillas = []
+        for d in (-0.34, 0, 0.34):
+            patillas += [([(d, -0.60), (d, -0.92)], False),
+                         ([(d, 0.60), (d, 0.92)], False),
+                         ([(-0.60, d), (-0.92, d)], False),
+                         ([(0.60, d), (0.92, d)], False)]
+        return [(caja, True)] + patillas
+    return trazos
+
+
+def red():
+    """Una red: seis nodos alrededor, todos colgando del centro."""
+    def trazos():
+        fuera, nodos = [], []
+        for i in range(6):
+            a = 2 * math.pi * i / 6 - math.pi / 2
+            x, y = math.cos(a) * 0.80, math.sin(a) * 0.80
+            nodos.append((x, y))
+            fuera.append(([(x * 0.22, y * 0.22), (x * 0.86, y * 0.86)], False))
+            fuera.append((arco(x, y, 0.13, 0, 360, 24), True))
+        for i in range(6):                       # y unidos entre vecinos
+            a, b = nodos[i], nodos[(i + 1) % 6]
+            fuera.append(([(a[0] * 0.84 + b[0] * 0.16, a[1] * 0.84 + b[1] * 0.16),
+                           (a[0] * 0.16 + b[0] * 0.84, a[1] * 0.16 + b[1] * 0.84)], False))
+        return fuera
+    return trazos
+
+
+def radar():
+    """Un radar: los anillos, la aguja y la marca de los grados."""
+    def trazos():
+        fuera = [(arco(0, 0, 1.0, 0, 360, 72), True),
+                 (arco(0, 0, 0.66, 0, 360, 56), True),
+                 (arco(0, 0, 0.34, 0, 360, 40), True),
+                 ([(0, 0), (math.cos(math.radians(-55)), math.sin(math.radians(-55)))], False),
+                 (arco(0, 0, 0.86, -55, -5, 24), False)]
+        for a in range(0, 360, 45):              # los grados, por dentro
+            fuera.append(([(math.cos(math.radians(a)) * 0.92, math.sin(math.radians(a)) * 0.92),
+                           (math.cos(math.radians(a)), math.sin(math.radians(a)))], False))
+        return fuera
+    return trazos
+
+
+def senal():
+    """Una señal: arcos abiertos saliendo del centro, como algo emitiendo."""
+    def trazos():
+        fuera = []
+        for i, radio in enumerate((0.96, 0.78, 0.60, 0.42, 0.24)):
+            abre = 26 + i * 7
+            fuera.append((arco(0, 0.06, radio, 180 + abre, 360 - abre, 48, ancho=0.82), False))
+            fuera.append((arco(0, 0.06, radio, 0 + abre * 0.6, 180 - abre * 0.6, 48, ancho=0.82), False))
+        return fuera
+    return trazos
+
+
+def terminal():
+    """Una ventana de terminal con su símbolo de espera."""
+    def trazos():
+        marco = [(-0.94, -0.66), (0.94, -0.66), (0.94, 0.66), (-0.94, 0.66)]
+        barra = [(-0.94, -0.40), (0.94, -0.40)]
+        flecha = [(-0.52, -0.08), (-0.20, 0.14), (-0.52, 0.36)]
+        cursor = [(-0.02, 0.36), (0.46, 0.36)]
+        puntos = [(arco(x, -0.53, 0.07, 0, 360, 20), True) for x in (-0.80, -0.62, -0.44)]
+        return [(marco, True), (barra, False), (flecha, False), (cursor, False)] + puntos
+    return trazos
+
+
+# figura -> (trazos, figura interior, marcas, rombo, paleta).
+# El rombo es True/False, o (x, y) si en esa figura no va en el centro.
+FIGURAS = {
+    "hexagono":  (poligono(6),                True,  "vertices", True,  "menta"),
+    "triangulo": (poligono(3, -math.pi / 2),  True,  "vertices", True,  "cian"),
+    "rombo":     (poligono(4, -math.pi / 2),  True,  "vertices", True,  "lila"),
+    "octogono":  (poligono(8, math.pi / 8),   True,  "vertices", True,  "nieve"),
+    "estrella":  (estrella(6),                True,  "vertices", True,  "ambar"),
+    "anillo":    (poligono(72),               True,  "vertices", True,  "menta"),
+    "lente":     (lente(),                    True,  "corona",   True,  "brasa"),
+    "escudo":    (escudo(),                   False, "corona",   True,  "menta"),
+    "candado":   (candado(),                  False, None,       (0, 0.50), "ambar"),
+    "llave":     (llave(),                    False, None,       False, "ambar"),
+    "chip":      (chip(),                     False, None,       True,  "cian"),
+    "red":       (red(),                      False, None,       True,  "lila"),
+    "radar":     (radar(),                    False, None,       True,  "menta"),
+    "senal":     (senal(),                    False, "corona",   False, "brasa"),
+    "terminal":  (terminal(),                 False, None,       False, "nieve"),
 }
 
 
-def degradado(lado):
-    """El degradado de la casa, en diagonal."""
+def degradado(lado, paleta):
+    arriba, abajo = PALETAS[paleta]
     im = Image.new("RGB", (lado, lado))
     pinta = im.load()
     for y in range(lado):
+        t = y / lado
         for x in range(lado):
-            t = (x / lado * 0.35 + y / lado * 0.65)
-            pinta[x, y] = tuple(round(ARRIBA[i] + (ABAJO[i] - ARRIBA[i]) * t) for i in range(3))
+            u = x / lado * 0.35 + t * 0.65
+            pinta[x, y] = tuple(round(arriba[i] + (abajo[i] - arriba[i]) * u) for i in range(3))
     return im
 
 
-def dibujar(nombre, forma, destino):
+def dibujar(nombre, destino, paleta=None):
+    trazos, hay_dentro, marcas, hay_nucleo, suya = FIGURAS[nombre]
     lado = LADO * ESCALA
     centro = lado / 2
     mascara = Image.new("L", (lado, lado), 0)
     d = ImageDraw.Draw(mascara)
 
-    def pintar(trazos, alfa, grueso):
-        for puntos, cerrado in trazos:
-            linea = [(centro + x, centro + y) for x, y in puntos]
+    def pintar(lista, escala, alfa, grueso):
+        for puntos, cerrado in lista:
+            linea = [(centro + x * R * ESCALA * escala,
+                      centro + y * R * ESCALA * escala) for x, y in puntos]
             if cerrado:
                 linea.append(linea[0])
-            d.line(linea, fill=alfa, width=round(grueso * ESCALA), joint="curve")
+            d.line(linea, fill=alfa, width=max(1, round(grueso * ESCALA)), joint="curve")
 
-    # La figura de fuera y la misma más pequeña por dentro
-    pintar(forma(R * ESCALA), 255, GRUESO_FUERA)
-    pintar(forma(R * DENTRO * ESCALA), ALFA_DENTRO, GRUESO_DENTRO)
+    pintar(trazos(), 1.0, 255, GRUESO)
+    if hay_dentro:
+        pintar(trazos(), DENTRO, ALFA_DENTRO, GRUESO_DENTRO)
 
-    # Marcas cortas por fuera, una por vértice de la figura
-    vertices = [p for puntos, _ in forma(R * ESCALA) for p in puntos]
-    paso = max(1, len(vertices) // 6)
-    for i in range(0, len(vertices), paso):
-        x, y = vertices[i]
+    if marcas == "vertices":
+        vertices = [p for puntos, _ in trazos() for p in puntos]
+        paso = max(1, len(vertices) // 6)
+        sitios = [vertices[i] for i in range(0, len(vertices), paso)]
+    elif marcas == "corona":
+        sitios = [(math.cos(math.radians(a)), math.sin(math.radians(a)))
+                  for a in range(0, 360, 60)]
+    else:
+        sitios = []
+    for x, y in sitios:
         largo = math.hypot(x, y) or 1
         ux, uy = x / largo, y / largo
-        d.line([(centro + ux * (largo + 10 * ESCALA), centro + uy * (largo + 10 * ESCALA)),
-                (centro + ux * (largo + 26 * ESCALA), centro + uy * (largo + 26 * ESCALA))],
+        d.line([(centro + ux * (largo * R + 10) * ESCALA, centro + uy * (largo * R + 10) * ESCALA),
+                (centro + ux * (largo * R + 26) * ESCALA, centro + uy * (largo * R + 26) * ESCALA)],
                fill=ALFA_MARCA, width=round(GRUESO_MARCA * ESCALA))
 
-    # El núcleo: un rombo encendido con su halo
-    rombo = poligono(4, -math.pi / 2)
-    for radio, alfa in ((30, 45), (22, 110), (15, 255)):
-        puntos = rombo(radio * ESCALA)[0][0]
-        d.polygon([(centro + x, centro + y) for x, y in puntos], fill=alfa)
-    pintar(rombo(30 * ESCALA), 220, 2)
+    if hay_nucleo:
+        dx, dy = hay_nucleo if hay_nucleo is not True else (0, 0)
+        dx, dy = dx * R * ESCALA, dy * R * ESCALA
+        rombo = poligono(4, -math.pi / 2)
+        for radio, alfa in ((30, 45), (22, 110), (15, 255)):
+            puntos = [(centro + dx + x * radio * ESCALA, centro + dy + y * radio * ESCALA)
+                      for x, y in rombo()[0][0]]
+            d.polygon(puntos, fill=alfa)
+        d.line([(centro + dx + x * 30 * ESCALA, centro + dy + y * 30 * ESCALA)
+                for x, y in rombo()[0][0] + [rombo()[0][0][0]]],
+               fill=220, width=round(2 * ESCALA), joint="curve")
 
-    color = degradado(lado)
+    color = degradado(lado, paleta or suya)
     sello = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
     sello.paste(color, (0, 0), mascara)
-    sello = sello.resize((LADO, LADO), Image.LANCZOS)
-    sello.save(destino)
+    sello.resize((LADO, LADO), Image.LANCZOS).save(destino)
     return destino
 
 
@@ -150,10 +289,14 @@ if __name__ == "__main__":
         print(__doc__)
         sys.exit(1)
     carpeta = sys.argv[1]
-    cuales = sys.argv[2:] or list(FORMAS)
     os.makedirs(carpeta, exist_ok=True)
-    for n in cuales:
-        if n not in FORMAS:
-            print("no conozco la forma «%s»; hay: %s" % (n, ", ".join(FORMAS)))
+    for pedido in (sys.argv[2:] or list(FIGURAS)):
+        nombre, _, paleta = pedido.partition(":")
+        if nombre not in FIGURAS:
+            print("no conozco «%s»; hay: %s" % (nombre, ", ".join(FIGURAS)))
             continue
-        print("hecho:", dibujar(n, FORMAS[n], os.path.join(carpeta, n + ".png")))
+        if paleta and paleta not in PALETAS:
+            print("no conozco el color «%s»; hay: %s" % (paleta, ", ".join(PALETAS)))
+            continue
+        fichero = nombre + ("-" + paleta if paleta else "") + ".png"
+        print("hecho:", dibujar(nombre, os.path.join(carpeta, fichero), paleta or None))
