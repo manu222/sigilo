@@ -91,6 +91,7 @@ REGLAS = [
  (r"rofi/scripts/bluetooth", "Bluetooth"),
  (r"rofi/scripts/sonido", "Salida y micro de sonido"),
  (r"rofi/scripts/fondos", "Fondos de pantalla"),
+ (r"scripts/sello", "Cambiar el sello"),
  (r"scripts/fondo --pausar", "Pausar el fondo animado"),
  (r"rofi/scripts/portapapeles", "Portapapeles"),
  (r"rofi/scripts/ventana", "Menú de la ventana"),
@@ -335,7 +336,8 @@ CATEGORIAS = [
  ("Menús y utilidades", AMBER, [
     "Menú de utilidades", "Preguntar a la IA local", "Calculadora", "Emojis y símbolos",
     "Portapapeles", "Notificaciones", "Captura con selección", "Captura completa",
-    "Redes wifi", "Bluetooth", "Salida y micro de sonido", "Fondos de pantalla", "Pausar el fondo animado"]),
+    "Redes wifi", "Bluetooth", "Salida y micro de sonido", "Fondos de pantalla",
+    "Cambiar el sello", "Pausar el fondo animado"]),
  ("Sistema", RED, ["Recargar config", "Reiniciar i3", "Recargar config y barra"]),
  ("Teclas multimedia", OLIVE, [
     "Subir volumen", "Bajar volumen", "Silenciar", "Silenciar micro",
