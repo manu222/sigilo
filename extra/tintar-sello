@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Hace una copia de un sello con otro color.
+
+El sello de Sigilo es un dibujo de líneas con un degradado de verdes. Esto
+lo vuelve a pintar en el color que le digas conservando el degradado y las
+transparencias: se le cambia el tono y se le ajusta lo vivo que es, pero se
+respeta lo claro u oscuro que era cada píxel, que es lo que hace que siga
+pareciendo el mismo dibujo.
+
+    extra/tintar-sello config/sigilo/sellos/clasico.png lila '#c8aae5'
+    extra/tintar-sello clasico.png nieve '#e7edea'
+
+Deja el resultado al lado del original con el nombre que le pases. Para que
+salga en el menú (Super+Shift+G) basta con que esté en la carpeta de sellos.
+"""
+import colorsys
+import os
+import sys
+
+from PIL import Image
+
+
+def tintar(origen, destino, color):
+    r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    tono, viveza, _ = colorsys.rgb_to_hsv(r, g, b)
+
+    im = Image.open(origen).convert("RGBA")
+    fuera = []
+    for pr, pg, pb, pa in im.getdata():
+        if pa == 0:
+            fuera.append((0, 0, 0, 0))
+            continue
+        _, s, v = colorsys.rgb_to_hsv(pr / 255, pg / 255, pb / 255)
+        # El tono lo pone el color nuevo; lo vivo se mezcla a medias para no
+        # perder los matices del degradado, y el brillo se deja tal cual
+        nr, ng, nb = colorsys.hsv_to_rgb(tono, (s + viveza) / 2, v)
+        fuera.append((round(nr * 255), round(ng * 255), round(nb * 255), pa))
+    im.putdata(fuera)
+    im.save(destino)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4 or not sys.argv[3].startswith("#"):
+        print(__doc__)
+        sys.exit(1)
+    origen, nombre, color = sys.argv[1:]
+    destino = os.path.join(os.path.dirname(origen) or ".", nombre + ".png")
+    tintar(origen, destino, color)
+    print("hecho:", destino)

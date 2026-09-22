@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Cambia el sello de Sigilo, el dibujo que sale al abrir el primer terminal
+# y en la pantalla de bloqueo. Funciona igual en i3 y en Hyprland.
+#
+#   sello                 galería para elegir (Super+Shift+G)
+#   sello lila            pone ese
+#   sello --siguiente     el siguiente de la lista, para ir rotando
+#   sello --cual          dice cuál está puesto
+#   sello --lista         los que hay
+#   sello --saludador     copia el de ahora a la pantalla de acceso (pide
+#                         la contraseña: ese fichero es del sistema)
+#
+# Los sellos son los PNG de ~/.config/sigilo/sellos. Para añadir uno, deja
+# ahí su PNG (cuadrado y con fondo transparente, 380x380 va bien). Si
+# quieres el mismo dibujo en otro color, extra/tintar-sello lo hace solo.
+#
+# Cambiarlo toca los ficheros que miran los demás, no cada configuración:
+# así no hay que tocar fastfetch ni hyprlock ni el guion de bloqueo.
+# El terminal lo enseña al abrir uno nuevo; el bloqueo, la próxima vez.
+set -uo pipefail
+
+SELLOS="$HOME/.config/sigilo/sellos"
+ACTUAL="$HOME/.config/sigilo/sello-actual"
+FETCH="$HOME/.config/fastfetch/sigilo.png"
+FETCH_ANSI="$HOME/.config/fastfetch/sigilo.ansi"
+BLOQUEO="$HOME/.config/i3/sello-bloqueo.png"
+SALUDADOR="/usr/share/backgrounds/sigilo-sello.png"
+
+aviso() { notify-send -a Sigilo -i "${2:-preferences-desktop-theme}" "Sello" "$1"; }
+
+nombres() {
+    local f
+    for f in "$SELLOS"/*.png; do
+        [ -e "$f" ] || continue
+        basename "${f%.png}"
+    done | sort
+}
+
+cual() { [ -f "$ACTUAL" ] && cat "$ACTUAL" || echo clasico; }
+
+poner() {
+    local n="$1" png="$SELLOS/$1.png"
+    [ -f "$png" ] || { aviso "No existe el sello «$n»"; return 1; }
+
+    mkdir -p "$(dirname "$FETCH")" "$(dirname "$BLOQUEO")" "$(dirname "$ACTUAL")"
+    cp -f "$png" "$FETCH"
+    cp -f "$png" "$BLOQUEO"
+
+    # La versión en bloques de colores, para los terminales que no saben
+    # pintar imágenes. Si el sello trae la suya, esa; si no, se dibuja con
+    # chafa, y si tampoco está, se deja la que hubiera.
+    if [ -f "$SELLOS/$n.ansi" ]; then
+        cp -f "$SELLOS/$n.ansi" "$FETCH_ANSI"
+    elif command -v chafa >/dev/null; then
+        chafa --format symbols --symbols vhalf --size 35x19 \
+              --margin-bottom 0 --margin-right 0 "$png" > "$FETCH_ANSI" 2>/dev/null
+    fi
+
+    printf '%s\n' "$n" > "$ACTUAL"
+}
+
+case "${1-}" in
+    --lista) nombres ;;
+    --cual)  cual ;;
+
+    --siguiente)
+        mapfile -t todos < <(nombres)
+        [ ${#todos[@]} -eq 0 ] && { aviso "No hay ningún sello en $SELLOS"; exit 0; }
+        actual=$(cual); i=0
+        for n in "${!todos[@]}"; do [ "${todos[$n]}" = "$actual" ] && i=$n; done
+        siguiente="${todos[$(( (i + 1) % ${#todos[@]} ))]}"
+        poner "$siguiente" && aviso "$siguiente" "$SELLOS/$siguiente.png"
+        ;;
+
+    --saludador)
+        n=$(cual)
+        [ -f "$SELLOS/$n.png" ] || exit 1
+        # La pantalla de acceso lo lee de /usr/share, que es del sistema
+        if sudo install -Dm644 "$SELLOS/$n.png" "$SALUDADOR"; then
+            aviso "«$n» también en la pantalla de acceso" "$SELLOS/$n.png"
+        fi
+        ;;
+
+    "")
+        mapfile -t todos < <(nombres)
+        [ ${#todos[@]} -eq 0 ] && { aviso "No hay ningún sello en $SELLOS"; exit 0; }
+        . ~/.config/rofi/scripts/comun.sh
+        # OJO: las filas van directas a la tubería. Bash se come el byte
+        # nulo al guardarlo en una variable, y ese byte es el que le dice a
+        # rofi dónde empieza la ruta del icono.
+        i=$( for n in "${todos[@]}"; do
+                 printf '%s\0icon\x1f%s\n' "$n" "$SELLOS/$n.png"
+             done | rofi -dmenu -i -show-icons -format i -no-custom \
+                    -theme ~/.config/rofi/sigilo-galeria.rasi -p "sello" \
+                    -mesg "<span foreground=\"$MUTE\">${#todos[@]} sellos   ·   ahora: $(cual)   ·   sale en el terminal y en el bloqueo</span>" )
+        [ -z "$i" ] && exit 0
+        elegido="${todos[$i]}"
+        poner "$elegido" && aviso "$elegido" "$SELLOS/$elegido.png"
+        ;;
+
+    *) poner "$1" && aviso "$1" "$SELLOS/$1.png" ;;
+esac

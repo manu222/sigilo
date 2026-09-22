@@ -175,6 +175,7 @@ tecla(SUPER .. " + SHIFT + W", ejecutar(rofis .. "wifi"),         "Redes wifi")
 tecla(SUPER .. " + SHIFT + B", ejecutar(rofis .. "bluetooth"),    "Bluetooth")
 tecla(SUPER .. " + SHIFT + O", ejecutar(rofis .. "sonido"),       "Salida y micro de sonido")
 tecla(SUPER .. " + SHIFT + F", ejecutar(rofis .. "fondos"),       "Fondos de pantalla")
+tecla(SUPER .. " + SHIFT + G", ejecutar(i3s .. "sello"),          "Cambiar el sello")
 tecla(SUPER .. " + P",         ejecutar(rofis .. "portapapeles"), "Portapapeles")
 
 -- ── teclas multimedia ────────────────────────────────────────────────────

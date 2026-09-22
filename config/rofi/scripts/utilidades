@@ -18,9 +18,10 @@ i=$( { fila accessories-calculator   "Calculadora"                "❖ + X"
        fila preferences-system-notifications "Notificaciones"     "❖ + Shift + N"
        fila edit-paste               "Portapapeles"               "❖ + P"
        fila preferences-desktop-wallpaper "Fondos de pantalla"    "❖ + Shift + F"
+       fila preferences-desktop-theme "Sello"                     "❖ + Shift + G"
        fila audio-speakers           "Salida y micro de sonido"   "❖ + Shift + O"
      } | rofi -dmenu -i -markup-rows -show-icons -format i -p "utilidades" -theme "$TEMA" \
-         -theme-str 'window { width: 34em; } listview { lines: 7; } element-icon { size: 1.6em; }
+         -theme-str 'window { width: 34em; } listview { lines: 8; } element-icon { size: 1.6em; }
                      textbox-sello { content: "❖"; text-color: #c8aae5; }') || exit 0
 case $i in
     0) exec $D/calculadora ;;
@@ -29,5 +30,6 @@ case $i in
     3) exec $D/notificaciones ;;
     4) exec $D/portapapeles ;;
     5) exec $D/fondos ;;
-    6) exec $D/sonido ;;
+    6) exec ~/.config/i3/scripts/sello ;;
+    7) exec $D/sonido ;;
 esac
