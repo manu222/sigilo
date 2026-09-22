@@ -197,6 +197,7 @@ class Alternador(Gtk.Window):
 
         self.lista, self.marcada, self.filas = [], 0, []
         self.monitores = []
+        self.venia_de = None      # la ventana que tenía el foco al abrir
         self.con_foco = False
 
         self.caja = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -474,6 +475,8 @@ class Alternador(Gtk.Window):
     def abrir(self, paso):
         self.lista = ventanas()
         self.monitores = hypr.consultar("monitors") or []
+        # La primera de la lista es la que tiene el foco ahora mismo
+        self.venia_de = self.lista[0]["address"] if self.lista else None
         if len(self.lista) < 2:
             return
         self.marcada = paso % len(self.lista)   # Alt+Tab marca ya la anterior
@@ -523,16 +526,26 @@ class Alternador(Gtk.Window):
             pass
         return False
 
-    def esconder(self):
+    def esconder(self, volver=True):
+        """Cierra el panel. Con «volver» se le devuelve el foco a la ventana
+        que lo tenía antes de abrirlo.
+
+        Hace falta: mientras el panel está abierto el teclado es suyo
+        (tiene que serlo, es la única forma de enterarse de cuándo sueltas
+        Alt), y al cerrarlo sin elegir nada el compositor no siempre se lo
+        devuelve a nadie. La ventana se quedaba como bloqueada, sin recibir
+        lo que escribías, hasta que la elegías a mano en otro sitio."""
         self.hide()
         self.con_foco = False
         ABIERTO.clear()
+        if volver and self.venia_de:
+            hypr.despachar('hl.dsp.focus({ window = "address:%s" })' % self.venia_de)
 
     def aceptar(self):
         if not self.get_visible():
             return
         elegida = self.lista[self.marcada] if self.filas else None
-        self.esconder()
+        self.esconder(volver=elegida is None)
         if not elegida:
             return
         # Primero el escritorio y luego la ventana. Cambiar de escritorio a
