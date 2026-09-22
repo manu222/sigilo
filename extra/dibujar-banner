@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Dibuja el banner del lanzador de aplicaciones (rofi, ❖+D y ❖+Espacio).
+
+Es la franja oscura que sale arriba del buscador, con el sello a la derecha
+y unos resplandores sueltos por detrás. Se vuelve a dibujar cada vez que se
+cambia de sello (lo hace i3/scripts/sello), para que el lanzador enseñe el
+que tengas puesto y no uno fijo.
+
+    extra/dibujar-banner ~/.config/sigilo/sellos/candado.png ~/.config/rofi/banner.png
+
+Los resplandores toman el color del propio sello, así que el banner de la
+llave sale ambarino y el del chip azulado sin tener que decirle nada.
+
+Necesita python-pillow. Si no está, el guion del sello se salta este paso y
+el banner se queda como estuviera.
+"""
+import sys
+
+from PIL import Image, ImageDraw, ImageFilter
+
+ANCHO, ALTO = 1000, 190
+FONDO = (8, 13, 11)
+ALTO_SELLO = 150          # lo que mide el sello dentro de la franja
+MARGEN = 60               # lo que se separa del borde derecho
+OPACIDAD = 0.55           # el sello va apagado: es fondo, no protagonista
+
+
+def color_del_sello(im):
+    """El color medio de lo que se ve del sello, para los resplandores."""
+    suma, cuenta = [0, 0, 0], 0
+    for r, g, b, a in im.resize((60, 60)).convert("RGBA").getdata():
+        if a > 40:
+            suma[0] += r; suma[1] += g; suma[2] += b; cuenta += 1
+    if not cuenta:
+        return (52, 211, 153)
+    return tuple(v // cuenta for v in suma)
+
+
+def dibujar(origen, destino):
+    sello = Image.open(origen).convert("RGBA")
+    color = color_del_sello(sello)
+    apagado = tuple(max(0, c - 70) for c in color)
+
+    banner = Image.new("RGB", (ANCHO, ALTO), FONDO)
+
+    # Los resplandores: manchas difuminadas y muy suaves, casi al borde. El
+    # banner tiene que seguir siendo casi negro: si se pasan, el buscador y
+    # el texto de encima dejan de leerse
+    manchas = Image.new("RGB", (ANCHO, ALTO), FONDO)
+    d = ImageDraw.Draw(manchas)
+    for x, y, r, c, fuerza in ((80, 200, 105, color, 0.15), (420, 215, 120, apagado, 0.10),
+                               (735, -40, 95, color, 0.09), (995, 130, 80, apagado, 0.11)):
+        tono = tuple(round(FONDO[i] + (c[i] - FONDO[i]) * fuerza) for i in range(3))
+        d.ellipse([x - r, y - r, x + r, y + r], fill=tono)
+    banner = manchas.filter(ImageFilter.GaussianBlur(55))
+
+    # El sello a la derecha, apagado y con su propio halo detrás
+    lado = ALTO_SELLO
+    figura = sello.resize((lado, lado), Image.LANCZOS)
+    x = ANCHO - MARGEN - lado
+    y = (ALTO - lado) // 2
+
+    halo = Image.new("RGBA", (ANCHO, ALTO), (0, 0, 0, 0))
+    halo.paste(figura, (x, y), figura)
+    halo = halo.filter(ImageFilter.GaussianBlur(14))
+    halo.putalpha(halo.getchannel("A").point(lambda v: round(v * 0.5)))
+    banner = Image.alpha_composite(banner.convert("RGBA"), halo)
+
+    encima = Image.new("RGBA", (ANCHO, ALTO), (0, 0, 0, 0))
+    encima.paste(figura, (x, y), figura)
+    encima.putalpha(encima.getchannel("A").point(lambda v: round(v * OPACIDAD)))
+    banner = Image.alpha_composite(banner, encima)
+
+    banner.convert("RGB").save(destino)
+    return destino
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(__doc__)
+        sys.exit(1)
+    print("hecho:", dibujar(sys.argv[1], sys.argv[2]))

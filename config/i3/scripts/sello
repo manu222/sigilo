@@ -17,6 +17,10 @@
 # Cambiarlo toca los ficheros que miran los demás, no cada configuración:
 # así no hay que tocar fastfetch ni hyprlock ni el guion de bloqueo.
 # El terminal lo enseña al abrir uno nuevo; el bloqueo, la próxima vez.
+#
+# También va a los menús: el banner del lanzador (❖+D) se vuelve a dibujar
+# con el sello nuevo, y el símbolo de la esquina de los demás menús cambia
+# de forma y de color. Eso sí se ve al momento.
 set -uo pipefail
 
 SELLOS="$HOME/.config/sigilo/sellos"
@@ -25,6 +29,32 @@ FETCH="$HOME/.config/fastfetch/sigilo.png"
 FETCH_ANSI="$HOME/.config/fastfetch/sigilo.ansi"
 BLOQUEO="$HOME/.config/i3/sello-bloqueo.png"
 SALUDADOR="/usr/share/backgrounds/sigilo-sello.png"
+BANNER="$HOME/.config/rofi/banner.png"
+SELLO_RASI="$HOME/.config/rofi/sello.rasi"
+DIBUJAR_BANNER="$HOME/dotfiles/extra/dibujar-banner"
+
+# Cada sello, con el símbolo y el color que le tocan en los menús. Los
+# símbolos son de Nerd Font; el color, el mismo con el que está dibujado.
+# Un sello que no esté aquí (uno tuyo) se queda con el rombo de siempre.
+simbolo_de() {
+    case "$1" in
+        candado)  printf '\uf023 #e3c08a' ;;
+        llave)    printf '\uf084 #e3c08a' ;;
+        chip)     printf '\uf2db #8fe3dc' ;;
+        red)      printf '\uf0e8 #d7bff0' ;;
+        radar)    printf '\uf140 #3ee8a8' ;;
+        escudo)   printf '\uf132 #3ee8a8' ;;
+        senal)    printf '\uf012 #f0999e' ;;
+        terminal) printf '\uf120 #e7edea' ;;
+        estrella) printf '✦ #e3c08a' ;;
+        rombo)    printf '◆ #d7bff0' ;;
+        triangulo) printf '▲ #8fe3dc' ;;
+        octogono) printf '⬢ #e7edea' ;;
+        anillo)   printf '◎ #3ee8a8' ;;
+        lente)    printf '◉ #f0999e' ;;
+        *)        printf '❖ #3ee8a8' ;;
+    esac
+}
 
 aviso() { notify-send -a Sigilo -i "${2:-preferences-desktop-theme}" "Sello" "$1"; }
 
@@ -55,6 +85,16 @@ poner() {
         chafa --format symbols --symbols vhalf --size 35x19 \
               --margin-bottom 0 --margin-right 0 "$png" > "$FETCH_ANSI" 2>/dev/null
     fi
+
+    # Los menús: el símbolo de la esquina y el banner del lanzador
+    read -r simbolo color <<< "$(printf '%b' "$(simbolo_de "$n")")"
+    mkdir -p "$(dirname "$SELLO_RASI")"
+    {
+        echo "/* Lo escribe ~/.config/i3/scripts/sello al cambiar de sello."
+        echo "   Se lee al final de sigilo-lista.rasi y sigilo-galeria.rasi. */"
+        echo "textbox-sello { content: \"$simbolo\"; text-color: $color; }"
+    } > "$SELLO_RASI"
+    [ -x "$DIBUJAR_BANNER" ] && "$DIBUJAR_BANNER" "$png" "$BANNER" >/dev/null 2>&1
 
     printf '%s\n' "$n" > "$ACTUAL"
 }

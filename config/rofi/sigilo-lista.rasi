@@ -53,6 +53,9 @@ inputbar {
     children:         [ "textbox-sello", "prompt", "entry" ];
 }
 textbox-sello { content: "❖"; text-color: @accent-hi; vertical-align: 0.5; }
+/* …y lo de verdad lo pone el sello que tengas puesto: el fichero de
+   abajo lo reescribe i3/scripts/sello cada vez que se cambia. Va al
+   final del todo porque en rofi manda lo último que se lee. */
 prompt        { text-color: @fg;      vertical-align: 0.5; }
 entry {
     text-color:        @fg;
@@ -94,3 +97,5 @@ message {
     padding:          0.6em 1.3em;
 }
 textbox { text-color: @fg-muted; }
+
+@import "~/.config/rofi/sello.rasi"
