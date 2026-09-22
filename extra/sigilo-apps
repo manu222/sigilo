@@ -164,14 +164,31 @@ trap restaurar EXIT
 systemd-inhibit --what=idle:sleep:shutdown:handle-lid-switch:handle-suspend-key \
     --who="sigilo-apps" --why="Instalando aplicaciones" --mode=block \
     bash -c '
-        [ -n "$1" ] && sudo pacman -S --needed --noconfirm $1
         fallidos=""
+        # Todos juntos es mucho más rápido, pero pacman es «todo o nada»:
+        # si un paquete choca con algo, no instala ninguno. En ese caso se
+        # repite de uno en uno para que el resto entre igual.
+        if [ -n "$1" ] && ! sudo pacman -S --needed --noconfirm $1; then
+            echo "La instalación conjunta falló: se prueba de uno en uno"
+            for o in $1; do
+                sudo pacman -S --needed --noconfirm "$o" || fallidos="$fallidos $o"
+            done
+        fi
         for a in $2; do
+            # i3lock-color sustituye al i3lock normal, que muchas distros
+            # traen con i3. Sin preguntas, yay no puede quitarlo y la
+            # instalación falla por el conflicto: se quita antes a mano.
+            if [ "$a" = i3lock-color ] && pacman -Qq i3lock >/dev/null 2>&1; then
+                echo "Quitando i3lock para poner i3lock-color en su lugar"
+                sudo pacman -Rdd --noconfirm i3lock
+            fi
             $4 -S --needed --noconfirm $5 "$a" \
                 || fallidos="$fallidos $a"
         done
+        # La salida de pipx va al registro: si algo falla, ahí se ve el porqué
         for x in $3; do
-            pipx install "$x" >/dev/null 2>&1 || pipx upgrade "$x" >/dev/null 2>&1 || fallidos="$fallidos $x"
+            echo "── pipx: $x"
+            pipx install "$x" || pipx upgrade "$x" || fallidos="$fallidos $x"
         done
         echo "$fallidos" > "${XDG_RUNTIME_DIR:-/tmp}/sigilo-apps.fallidos"
     ' _ "${oficiales[*]}" "${aur[*]}" "${pipx_[*]}" "$AUR" "${AUR_SIN_PREGUNTAS[*]}" 2>&1 | tee -a "$LOG"

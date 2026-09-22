@@ -352,6 +352,11 @@ exec --no-startup-id picom -b --config ~/.config/picom.conf
 # Notificaciones: sin esto no ves el aviso de volumen ni el de brillo
 exec --no-startup-id dunst
 
+# Pantallas: si guardaste una distribución con arandr en
+# ~/.screenlayout/pantallas.sh, se aplica aquí, antes de lanzar la barra.
+# Cada equipo tiene la suya y no se sube al repo.
+exec_always --no-startup-id sh -c '[ -x ~/.screenlayout/pantallas.sh ] && ~/.screenlayout/pantallas.sh'
+
 # Barra de estado
 exec_always --no-startup-id ~/.config/polybar/launch.sh
 

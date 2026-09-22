@@ -64,7 +64,7 @@ iso/        la lista de apps por grupos y la detección de hardware, que
 En un EndeavourOS recién instalado:
 
 ```bash
-git clone https://github.com/manu222/dotfiles.git ~/dotfiles
+git clone https://github.com/manu222/sigilo.git ~/dotfiles
 cd ~/dotfiles
 ./instalar.sh              # copia la configuración (guarda antes lo que hubiera)
 ./extra/sigilo-apps        # elige apps con casillas e instala drivers y todo

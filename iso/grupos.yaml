@@ -27,6 +27,7 @@
     # Base gráfica, sonido y red. EndeavourOS ya los trae; en Arch puro no.
     - xorg-server
     - xorg-xrandr
+    - arandr
     - xorg-xset
     - xdg-user-dirs
     - pipewire

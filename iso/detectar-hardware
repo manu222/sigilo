@@ -41,6 +41,16 @@ while IFS= read -r g; do
             GPU_IA=rocm ;;
         *NVIDIA*)
             chip=$(grep -oE '\b(GB|AD|GA|TU|GV|GP|GM|GK|GF)[0-9]+' <<<"$g" | head -1)
+            # Si el sistema ya trae un driver de NVIDIA (el instalador de
+            # EndeavourOS pone nvidia-open, por ejemplo), no se toca: pedir
+            # otra variante choca con la que hay y pacman aborta todo.
+            ya=$(pacman -Qq nvidia nvidia-lts nvidia-dkms nvidia-open nvidia-open-lts \
+                 nvidia-open-dkms nvidia-580xx-dkms 2>/dev/null | head -1)
+            if [ -n "$ya" ]; then
+                case "$chip" in GB*|AD*|GA*|TU*) GPU_IA=cuda ;; esac
+                nota "Gráfica NVIDIA ($chip): ya tiene el driver $ya, se deja como está"
+                continue
+            fi
             case "$chip" in
                 GB*|AD*|GA*|TU*)
                     NVIDIA_RAMA=open
