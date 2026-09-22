@@ -118,6 +118,12 @@ _hay bat && { export BAT_THEME="Sigilo"; alias cat='bat --paging=never --style=p
 
 # ── man con color ────────────────────────────────────────────
 export LESS='-R --mouse'
+# Los iconos de Nerd Font viven en la zona de uso privado de Unicode, y less
+# pinta como «<U+E5FF>» todo lo que no da por imprimible. Por eso los árboles
+# de «lt» (que pasan por less) salían con cuadraditos mientras que «ls», que
+# no usa paginador, se veía bien. Con esto se le dice que esas tres zonas son
+# texto normal y se dibujan.
+export LESSUTFCHARDEF='E000-F8FF:p,F0000-FFFFD:p,100000-10FFFD:p'
 export MANROFFOPT='-P -c'
 export LESS_TERMCAP_md=$'\e[1;38;2;52;211;153m'
 export LESS_TERMCAP_us=$'\e[3;38;2;200;170;229m'
