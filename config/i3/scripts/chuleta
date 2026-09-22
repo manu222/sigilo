@@ -506,7 +506,6 @@ def buscar():
          # comilla de la línea, así que dos cadenas en la misma línea se
          # juntan en una sola (y salía el texto del tema en el menú)
          "-theme-str", 'window { width: 56em; } listview { lines: 12; }\n'
-                       'textbox-sello { content: "❖"; text-color: #c8aae5; }\n'
                        'entry { placeholder: "¿qué quieres hacer? wifi, captura, escritorio…"; }',
          "-mesg", "<span foreground='#70837c'>Enter lo hace · los de la terminal se copian</span>"],
         input="\n".join(filas), capture_output=True, text=True)

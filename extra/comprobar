@@ -12,13 +12,39 @@ ojo()  { printf '  \e[33m!\e[0m %s\n' "$*"; }
 paso() { printf '\n\e[1;36m── %s ──\e[0m\n' "$*"; }
 FALLOS=0
 
+# Sigilo tiene dos sesiones: i3 sobre X11 (la de siempre, va en cualquier
+# equipo) y Hyprland sobre Wayland (solo donde la gráfica lo aguanta). Cada
+# una usa sus propios programas y sus propios procesos, así que lo que se
+# revisa aquí depende de dónde estés: si no, la mitad del informe serían
+# fallos de mentira. Lo de la otra sesión se mira igual, pero sin alarmarse.
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then SESION=hyprland; else SESION=i3; fi
+hay_hyprland() { command -v Hyprland >/dev/null || command -v hyprctl >/dev/null; }
+printf '\n\e[1;36m── Sesión ──\e[0m\n'
+ok "estás en $SESION"
+
 paso "Programas"
-for p in i3 polybar rofi dunst picom skippy-xd greenclip kitty starship fastfetch eza bat fzf zoxide fd \
-         brightnessctl pactl playerctl xclip xdotool notify-send dunstctl i3lock scrot magick feh \
-         autotiling nmcli ollama timeshift btop jq nmap dig delta duf expac paccache gsimplecal \
-         jgmenu imv mpv ffmpeg xwinwrap pipx dialog; do
+# Los que hacen falta siempre, en las dos sesiones
+for p in rofi dunst kitty starship fastfetch eza bat fzf zoxide fd cava \
+         brightnessctl pactl playerctl notify-send dunstctl magick \
+         nmcli ollama timeshift btop jq nmap dig delta duf expac paccache \
+         imv mpv ffmpeg pipx dialog; do
     command -v "$p" >/dev/null && ok "$p" || mal "$p no está instalado"
 done
+# Los de i3 y X11. Van aquí siempre porque i3 es la sesión base: tiene que
+# poder arrancarse en cualquier equipo aunque ahora estés en Hyprland.
+for p in i3 polybar picom skippy-xd greenclip xclip xdotool i3lock scrot feh \
+         xwinwrap autotiling jgmenu gsimplecal; do
+    command -v "$p" >/dev/null && ok "$p" || mal "$p no está instalado (sesión i3)"
+done
+# Los de Hyprland. Solo se exigen donde esa sesión está puesta.
+if hay_hyprland; then
+    for p in Hyprland hyprctl waybar hyprlock hypridle mpvpaper grim slurp \
+             wl-copy cliphist wtype nwg-drawer chafa; do
+        command -v "$p" >/dev/null && ok "$p" || mal "$p no está instalado (sesión Hyprland)"
+    done
+else
+    ojo "sin sesión Hyprland en este equipo (se salta su parte)"
+fi
 python3 -c 'import i3ipc' 2>/dev/null && ok "python i3ipc" || mal "falta python-i3ipc"
 for pl in calc emoji; do ls /usr/lib/rofi 2>/dev/null | grep -q "$pl" && ok "rofi-$pl" || mal "falta rofi-$pl"; done
 
@@ -37,7 +63,8 @@ fc-list | grep -qi "Inter" && ok "fuente Inter" || ojo "falta inter-font (apps G
 
 paso "Configuraciones"
 i3 -C -c $C/i3/config >/tmp/i3c.txt 2>&1 && ok "i3: config válida" || { mal "i3: errores en el config"; sed 's/^/      /' /tmp/i3c.txt | head -20; }
-for f in $C/i3/scripts/* $C/rofi/scripts/* $C/polybar/scripts/* $C/polybar/launch.sh; do
+for f in $C/i3/scripts/* $C/rofi/scripts/* $C/polybar/scripts/* $C/polybar/launch.sh \
+         $C/waybar/scripts/* $C/hypr/scripts/* $C/sigilo/menu-apps; do
     [ -f "$f" ] || continue
     case "$(head -1 "$f")" in
         *python*) python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f" 2>/dev/null && ok "${f#$C/}" || mal "${f#$C/}: error de sintaxis" ;;
@@ -53,9 +80,17 @@ starship print-config >/dev/null 2>&1 && ok "starship" || mal "starship: config 
 fastfetch -c $C/fastfetch/config.jsonc --pipe >/dev/null 2>/tmp/ff.txt && ! grep -qi error /tmp/ff.txt && ok "fastfetch" || { mal "fastfetch"; head -3 /tmp/ff.txt | sed 's/^/      /'; }
 
 paso "Procesos en marcha"
-for p in polybar dunst picom greenclip autotiling xss-lock; do pgrep -x "$p" >/dev/null && ok "$p" || mal "$p no está corriendo"; done
-pgrep -f "skippy-xd --start-daemon" >/dev/null && ok "skippy-xd (Alt+Tab)" || mal "skippy-xd no está corriendo"
-for s in botones-ventana escritorios app-enfocada; do pgrep -f "scripts/$s" >/dev/null && ok "$s" || mal "$s no está corriendo"; done
+if [ "$SESION" = hyprland ]; then
+    for p in waybar dunst hypridle mpvpaper; do pgrep -x "$p" >/dev/null && ok "$p" || mal "$p no está corriendo"; done
+    pgrep -f "cliphist store" >/dev/null && ok "cliphist (portapapeles)" || mal "cliphist no está guardando el portapapeles"
+    for s in "waybar/scripts/escritorios" "hypr/scripts/alternador" "scripts/musica-escritorio"; do
+        pgrep -f "$s" >/dev/null && ok "${s##*/}" || mal "${s##*/} no está corriendo"
+    done
+else
+    for p in polybar dunst picom greenclip autotiling xss-lock; do pgrep -x "$p" >/dev/null && ok "$p" || mal "$p no está corriendo"; done
+    pgrep -f "skippy-xd --start-daemon" >/dev/null && ok "skippy-xd (Alt+Tab)" || mal "skippy-xd no está corriendo"
+    for s in botones-ventana escritorios app-enfocada; do pgrep -f "scripts/$s" >/dev/null && ok "$s" || mal "$s no está corriendo"; done
+fi
 systemctl is-active -q ollama && ok "ollama" || ojo "ollama parado"
 systemctl is-active -q cronie && ok "cronie (copias)" || mal "cronie parado"
 systemctl is-active -q grub-btrfsd && ok "grub-btrfsd" || ojo "grub-btrfsd parado"
@@ -79,7 +114,12 @@ print("  \033[32m✓\033[0m todas instaladas" if not faltan else "  \033[31m✗\
 PY
 
 paso "Duplicados y restos"
-for p in greenclip dunst picom polybar; do n=$(pgrep -xc "$p"); [ "$n" -le 1 ] && ok "$p: $n copia" || mal "$p: $n copias"; done
+if [ "$SESION" = hyprland ]; then
+    duplicables="dunst waybar mpvpaper"
+else
+    duplicables="dunst greenclip picom polybar"
+fi
+for p in $duplicables; do n=$(pgrep -xc "$p"); [ "$n" -le 1 ] && ok "$p: $n copia" || mal "$p: $n copias"; done
 for s in botones-ventana escritorios app-enfocada fondo-vigia "ventanas vigilar" musica-escritorio alternador; do n=$(pgrep -fc "scripts/$s"); [ "$n" -le 1 ] && ok "$s: $n" || mal "$s: $n copias"; done
 h=$(pacman -Qdtq 2>/dev/null | wc -l); [ "$h" -eq 0 ] && ok "sin paquetes huérfanos" || ojo "$h huérfanos (limpiar los quita): $(pacman -Qdtq | tr '\n' ' ')"
 f=$(systemctl --failed --no-legend | wc -l); [ "$f" -eq 0 ] && ok "ningún servicio caído" || { mal "$f servicios caídos"; systemctl --failed --no-legend | sed 's/^/      /'; }
@@ -99,13 +139,21 @@ else
     mal "sin fondo dinámico: lanza ~/dotfiles/sistema/instalar-acceso.sh"
 fi
 
-paso "Polybar: últimos errores"
-# Solo lo del último arranque de la barra, no el historial entero
-awk '/lanzamiento/{b=""} {b=b $0 "\n"} END{printf "%s", b}' ~/.cache/polybar.log 2>/dev/null \
-    | grep -iE "error|warn" | grep -v "Root pixmap" | tail -8 | sed 's/^/  /' | grep . || ok "sin errores"
-# Caídas de la barra de hoy (las levanta launch.sh, pero conviene saberlo)
-c=$(awk -v hoy="$(date +%F)" 'index($0, hoy) {h=1} h' ~/.cache/polybar.log 2>/dev/null | grep -c "se cayó\|Assertion")
-[ "${c:-0}" -eq 0 ] && ok "la barra no se ha caído" || ojo "la barra se ha caído $c veces hoy (ver ~/.cache/polybar.log); launch.sh la vuelve a levantar"
+paso "La barra: últimos errores"
+if [ "$SESION" = hyprland ]; then
+    # waybar escribe en el diario del sistema, no en un fichero
+    journalctl --user -b --no-pager 2>/dev/null | grep -i waybar | grep -iE "error|warn" \
+        | tail -8 | sed 's/^/  /' | grep . || ok "sin errores"
+else
+    # Solo lo del último arranque de la barra, no el historial entero
+    awk '/lanzamiento/{b=""} {b=b $0 "\n"} END{printf "%s", b}' ~/.cache/polybar.log 2>/dev/null \
+        | grep -iE "error|warn" | grep -v "Root pixmap" | tail -8 | sed 's/^/  /' | grep . || ok "sin errores"
+fi
+if [ "$SESION" != hyprland ]; then
+    # Caídas de la barra de hoy (las levanta launch.sh, pero conviene saberlo)
+    c=$(awk -v hoy="$(date +%F)" 'index($0, hoy) {h=1} h' ~/.cache/polybar.log 2>/dev/null | grep -c "se cayó\|Assertion")
+    [ "${c:-0}" -eq 0 ] && ok "la barra no se ha caído" || ojo "la barra se ha caído $c veces hoy (ver ~/.cache/polybar.log); launch.sh la vuelve a levantar"
+fi
 
 paso "Sonido"
 s=$(pactl get-default-sink 2>/dev/null)

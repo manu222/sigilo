@@ -21,8 +21,7 @@ i=$( { fila accessories-calculator   "Calculadora"                "❖ + X"
        fila preferences-desktop-theme "Sello"                     "❖ + Shift + G"
        fila audio-speakers           "Salida y micro de sonido"   "❖ + Shift + O"
      } | rofi -dmenu -i -markup-rows -show-icons -format i -p "utilidades" -theme "$TEMA" \
-         -theme-str 'window { width: 34em; } listview { lines: 8; } element-icon { size: 1.6em; }
-                     textbox-sello { content: "❖"; text-color: #c8aae5; }') || exit 0
+         -theme-str 'window { width: 34em; } listview { lines: 8; } element-icon { size: 1.6em; }') || exit 0
 case $i in
     0) exec $D/calculadora ;;
     1) exec $D/emojis ;;

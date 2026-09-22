@@ -65,8 +65,16 @@ sysctl vm.swappiness vm.vfs_cache_pressure vm.dirty_ratio vm.dirty_background_ra
 cat /sys/kernel/mm/transparent_hugepage/enabled
 
 s "escritorio"
-picom --version 2>/dev/null
-ps -o pid,pcpu,rss,etime,args -C picom,polybar,dunst,skippy-xd,greenclip,mpv,xwinwrap,autotiling | cut -c1-150
+# Cada sesión gasta en sitios distintos: en i3 el compositor y la barra son
+# procesos aparte, y en Hyprland el compositor ES la sesión
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    Hyprland --version 2>/dev/null | head -3
+    hyprctl monitors 2>/dev/null | grep -E "^[A-Z]|active|description" | head -20
+    ps -o pid,pcpu,rss,etime,args -C Hyprland,waybar,dunst,mpvpaper,mpv,hypridle,cliphist | cut -c1-150
+else
+    picom --version 2>/dev/null
+    ps -o pid,pcpu,rss,etime,args -C picom,polybar,dunst,skippy-xd,greenclip,mpv,xwinwrap,autotiling | cut -c1-150
+fi
 pgrep -af 'scripts/' | cut -c1-150
 cat ~/.config/sigilo/fondo-actual
 s "fin"
