@@ -1,29 +1,65 @@
 #!/usr/bin/env bash
-# Calendario del mes al hacer clic derecho en la hora.
+# Calendario del mes, al hacer clic derecho en la hora de la barra.
 #
-# Tres vias, de mejor a peor, para que siempre salga algo:
-#   1. gsimplecal, una ventanita de calendario de verdad
-#   2. una notificacion con el mes, si dunst admite texto monoespaciado
-#   3. una notificacion en texto plano
-LOG="${XDG_CACHE_HOME:-$HOME/.cache}/calendario.log"
-echo "=== $(date '+%F %T') ===" >> "$LOG"
+# Es un menú de rofi como todos los demás, así que se ve igual que el resto
+# del escritorio. El mes va arriba, con el día de hoy en menta, y debajo
+# tres filas para moverse:
+#
+#   ◀ / ▶   mes anterior y siguiente
+#   Hoy     vuelve al mes de hoy y copia la fecha al portapapeles
+#
+# Antes esto abría gsimplecal, que es un programa aparte y se pintaba a su
+# manera. Sigue instalado por si lo quieres suelto; aquí ya no se usa. Si
+# faltara rofi, se cae a una notificación con el mes.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
 
-if command -v gsimplecal >/dev/null; then
-    echo "via: gsimplecal" >> "$LOG"
-    exec gsimplecal
+TEMA=~/.config/rofi/sigilo-lista.rasi
+IZQUIERDA=$(printf '')     # chevron-left
+DERECHA=$(printf '')       # chevron-right
+CALENDARIO=$(printf '')
+
+mes_de() {  # $1 cuántos meses adelante (con signo) -> AAAA-MM
+    date -d "$(date +%Y-%m-01) $1 month" +'%Y-%m'
+}
+
+rejilla() { # $1 AAAA-MM -> la rejilla del mes, con hoy marcado
+    local ym="$1" texto
+    # Se quita la primera línea (el nombre del mes) porque ya va de título
+    texto=$(cal "$((10#${ym#*-}))" "${ym%-*}" 2>/dev/null | tail -n +2 | esc)
+    if [ "$ym" = "$(date +%Y-%m)" ]; then
+        # El día de hoy en menta. Se empieza en la segunda línea para no
+        # tocar la fila con los nombres de los días.
+        texto=$(printf '%s\n' "$texto" |
+                sed "2,\$ s/\b$(date +%-d)\b/<span foreground='$MINT' weight='bold'>&<\/span>/")
+    fi
+    printf '<span font_family="%s">%s</span>' "$NF" "$texto"
+}
+
+if ! command -v rofi >/dev/null; then
+    notify-send -a Calendario -i office-calendar "$(date '+%B de %Y')" "$(cal)"
+    exit 0
 fi
 
-HOY=$(date '+%A, %-d de %B de %Y')
-HOY="${HOY^}"
-MES=$(cal 2>/dev/null | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-
-if [ -z "$MES" ]; then
-    echo "error: 'cal' no devolvio nada (falta el paquete util-linux?)" >> "$LOG"
-    notify-send -u critical "Calendario" "No se pudo generar el mes"
-    exit 1
-fi
-
-echo "via: notificacion" >> "$LOG"
-notify-send -u low -t 10000 "  $HOY" "<tt>$MES</tt>" 2>>"$LOG" \
-  || notify-send -u low -t 10000 "$HOY" "$MES" 2>>"$LOG" \
-  || { echo "error: notify-send fallo" >> "$LOG"; exit 1; }
+desfase=0
+while true; do
+    ym=$(mes_de "$desfase")
+    titulo=$(date -d "$ym-01" '+%B de %Y')
+    i=$( { printf '%s  Mes anterior\n'         "$(icono "$IZQUIERDA" "$DIM" 11)"
+           printf '%s  Mes siguiente\n'        "$(icono "$DERECHA" "$DIM" 11)"
+           printf '%s  Hoy, y copiar la fecha\n' "$(icono "$CALENDARIO" "$MINT" 11)"
+         } | rofi -dmenu -i -markup-rows -format i -no-custom -theme "$TEMA" \
+               -p "${titulo^}" -mesg "$(rejilla "$ym")" \
+               -theme-str 'window { width: 27em; }
+                           listview { lines: 3; }
+                           message { padding: 1.2em 1.6em; }' ) || exit 0
+    case "$i" in
+        0) desfase=$((desfase - 1)) ;;
+        1) desfase=$((desfase + 1)) ;;
+        2) printf '%s' "$(date '+%Y-%m-%d')" | copiar
+           notify-send -a Calendario -i office-calendar -t 2000 \
+               "Fecha copiada" "$(date '+%A, %-d de %B de %Y')"
+           exit 0 ;;
+        *) exit 0 ;;
+    esac
+done

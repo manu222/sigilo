@@ -66,7 +66,16 @@ nombres() {
     done | sort
 }
 
-cual() { [ -f "$ACTUAL" ] && cat "$ACTUAL" || echo clasico; }
+cual() {
+    # El que esté apuntado, siempre que siga existiendo: si lo has borrado
+    # o le has cambiado el nombre, se cae al primero que haya en la carpeta
+    local n=""
+    [ -f "$ACTUAL" ] && n=$(cat "$ACTUAL")
+    if [ -z "$n" ] || [ ! -f "$SELLOS/$n.png" ]; then
+        n=$(nombres | head -1)
+    fi
+    printf '%s\n' "${n:-clasico}"
+}
 
 poner() {
     local n="$1" png="$SELLOS/$1.png"
