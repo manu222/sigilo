@@ -355,7 +355,7 @@ exec --no-startup-id dunst
 # Pantallas: si guardaste una distribución con arandr en
 # ~/.screenlayout/pantallas.sh, se aplica aquí, antes de lanzar la barra.
 # Cada equipo tiene la suya y no se sube al repo.
-exec_always --no-startup-id sh -c '[ -x ~/.screenlayout/pantallas.sh ] && ~/.screenlayout/pantallas.sh'
+exec_always --no-startup-id sh -c '[ -f ~/.screenlayout/pantallas.sh ] && sh ~/.screenlayout/pantallas.sh'
 
 # Barra de estado
 exec_always --no-startup-id ~/.config/polybar/launch.sh

@@ -49,6 +49,13 @@ BL="$(ls -1 /sys/class/backlight 2>/dev/null | head -1)"
 
 export LC_TIME="${LC_TIME:-es_ES.UTF-8}"
 
+# Con varias pantallas, la barra va a la marcada como principal
+# (--primary en ~/.screenlayout/pantallas.sh). Con una sola da igual.
+if [ -z "${MONITOR:-}" ]; then
+    MONITOR=$(xrandr --query 2>/dev/null | awk '/ connected primary/ {print $1; exit}')
+    [ -n "$MONITOR" ] && export MONITOR
+fi
+
 # ── arrancar y vigilar ─────────────────────────────────────────────────────
 # El módulo de volumen de polybar se cae entero (y con él toda la barra)
 # si el servidor de sonido se reinicia o cambia de salida por debajo: sale

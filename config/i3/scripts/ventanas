@@ -22,6 +22,9 @@ arregla de dos maneras:
   ventanas maximizar ID [si|no|alternar]
                        lo mismo, para la ventana con ese id de X11
 
+Con varias pantallas, la barra solo está en la principal: en las demás el
+hueco de arriba se quita y las ventanas llegan hasta el borde.
+
 La pantalla completa de verdad (❖+F, F11 en un vídeo) lo tapa todo, barra
 incluida: para eso es. Como la barra no la gestiona i3, el propio
 «ventanas vigilar» la esconde mientras haya algo a pantalla completa en el
@@ -38,13 +41,54 @@ ESTADO = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "ventanas-maxim
 i3 = i3ipc.Connection()
 
 
+def principal():
+    """Nombre de la pantalla principal, que es donde está la barra. Si no
+    hay ninguna marcada (--primary en pantallas.sh), la primera activa."""
+    salidas = [o for o in i3.get_outputs() if o.active]
+    for o in salidas:
+        if o.primary:
+            return o.name
+    return salidas[0].name if salidas else None
+
+
+def hueco(salida):
+    """Espacio que hay que dejar arriba en esa pantalla: el de la barra en la
+    principal y nada en las demás, para que las apps lleguen hasta arriba."""
+    return BARRA if salida == principal() else 0
+
+
 def zona_util(con):
     """Rectángulo (x, y, ancho, alto) de la pantalla de la ventana, sin la barra."""
     nodo = con
     while nodo is not None and nodo.type != "output":
         nodo = nodo.parent
-    r = nodo.rect if nodo is not None else next(o for o in i3.get_outputs() if o.active).rect
-    return r.x, r.y + BARRA, r.width, r.height - BARRA
+    if nodo is None:
+        nodo = next(o for o in i3.get_outputs() if o.active)
+    r, arriba = nodo.rect, hueco(nodo.name)
+    return r.x, r.y + arriba, r.width, r.height - arriba
+
+
+def huecos_del_escritorio(*_):
+    """El «gaps top» del config vale para todos los escritorios. Aquí se
+    ajusta el del escritorio que tiene el foco según la pantalla en la que
+    está: con barra deja su hueco, sin barra lo quita."""
+    for w in i3.get_workspaces():
+        if w.focused:
+            i3.command(f"gaps top current set {hueco(w.output)}")
+            return
+
+
+def huecos_de_todas(*_):
+    """Al arrancar o al cambiar las pantallas: pasa por el escritorio
+    visible de cada pantalla para ajustarle el hueco y vuelve al de antes."""
+    escritorios = i3.get_workspaces()
+    antes = next((w.name for w in escritorios if w.focused), None)
+    for w in escritorios:
+        if w.visible:
+            i3.command(f'workspace --no-auto-back-and-forth "{w.name}"; '
+                       f"gaps top current set {hueco(w.output)}")
+    if antes:
+        i3.command(f'workspace --no-auto-back-and-forth "{antes}"')
 
 
 def flotante(con):
@@ -141,6 +185,13 @@ def vigilar():
                i3ipc.Event.WORKSPACE_FOCUS):
         i3.on(ev, lambda *_: barra_segun_pantalla_completa())
     barra_segun_pantalla_completa()
+
+    # Con varias pantallas, solo la principal lleva barra
+    for ev in (i3ipc.Event.WORKSPACE_FOCUS, i3ipc.Event.WORKSPACE_INIT,
+               i3ipc.Event.WORKSPACE_MOVE):
+        i3.on(ev, huecos_del_escritorio)
+    i3.on(i3ipc.Event.OUTPUT, huecos_de_todas)
+    huecos_de_todas()
     i3.main()
 
 
@@ -149,9 +200,12 @@ barra_oculta = None     # None: todavía no se sabe, así la primera vez siempre
 
 def barra_segun_pantalla_completa():
     global barra_oculta
+    # Lo que cuenta es el escritorio visible en la pantalla de la barra: un
+    # vídeo a pantalla completa en otra pantalla no tiene por qué esconderla.
     arbol = i3.get_tree()
-    foco = arbol.find_focused()
-    esc = foco.workspace() if foco else None
+    visible = next((w.name for w in i3.get_workspaces()
+                    if w.visible and w.output == principal()), None)
+    esc = next((w for w in arbol.workspaces() if w.name == visible), None)
     completa = any(c.fullscreen_mode == 2 for c in arbol.descendants()) or (
         esc is not None and any(c.fullscreen_mode == 1 for c in esc.descendants()))
     if completa != barra_oculta:
