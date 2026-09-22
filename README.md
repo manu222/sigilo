@@ -75,6 +75,12 @@ el visor de imágenes como programa por defecto, genera el tema de iconos y,
 si tienes VS Code, le instala el tema Sigilo (también se puede lanzar suelto:
 `vscode/instalar-tema`).
 
+Los fondos de pantalla no están en este repo: pesan mucho y buena parte
+no son míos. Viven en un repo privado aparte que `instalar.sh` descarga en
+`~/Imágenes/fondos` si el equipo tiene acceso; si no, se lo salta.
+`extra/fondos subir` sube los que añadas. Con tus propios fondos, apunta
+a tu repo con `SIGILO_FONDOS=git@github.com:tu-usuario/tu-repo.git`.
+
 Falta una línea en el `~/.bashrc`:
 
 ```bash
