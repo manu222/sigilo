@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Fondos de pantalla en su propio repositorio, privado y aparte de Sigilo.
+#
+# Los fondos pesan cientos de megas y muchos son obra de otros, así que no
+# van en el repo público: viven en uno privado (por defecto
+# manu222/sigilo-fondos) que se descarga en ~/Imágenes/fondos. Este script
+# lo baja, lo actualiza y sube los que añadas.
+#
+#   fondos bajar     descarga los fondos o trae los nuevos (lo usa instalar.sh)
+#   fondos subir     sube los que hayas añadido, cambiado o borrado
+#   fondos estado    qué hay pendiente de subir
+#
+# Para usar otro repo:  SIGILO_FONDOS=git@github.com:usuario/repo.git fondos bajar
+# Hace falta tener la clave SSH del equipo en GitHub. Si no hay acceso, avisa
+# y sale sin error, para no parar una instalación de Sigilo.
+
+set -uo pipefail
+
+REPO="${SIGILO_FONDOS:-git@github.com:manu222/sigilo-fondos.git}"
+IMAGENES="$(xdg-user-dir PICTURES 2>/dev/null)"
+[ -n "$IMAGENES" ] && [ "$IMAGENES" != "$HOME" ] || IMAGENES="$HOME/Imágenes"
+DIR="$IMAGENES/fondos"
+
+# ssh sin preguntas: si no hay clave o no hay red, falla rápido en vez de
+# quedarse esperando una contraseña
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=8}"
+
+hay_acceso() { git ls-remote "$REPO" >/dev/null 2>&1; }
+
+sin_acceso() {
+    echo "Fondos: no hay acceso a $REPO (¿clave SSH en GitHub? ¿el repo existe?). Se sigue sin ellos."
+    exit 0
+}
+
+# Convierte una carpeta de fondos que ya existe en copia del repo sin
+# borrar nada: lo que hubiera y no esté en el repo se queda como «nuevo».
+enganchar() {
+    git -C "$DIR" init -q -b main
+    git -C "$DIR" remote add origin "$REPO" 2>/dev/null || git -C "$DIR" remote set-url origin "$REPO"
+}
+
+bajar() {
+    hay_acceso || sin_acceso
+    if [ -d "$DIR/.git" ]; then
+        git -C "$DIR" pull -q --ff-only && echo "Fondos al día en $DIR"
+    elif [ -d "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
+        enganchar
+        # Solo la última versión, sin historial: ocupa lo que ocupan los fondos
+        git -C "$DIR" fetch -q --depth 1 origin main
+        git -C "$DIR" reset -q origin/main          # apunta al repo sin tocar ficheros
+        git -C "$DIR" checkout -q -- . 2>/dev/null  # y trae los que faltaban
+        git -C "$DIR" branch -q --set-upstream-to=origin/main main
+        echo "Fondos enlazados con el repo en $DIR"
+    else
+        mkdir -p "$IMAGENES"
+        git clone -q --depth 1 "$REPO" "$DIR" && echo "Fondos descargados en $DIR"
+    fi
+}
+
+subir() {
+    [ -d "$DIR" ] || { echo "No existe $DIR"; exit 1; }
+    hay_acceso || { echo "Sin acceso a $REPO: crea el repo privado y añade la clave SSH de este equipo."; exit 1; }
+    [ -d "$DIR/.git" ] || enganchar
+    git -C "$DIR" add -A
+    if git -C "$DIR" diff --cached --quiet; then
+        echo "Nada nuevo que subir."
+    else
+        git -C "$DIR" diff --cached --stat | tail -1
+        git -C "$DIR" commit -q -m "${1:-Fondos del $(date +%F)}"
+    fi
+    git -C "$DIR" push -q -u origin main && echo "Fondos subidos."
+}
+
+case "${1:-}" in
+    bajar)  bajar ;;
+    subir)  shift; subir "${1:-}" ;;
+    estado) [ -d "$DIR/.git" ] && git -C "$DIR" status --short || echo "$DIR aún no está enlazado con el repo" ;;
+    *)      sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac
