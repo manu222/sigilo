@@ -17,6 +17,18 @@ flotante("editor-de-red", { class = "^(nm-connection-editor)$" })
 flotante("calculadora",   { class = "^(galculator)$" })
 flotante("visor",         { class = "^(imv)$" },          { size = { 1500, 920 } })
 
+-- Diálogos del sistema: el de abrir y guardar ficheros (que en Wayland lo
+-- pinta el portal, no la aplicación), el que pide la contraseña de
+-- administrador y el de las llaves. En i3 esto lo resolvía una regla
+-- general por «window_role» y «window_type»; Hyprland no sabe distinguir un
+-- diálogo de una ventana normal, así que hay que nombrarlos uno a uno. Si
+-- te sale alguno más en mosaico, mira cómo se llama con «hyprctl clients»
+-- y añádelo aquí.
+flotante("dialogos-del-portal", { class = "^(xdg-desktop-portal-gtk|xdg-desktop-portal-hyprland)$" })
+flotante("contrasena",          { class = "^(polkit-gnome-authentication-agent-1|hyprpolkitagent|org\\.freedesktop\\.impl\\.portal\\.desktop\\.hyprland)$" })
+flotante("llaves",              { class = "^(gcr-prompter|org\\.gnome\\.seahorse\\.Application|seahorse)$" })
+flotante("avisos-sueltos",      { class = "^(zenity|yad|org\\.gnome\\.FileRoller|file-roller|xarchiver)$" })
+
 -- Ventanas que abren los scripts de Sigilo con un título fijo
 flotante("chuleta", { title = "^chuleta-i3$" }, { border_size = 0 })
 flotante("btop",    { title = "^btop$" },       { size = { 1180, 760 } })

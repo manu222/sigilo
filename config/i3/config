@@ -132,6 +132,9 @@ bindsym $mod+Tab            exec --no-startup-id $switcher
 
 # Volver al escritorio anterior
 bindsym $mod+grave          workspace back_and_forth
+# La misma tecla en un teclado español (la de º ª \, debajo del Esc) se
+# llama distinto, así que se ata también; si no, este atajo no existe aquí
+bindsym $mod+masculine      workspace back_and_forth
 
 # Padre / hijo (para seleccionar grupos enteros de ventanas)
 bindsym $mod+a              focus parent

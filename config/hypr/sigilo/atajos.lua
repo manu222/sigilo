@@ -86,6 +86,13 @@ tecla(ALT .. " + Tab",         toque("USR1"), "Cambiar de ventana")
 tecla(ALT .. " + SHIFT + Tab", toque("USR2"), "Ventana anterior")
 tecla(SUPER .. " + Tab", ejecutar("rofi -show window"), "Lista de ventanas")
 
+-- Dos atajos de i3 que aquí no están, y por qué:
+--   Super+A y Super+Shift+A (subir y bajar por los contenedores) no tienen
+--   equivalente: Hyprland no deja seleccionar el contenedor padre, solo
+--   ventanas. Lo que se parece es agrupar en pestañas (Super+W).
+--   Super+Shift+Tab abría la vista de todos los escritorios con skippy-xd,
+--   que es de X11. Aquí eso será el plugin hyprexpo.
+
 
 -- ── colocar ventanas ─────────────────────────────────────────────────────
 tecla(SUPER .. " + C", hl.dsp.window.center(), "Centrar la flotante")
@@ -147,7 +154,11 @@ for i = 1, 10 do
 end
 tecla(SUPER .. " + CTRL + right", function() sigilo.siguiente(1) end,  "Escritorio siguiente")
 tecla(SUPER .. " + CTRL + left",  function() sigilo.siguiente(-1) end, "Escritorio previo")
-tecla(SUPER .. " + grave",        function() sigilo.volver() end,      "Escritorio anterior")
+-- Volver al escritorio anterior. En un teclado inglés esa tecla es la de
+-- debajo del Esc («grave»); en el español esa misma tecla es la de º ª \,
+-- que se llama «masculine». Se ponen las dos para que funcione en los dos.
+tecla(SUPER .. " + grave",     function() sigilo.volver() end, "Escritorio anterior")
+tecla(SUPER .. " + masculine", function() sigilo.volver() end, nil)
 -- Cierra todas las ventanas del escritorio (en todas las pantallas) y salta
 -- al más cercano que tenga algo abierto. Lo mismo que i3/scripts/cerrar-escritorio.
 tecla(SUPER .. " + CTRL + Q",     function() sigilo.cerrar() end,      "Cerrar el escritorio entero")

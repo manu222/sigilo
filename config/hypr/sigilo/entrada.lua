@@ -27,6 +27,14 @@ hl.config({
         -- Oculta el puntero al escribir y vuelve en cuanto se mueve el ratón
         hide_on_key_press = true,
     },
+
+    misc = {
+        -- Cuando una app pide paso (pinchas un enlace en Discord y tiene que
+        -- salir el navegador), que se venga al frente y se lleve el foco. Es
+        -- lo que hace i3 con focus_on_window_activation; Hyprland viene con
+        -- esto apagado y las ventanas se quedaban parpadeando en la barra.
+        focus_on_activate = true,
+    },
 })
 
 -- Tres dedos en el touchpad cambian de escritorio (en el sobremesa no
