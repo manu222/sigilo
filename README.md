@@ -128,6 +128,25 @@ sistema/    lo que toca fuera de tu carpeta: GRUB, pantalla de acceso,
 vscode/     el tema Sigilo para VS Code y el script que lo instala
 iso/        la lista de apps por grupos y la detección de hardware, que
             también usará la ISO instalable
+paquetes/   lo que tiene instalado cada equipo, solo para consultar. Lo
+            escribe ./sincronizar, un fichero por máquina
+```
+
+Lo de `extra/` que se lanza a mano de vez en cuando, y que si no se cuenta
+aquí no lo encuentra nadie:
+
+```
+sigilo-apps       instala aplicaciones por grupos (lee iso/grupos.yaml)
+organizar-apps    reparte las apps por categorías en ~/Aplicaciones y en el
+                  menú de la barra. Se lanza solo al entrar en la sesión
+comprobar         revisa el equipo montado: programas, servicios, temas
+revisar           revisa el código del repositorio antes de un commit
+dibujar-sellos    vuelve a dibujar los quince sellos con PIL
+dibujar-banner    rehace el banner del lanzador con el sello puesto
+tintar-sello      recolorea un sello con otra paleta
+iconos-sigilo.py  genera el tema de iconos a partir de Papirus
+curar-fondos      criba una carpeta de fondos y deja los que pegan con el
+                  tema (está en config/i3/scripts/, con los demás)
 ```
 
 ## Instalación
@@ -219,11 +238,36 @@ ciberseguridad, día a día e IA local, cada app con su casilla.
 - `extra/organizar-apps` (o `ordenar-apps`) monta `~/Aplicaciones` con
   accesos por categoría, y de ahí sale el menú de la barra. Las herramientas
   de terminal (nmap, sqlmap, john…) tienen su acceso: se abren en kitty con
-  su chuleta de uso. Se rehace solo al iniciar sesión.
+  su chuleta de uso.
 
 Los programas se quedan donde los pone pacman; lo que se ordena son los
 accesos. También crea `~/Seguridad` (laboratorios, VPN, informes,
 diccionarios…) y `~/Proyectos`.
+
+### Dónde acaba cada app
+
+El reparto va por orden, y la primera regla que encaje manda:
+
+1. lo que diga el campo `carpeta` de `iso/grupos.yaml`, que es donde está
+   decidido a mano dónde va cada cosa (`gparted` → `Sistema/Discos`)
+2. si no está ahí, la categoría que declare la propia app en su `.desktop`
+   (`Development` → `Desarrollo/Herramientas`, `Audio` → `Multimedia/Música`…)
+3. y si no declara ninguna que valga, `Sistema/Otras`
+
+Así que una app instalada por libre, con un `pacman -S` a secas, cae igual
+en su sitio. Si cae en un sitio que no te convence, se arregla añadiéndola a
+`iso/grupos.yaml` con su `carpeta`, o al diccionario `MOVER` de
+`extra/organizar-apps` si es un caso suelto.
+
+El reparto se rehace al iniciar sesión, al terminar `sigilo-apps` y cada vez
+que instalas o quitas algo, de eso se encarga una unidad de systemd que
+vigila la base de datos de pacman (`sigilo-apps-nuevas.path`). Espera a que
+pacman suelte el candado, así que en una actualización de cien paquetes se
+rehace una vez y no cien. Para verlo:
+
+```bash
+systemctl --user status sigilo-apps-nuevas.path
+```
 
 ## Atajos
 
@@ -286,6 +330,16 @@ sin duplicados.
 
 Varias piezas están como están por un motivo que no se ve en el fichero.
 Las dejo anotadas porque me costaron un rato:
+
+**Los programas de root necesitan que alguien les abra la puerta.** GParted,
+Timeshift y demás se lanzan con `pkexec`: piden la contraseña y arrancan como
+root. Pero root es otro usuario y el servidor gráfico es tuyo, así que no le
+deja dibujar: pedía la contraseña, la aceptaba y luego moría con un
+`cannot open display`. El lanzador de GParted ya resuelve eso llamando a
+`xhost +SI:localuser:root`… si encuentra `xhost`. Si el paquete `xorg-xhost`
+no está, se lo salta en silencio y no verás más pista que ese error. Va en el
+grupo base, y pasa igual en X11 y en Wayland (ahí la ventana la pone
+XWayland).
 
 **Polybar no sabe encoger.** Si lo que pinta no cabe, lo monta encima de lo de
 la derecha. Por eso los escritorios tienen un presupuesto de ancho: si con
@@ -419,6 +473,12 @@ extra/revisar
 Para comprobar el sistema ya montado (programas, servicios, temas,
 notificaciones) lo que hay es `extra/comprobar`, que es otra cosa: aquel mira
 el equipo, este mira el código.
+
+Lo que elige cada equipo por su cuenta no viaja en el repositorio: el sello
+puesto, el fondo y poco más. Antes sí viajaban, y el resultado era que
+instalar en el portátil le cambiaba el sello al que tuviera el sobremesa.
+Ahora cada máquina se queda con el suyo, y una recién instalada arranca con
+el clásico.
 
 `instalar.sh` se puede relanzar tantas veces como quieras. Guarda copia de lo
 que cambia en `~/.config-respaldo-<fecha>`, conserva los cinco últimos

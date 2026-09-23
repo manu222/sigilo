@@ -104,6 +104,15 @@ fi
 # de los menús. Si nunca elegiste ninguno, se queda el de siempre.
 [ -x "$DESTINO/i3/scripts/sello" ] && "$DESTINO/i3/scripts/sello" --rehacer 2>/dev/null
 
+# Vigilante de programas nuevos: cuando instalas algo con pacman o con yay,
+# rehace ~/Aplicaciones y el menú para que la app aparezca en su categoría
+# sin tener que cerrar sesión.
+if command -v systemctl >/dev/null && [ -f "$DESTINO/systemd/user/sigilo-apps-nuevas.path" ]; then
+    systemctl --user daemon-reload 2>/dev/null
+    systemctl --user enable --now sigilo-apps-nuevas.path >/dev/null 2>&1 \
+        && echo "Las apps nuevas se colocarán solas en el menú."
+fi
+
 # El hook que revisa la sintaxis antes de cada commit. Git no guarda los
 # hooks dentro del repositorio, así que se le dice a este clon dónde están.
 git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 && \

@@ -70,12 +70,14 @@ nombres() {
 }
 
 cual() {
-    # El que esté apuntado, siempre que siga existiendo: si lo has borrado
-    # o le has cambiado el nombre, se cae al primero que haya en la carpeta
+    # El que esté apuntado, siempre que siga existiendo. Si no hay nada
+    # apuntado (equipo recién instalado) o lo has borrado o renombrado, se
+    # cae al clásico, que es el de la casa; y si tampoco está, al primero
+    # que haya en la carpeta
     local n=""
     [ -f "$ACTUAL" ] && n=$(cat "$ACTUAL")
     if [ -z "$n" ] || [ ! -f "$SELLOS/$n.png" ]; then
-        n=$(nombres | head -1)
+        if [ -f "$SELLOS/clasico.png" ]; then n=clasico; else n=$(nombres | head -1); fi
     fi
     printf '%s\n' "${n:-clasico}"
 }

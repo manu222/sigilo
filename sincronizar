@@ -39,13 +39,21 @@ PIEZAS=(
     hypr
     waybar
     nwg-drawer/drawer.css
+    # Unidades propias. Una a una y no la carpeta entera: en systemd/user
+    # hay también cosas de otros programas que no pintan en el repositorio
+    systemd/user/sigilo-apps-nuevas.path
+    systemd/user/sigilo-apps-nuevas.service
 )
 
 # Lo que nunca entra: cachés, copias de seguridad y basura de git
 EXCLUIR=(--exclude='.git' --exclude='*.bak' --exclude='*.bak-*' --exclude='*.viejo'
          --exclude='*.pre-fix' --exclude='*.plano' --exclude='*.log'
          --exclude='__pycache__' --exclude='*.sin-animaciones'
-         --exclude='fondo-actual')
+         # Lo que elige cada equipo por su cuenta: el fondo, el sello y si la
+         # tarjeta de música está encendida. Si esto viajara, el sobremesa le
+         # cambiaría el sello al portátil cada vez que instalase
+         --exclude='fondo-actual' --exclude='sello-actual'
+         --exclude='musica-escritorio-on')
 
 echo "Sincronizando configuración -> repositorio"
 for pieza in "${PIEZAS[@]}"; do

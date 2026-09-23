@@ -13,6 +13,13 @@ config/**/cache/
 # Carpetas que crean las herramientas de escritorio y no pintan nada aquí
 .vscode/
 
+# Lo que elige cada equipo por su cuenta y no debe viajar en el repositorio:
+# el sello puesto, si la tarjeta de música está encendida y el fondo actual.
+# Si estos viajaran, al instalar en el otro equipo le pisarían su elección.
+config/sigilo/sello-actual
+config/sigilo/musica-escritorio-on
+config/sigilo/fondo-actual
+
 # Marca del modo prueba de Hyprland (ver config/hypr/scripts/vigilante)
 config/hypr/prueba*
 config/hypr/sin-atomic*

@@ -1,0 +1,18 @@
+# Vigila la base de datos de pacman para enterarse de cuando instalas o
+# quitas un programa. Así una app recién instalada aparece en el menú y en
+# ~/Aplicaciones sin esperar a cerrar sesión.
+#
+# Lo activa instalar.sh. A mano:
+#     systemctl --user enable --now sigilo-apps-nuevas.path
+
+[Unit]
+Description=Vigila si se instalan o se quitan programas
+
+[Path]
+# La carpeta donde pacman guarda un directorio por paquete instalado: si
+# aparece o desaparece uno, es que ha habido movimiento. Vale para pacman,
+# para yay y para cualquier cosa que instale por debajo
+PathChanged=/var/lib/pacman/local
+
+[Install]
+WantedBy=default.target

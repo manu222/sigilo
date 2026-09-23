@@ -27,6 +27,11 @@
     - xorg-xrandr
     - arandr
     - xorg-xset
+    # Sin esto, los programas que se abren como root (gparted, timeshift y
+    # compañía) piden la contraseña y luego no arrancan: nadie le ha dado
+    # permiso a root para dibujar en tu pantalla. Sus lanzadores esperan
+    # encontrar xhost y, si no está, se lo saltan sin decir nada
+    - xorg-xhost
     - xdg-user-dirs
     - pipewire
     - pipewire-pulse

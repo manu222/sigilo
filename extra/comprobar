@@ -23,11 +23,14 @@ printf '\n\e[1;36m── Sesión ──\e[0m\n'
 ok "estás en $SESION"
 
 paso "Programas"
-# Los que hacen falta siempre, en las dos sesiones
+# Los que hacen falta siempre, en las dos sesiones. xhost parece de X11 y
+# está aquí a propósito: es lo que deja dibujar en tu pantalla a los
+# programas que arrancan como root (gparted, timeshift). Sin él piden la
+# contraseña y no abren, y en Wayland pasa igual porque van por XWayland
 for p in rofi dunst kitty starship fastfetch eza bat fzf zoxide fd cava \
          brightnessctl pactl playerctl notify-send dunstctl magick \
          nmcli ollama timeshift btop jq nmap dig delta duf expac paccache \
-         imv mpv ffmpeg pipx dialog; do
+         imv mpv ffmpeg pipx dialog xhost; do
     command -v "$p" >/dev/null && ok "$p" || mal "$p no está instalado"
 done
 # Los de i3 y X11. Van aquí siempre porque i3 es la sesión base: tiene que

@@ -1,0 +1,14 @@
+# Rehace ~/Aplicaciones y el menú de la barra. Lo dispara
+# sigilo-apps-nuevas.path cuando cambia lo que hay instalado.
+
+[Unit]
+Description=Reparte las aplicaciones nuevas en sus carpetas
+
+[Service]
+Type=oneshot
+# Una actualización grande toca la carpeta de pacman cientos de veces, así
+# que primero se espera a que suelte el candado y luego un poco más, y se
+# rehace el menú una sola vez y con todo ya instalado. El tope de cinco
+# minutos es por si el candado se queda huérfano y no llega a soltarse
+ExecStartPre=/usr/bin/bash -c 'for _ in $(seq 150); do [ -e /var/lib/pacman/db.lck ] || break; sleep 2; done; sleep 3'
+ExecStart=%h/dotfiles/extra/organizar-apps -q
