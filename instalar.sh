@@ -58,6 +58,12 @@ else
     echo "VS Code: cuando lo instales, lanza  $REPO/vscode/instalar-tema"
 fi
 
+# El sello que tuvieras puesto. La copia de la configuración ha dejado el
+# del repositorio encima, así que se vuelve a poner el tuyo: eso rehace
+# también el de la pantalla de bloqueo, el banner del lanzador y el símbolo
+# de los menús. Si nunca elegiste ninguno, se queda el de siempre.
+[ -x "$DESTINO/i3/scripts/sello" ] && "$DESTINO/i3/scripts/sello" --rehacer 2>/dev/null
+
 echo
 echo "Hecho. Faltan los paquetes, que se eligen por grupos:"
 echo "    $REPO/extra/sigilo-apps"

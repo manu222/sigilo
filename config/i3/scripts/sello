@@ -7,6 +7,9 @@
 #   sello --siguiente     el siguiente de la lista, para ir rotando
 #   sello --cual          dice cuál está puesto
 #   sello --lista         los que hay
+#   sello --rehacer       vuelve a poner el que ya tenías, sin avisar. Lo
+#                         usa instalar.sh, que al copiar la configuración
+#                         deja el sello del repositorio encima del tuyo
 #   sello --saludador     copia el de ahora a la pantalla de acceso (pide
 #                         la contraseña: ese fichero es del sistema)
 #
@@ -109,8 +112,9 @@ poner() {
 }
 
 case "${1-}" in
-    --lista) nombres ;;
-    --cual)  cual ;;
+    --lista)   nombres ;;
+    --cual)    cual ;;
+    --rehacer) poner "$(cual)" ;;
 
     --siguiente)
         mapfile -t todos < <(nombres)
