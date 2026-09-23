@@ -28,6 +28,7 @@ btop
 btrfs-progs
 cantarell-fonts
 cava
+chafa
 cronie
 cryptsetup
 cups
