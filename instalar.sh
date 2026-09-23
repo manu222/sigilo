@@ -79,6 +79,10 @@ if [ -f "$LISTA" ]; then
     done < <(comm -23 <(sort "$LISTA") <(sort "$LISTA.nuevo"))
 fi
 mv "$LISTA.nuevo" "$LISTA"
+# Y de qué punto del repositorio salió lo que se acaba de copiar. Lo usa
+# sincronizar para no dejarte subir configuración vieja por encima de la
+# nueva: ese error ya ha pasado y no se ve venir
+git -C "$REPO" rev-parse HEAD > "$ESTADO/instalado-commit.txt" 2>/dev/null || true
 [ "$retirados" -gt 0 ] && echo "($retirados fichero(s) que ya no están en el repositorio, guardados en el respaldo)"
 
 chmod +x "$DESTINO"/i3/scripts/* "$DESTINO"/polybar/scripts/* \

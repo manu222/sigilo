@@ -657,8 +657,19 @@ Para comprobar el sistema ya montado (programas, servicios, temas,
 notificaciones) lo que hay es `extra/comprobar`, que es otra cosa: aquel mira
 el equipo, este mira el código.
 
+`sincronizar` se niega a copiar si este equipo tiene instalada una versión
+del repositorio distinta de la que hay ahora mismo en él — o sea, si hiciste
+`git pull` y no lanzaste `./instalar.sh` después. Sin ese aviso, lo que copia
+es el `~/.config` de antes del pull y deshace en el repositorio lo que
+acababas de traerte. Pasó una vez y revirtió un arreglo entero sin que se
+notara: el commit decía «actualizar paquetes» y por dentro venía media
+configuración vieja. `instalar.sh` deja apuntado de qué punto salió lo que
+instaló, y de ahí sale la comparación.
+
 Lo que elige cada equipo por su cuenta no viaja en el repositorio: el sello
-puesto, el fondo y poco más. Antes sí viajaban, y el resultado era que
+puesto, el fondo, los interruptores de la tarjeta de música y todo lo que se
+dibuja a partir del sello (el banner del lanzador, el del terminal, el de la
+pantalla de bloqueo). Antes sí viajaban, y el resultado era que
 instalar en el portátil le cambiaba el sello al que tuviera el sobremesa.
 Ahora cada máquina se queda con el suyo, y una recién instalada arranca con
 el clásico.

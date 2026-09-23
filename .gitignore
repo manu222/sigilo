@@ -18,6 +18,7 @@ config/**/cache/
 # Si estos viajaran, al instalar en el otro equipo le pisarían su elección.
 config/sigilo/sello-actual
 config/sigilo/musica-escritorio-on
+config/sigilo/musica-sin-barras
 config/sigilo/fondo-actual
 
 # Marca del modo prueba de Hyprland (ver config/hypr/scripts/vigilante)

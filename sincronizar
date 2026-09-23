@@ -49,11 +49,39 @@ PIEZAS=(
 EXCLUIR=(--exclude='.git' --exclude='*.bak' --exclude='*.bak-*' --exclude='*.viejo'
          --exclude='*.pre-fix' --exclude='*.plano' --exclude='*.log'
          --exclude='__pycache__' --exclude='*.sin-animaciones'
-         # Lo que elige cada equipo por su cuenta: el fondo, el sello y si la
-         # tarjeta de música está encendida. Si esto viajara, el sobremesa le
-         # cambiaría el sello al portátil cada vez que instalase
+         # Lo que elige cada equipo por su cuenta: el fondo, el sello y los
+         # interruptores de la tarjeta de música. Si esto viajara, el
+         # sobremesa le cambiaría el sello al portátil cada vez que instalase
          --exclude='fondo-actual' --exclude='sello-actual'
-         --exclude='musica-escritorio-on')
+         --exclude='musica-escritorio-on' --exclude='musica-sin-barras'
+         # Y lo que se dibuja a partir del sello de cada equipo. En el
+         # repositorio se queda la versión del sello clásico, que es la que
+         # ve quien instala esto por primera vez; si se recogieran, cada
+         # equipo le pisaría al otro el banner y el dibujo del terminal
+         --exclude='banner.png' --exclude='sello.rasi'
+         --exclude='sigilo.png' --exclude='sigilo.ansi'
+         --exclude='sello-bloqueo.png')
+
+# ── que no subas configuración vieja por encima de la nueva ───────────────
+# Esto copia ~/.config al repositorio. Si has hecho «git pull» y no has
+# lanzado «./instalar.sh», lo que tienes en ~/.config es de ANTES del pull, y
+# copiarlo ahora deshace en el repositorio lo que acabas de traerte. Pasó una
+# vez y revirtió un arreglo entero sin que se notara: el commit decía
+# «actualizar paquetes» y por dentro venía media configuración vieja.
+MARCA="$HOME/.local/state/sigilo/instalado-commit.txt"
+AHORA=$(git -C "$REPO" rev-parse HEAD 2>/dev/null)
+if [ -f "$MARCA" ] && [ -n "$AHORA" ] && [ "$(cat "$MARCA")" != "$AHORA" ]; then
+    echo
+    echo "  Cuidado: este equipo tiene instalada otra versión del repositorio."
+    echo "    instalado:  $(cut -c1-7 < "$MARCA")"
+    echo "    repositorio: $(printf '%s' "$AHORA" | cut -c1-7)"
+    echo
+    echo "  Si sigues, tu ~/.config (que es el viejo) se copiará encima de lo"
+    echo "  que hay en el repositorio y deshará esos cambios."
+    echo "  Lo suyo es lanzar primero  ./instalar.sh  y luego esto."
+    read -rp "  ¿Seguir de todas formas? [s/N] " r
+    [[ "$r" =~ ^[sSyY]$ ]] || { echo "  Nada copiado."; exit 0; }
+fi
 
 echo "Sincronizando configuración -> repositorio"
 for pieza in "${PIEZAS[@]}"; do
