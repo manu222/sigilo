@@ -115,42 +115,44 @@ if [ ! -f /etc/default/grub ] || [ ! -d /boot/grub ]; then
     ojo "este equipo no arranca con GRUB: se salta"
 else
     contar() { grep -c "^menuentry" /boot/grub/grub.cfg 2>/dev/null || echo 0; }
+    valor()  { sed -n "s/^$1=//p" /etc/default/grub | tail -1 | tr -d '"'"'"; }
     ANTES_N=$(contar)
-    # Con un solo sistema, el menú solo estorba: dos segundos y adentro. Con
-    # más de uno, nada de cuenta atrás: se queda esperando a que elijas, que
-    # si no acabas arrancando Linux sin querer cuando ibas a Windows.
+
+    # Lo que debería tener este equipo. Con un solo sistema el menú solo
+    # estorba: dos segundos y adentro. Con más de uno, nada de cuenta atrás,
+    # que si no acabas arrancando Linux sin querer cuando ibas a Windows.
+    declare -A QUIERE=( [GRUB_TIMEOUT_STYLE]=menu )   # con «hidden» no se ve
     if [ "$ANTES_N" -gt 1 ]; then
-        ESPERA=-1
-        COMO="sin cuenta atrás: espera a que elijas"
+        QUIERE[GRUB_TIMEOUT]=-1
+        # La primera entrada siempre es la distro que estás usando:
+        # grub-mkconfig la pone antes que las que encuentra os-prober
+        QUIERE[GRUB_DEFAULT]=0
+        # Y que os-prober siga buscando los demás sistemas, que en Arch viene
+        # apagado de serie y al regenerar el menú se perderían
+        QUIERE[GRUB_DISABLE_OS_PROBER]=false
+        COMO="sin cuenta atrás, esperando a que elijas"
     else
-        ESPERA=2
+        QUIERE[GRUB_TIMEOUT]=2
         COMO="2 s"
     fi
-    ACTUAL=$(sed -n 's/^GRUB_TIMEOUT=//p' /etc/default/grub | tr -d '"'"'")
 
-    if [ "$ACTUAL" = "$ESPERA" ]; then
-        ok "el menú ya está como toca ($COMO)"
+    CAMBIA=()
+    for k in "${!QUIERE[@]}"; do
+        [ "$(valor "$k")" = "${QUIERE[$k]}" ] || CAMBIA+=("$k")
+    done
+
+    if [ ${#CAMBIA[@]} -eq 0 ]; then
+        ok "el menú ya estaba como toca ($COMO)"
     else
         guardar /etc/default/grub
         cp -a /boot/grub/grub.cfg "/boot/grub/grub.cfg.antes-optimizar-$FECHA"
-        sed -i "s/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=$ESPERA/" /etc/default/grub
-        poner() {   # deja «clave=valor» en /etc/default/grub, esté o no
-            sed -i "/^$1=/d" /etc/default/grub
-            echo "$1=$2" >> /etc/default/grub
-        }
-        # Que el menú se vea de verdad: con «hidden» la espera no sirve
-        poner GRUB_TIMEOUT_STYLE menu
-        if [ "$ANTES_N" -gt 1 ]; then
-            # La primera entrada siempre es la distro que estás usando:
-            # grub-mkconfig la pone antes que las que encuentra os-prober
-            poner GRUB_DEFAULT 0
-            # Y que os-prober siga buscando los demás sistemas, que en Arch
-            # viene apagado de serie y al regenerar se perderían
-            poner GRUB_DISABLE_OS_PROBER false
-        fi
+        for k in "${CAMBIA[@]}"; do
+            sed -i "/^$k=/d" /etc/default/grub
+            echo "$k=${QUIERE[$k]}" >> /etc/default/grub
+        done
         grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
         if [ "$(contar)" -ge "$ANTES_N" ]; then
-            ok "menú: $COMO ($(contar) entradas, las mismas de antes)"
+            ok "menú: $COMO (cambiado: ${CAMBIA[*]})"
         else
             cp -a "/etc/default/grub.antes-optimizar-$FECHA" /etc/default/grub
             cp -a "/boot/grub/grub.cfg.antes-optimizar-$FECHA" /boot/grub/grub.cfg
@@ -158,8 +160,16 @@ else
             echo "    Suele ser os-prober apagado o sin instalar: sudo pacman -S os-prober"
         fi
     fi
+
+    # Qué se ve de verdad al arrancar, leído del menú y de la configuración
     if [ "$ANTES_N" -gt 1 ]; then
-        ok "hay $ANTES_N sistemas en el menú, con $(grep -m1 "^menuentry" /boot/grub/grub.cfg | cut -d"'" -f2) marcado de salida"
+        POR_DEFECTO=$(valor GRUB_DEFAULT)
+        case "$POR_DEFECTO" in
+            ""|0) ARRANCA=$(grep -m1 "^menuentry" /boot/grub/grub.cfg | cut -d"'" -f2) ;;
+            *)    ARRANCA="la entrada «$POR_DEFECTO»" ;;
+        esac
+        ok "$ANTES_N sistemas en el menú; marcado de salida: $ARRANCA"
+        grep "^menuentry" /boot/grub/grub.cfg | cut -d"'" -f2 | sed 's/^/      · /'
     fi
 fi
 
@@ -169,4 +179,4 @@ systemctl enable --now paccache.timer >/dev/null 2>&1
 ok "limpieza semanal activada ($(du -sh /var/cache/pacman/pkg | cut -f1) ahora mismo)"
 
 paso "Listo"
-echo "  Reinicia cuando puedas para notar el arranque más corto."
+echo "  Reinicia cuando puedas para que cojan los cambios de memoria."
