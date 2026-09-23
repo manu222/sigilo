@@ -15,6 +15,19 @@ resto es una escala de grises fríos. El menta marca lo activo (la ventana con
 el foco, el escritorio en el que estás) y un lila suave marca lo seleccionado
 (texto, archivos, pestañas de fondo). Si ves color, es por algo.
 
+**Índice**
+
+- [Qué lleva](#qué-lleva) · las piezas y qué programa hay detrás de cada una
+- [La segunda sesión: Hyprland](#la-segunda-sesión-hyprland) · qué cambia y qué se mantiene
+- [La paleta](#la-paleta) · los colores y de dónde salen
+- [Qué hay en el repo](#qué-hay-en-el-repo) · para qué sirve cada carpeta
+- [Instalación](#instalación) · desde cero, y [en otra distro](#en-otra-distro-o-con-otro-escritorio)
+- [Apps](#apps) · las que instala y por qué esas
+- [Atajos](#atajos) · el teclado entero
+- [Rendimiento](#rendimiento) · qué se toca y cuánto se nota
+- [Cosas que tienen truco](#cosas-que-tienen-truco) · los problemas que costaron y cómo se resolvieron
+- [Mantenimiento](#mantenimiento) · el día a día con el repositorio
+
 ## Qué lleva
 
 | Pieza | Programa | Detalle |
@@ -108,7 +121,8 @@ sobre su fondo real.
 ```
 config/     lo que va en ~/.config (i3, polybar, rofi, kitty, dunst, picom…)
 extra/      scripts de uso diario: instalar apps, ordenarlas, comprobar el
-            sistema, medir consumo y generar el tema de iconos
+            sistema, medir consumo y generar el tema de iconos. En
+            extra/hooks/ está el que revisa la sintaxis antes de cada commit
 sistema/    lo que toca fuera de tu carpeta: GRUB, pantalla de acceso,
             copias, rendimiento, discos. Se lanzan a mano y guardan copia
 vscode/     el tema Sigilo para VS Code y el script que lo instala
@@ -381,7 +395,35 @@ git add -A && git commit -m "…" && git push
 `sincronizar` copia la configuración de `~/.config` al repo y anota los
 paquetes instalados. Uso copias y no enlaces simbólicos a propósito: algunos
 programas reescriben su fichero entero al guardar ajustes y convierten el
-enlace en un fichero normal sin avisar.
+enlace en un fichero normal sin avisar. Se lanza en el equipo donde hayas
+hecho los cambios, nunca en el otro: si no, se suben las listas de paquetes
+de la máquina equivocada.
+
+Antes de cada commit se revisa la sintaxis de todo el repositorio, que son
+casi noventa ficheros entre bash, python, lua y json. De eso se encarga
+`extra/revisar`, y lo lanza solo el hook de `extra/hooks/pre-commit`. Git no
+guarda los hooks dentro del repositorio, así que cada clon tiene que
+apuntar ahí una vez; lo hace `instalar.sh`, o a mano:
+
+```bash
+git -C ~/dotfiles config core.hooksPath extra/hooks
+```
+
+Si un día hace falta pasar por encima: `git commit --no-verify`. Y suelto,
+sin commitear nada, para ver cómo está el repo:
+
+```bash
+extra/revisar
+```
+
+Para comprobar el sistema ya montado (programas, servicios, temas,
+notificaciones) lo que hay es `extra/comprobar`, que es otra cosa: aquel mira
+el equipo, este mira el código.
+
+`instalar.sh` se puede relanzar tantas veces como quieras. Guarda copia de lo
+que cambia en `~/.config-respaldo-<fecha>`, conserva los cinco últimos
+respaldos y retira de `~/.config` los ficheros que hayan desaparecido del
+repositorio, moviéndolos al respaldo en vez de borrarlos.
 
 ## Licencia
 

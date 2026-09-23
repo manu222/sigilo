@@ -142,6 +142,10 @@
     - wtype
     # La rejilla con todas las aplicaciones (clic derecho en el botón Apps)
     - nwg-drawer
+    # La configuración de esta sesión está escrita en Lua. El intérprete no
+    # hace falta para usarla (Hyprland trae el suyo), pero sí para que
+    # extra/revisar pueda comprobar esos ficheros antes de un commit
+    - lua
 
 - name: "Sigilo · copias del sistema"
   description: "Copia instantánea antes de cada actualización y arranque de copias desde GRUB. Solo sirve con btrfs."

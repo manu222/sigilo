@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Se lanza solo, antes de cada commit, y para el commit si algo no compila.
+#
+# Git no guarda los hooks dentro del repositorio, así que este vive en
+# extra/hooks/ y cada clon apunta ahí con core.hooksPath. De eso se encarga
+# instalar.sh, o a mano:
+#     git -C ~/dotfiles config core.hooksPath extra/hooks
+#
+# Revisa los ficheros tal y como están en el disco, no solo lo que hayas
+# metido en el índice. Para un repositorio de configuración como este, donde
+# se commitea todo de una vez, es lo que interesa.
+#
+# Si alguna vez hace falta saltárselo:  git commit --no-verify
+
+REPO="$(git rev-parse --show-toplevel)" || exit 0
+[ -x "$REPO/extra/revisar" ] || exit 0
+
+"$REPO/extra/revisar" || {
+    printf '\n\e[1;31mCommit cancelado:\e[0m arregla lo de arriba y vuelve a intentarlo.\n'
+    printf 'Si sabes lo que haces:  git commit --no-verify\n\n'
+    exit 1
+}
