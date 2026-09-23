@@ -1,9 +1,7 @@
 # Aplicaciones de Sigilo, por grupos.
 #
-# Este fichero es la única lista. Lo leen:
-#   · extra/sigilo-apps      para instalar o añadir apps en un equipo ya hecho
-#   · iso/construir-iso.sh   que lo convierte en la pantalla de paquetes del
-#                            instalador (formato «netinstall» de Calamares)
+# Este fichero es la única lista, y quien la lee es extra/sigilo-apps, que
+# saca las casillas para instalar o añadir apps en un equipo ya hecho.
 #
 # Cada app va en su propio subgrupo para que salga con su casilla.
 # «a|b» significa: usa «a» si existe y, si no, «b» (los nombres cambian a

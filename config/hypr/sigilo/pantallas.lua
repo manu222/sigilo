@@ -25,7 +25,10 @@ hl.monitor({
 -- Si en algún equipo se ve parpadeo, se pone a 0.
 hl.config({ misc = { vrr = 2 } })
 
--- Fichero propio del equipo, si lo hay
+-- Fichero propio del equipo, si lo hay. Solo hace falta para clavar la
+-- resolución, la frecuencia y la posición de unas pantallas concretas, y
+-- para decir cuál es la principal. Lo demás (el reparto de escritorios
+-- entre pantallas) se deduce solo, con las que haya.
 local f = io.open("/etc/hostname", "r")
 local equipo = f and f:read("l") or ""
 if f then f:close() end

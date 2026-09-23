@@ -64,10 +64,16 @@ Qué cambia por dentro:
 | scrot | grim + slurp | El mismo guion de capturas sabe en cuál está |
 | xss-lock | hypridle | Bloqueo y apagado de pantalla por inactividad |
 
-**Los escritorios son el conjunto de las tres pantallas.** Como en GNOME o KDE:
-el escritorio 3 es el 3 de las tres a la vez, y cambian juntas. Por dentro son
-tres escritorios de Hyprland (el 3, el 13 y el 23) que se mueven a la par;
-está en `hypr/sigilo/escritorios.lua`.
+**Los escritorios son el conjunto de todas las pantallas.** Como en GNOME o
+KDE: el escritorio 3 es el 3 de todas a la vez, y cambian juntas. Por dentro
+son varios escritorios de Hyprland (el 3, el 13, el 23…) que se mueven a la
+par; está en `hypr/sigilo/escritorios.lua`.
+
+Da igual cuántas pantallas tenga el equipo: el orden se deduce de lo que diga
+Hyprland, de izquierda a derecha, y se recalcula si enchufas o quitas una. Con
+una sola pantalla no hay nada que agrupar. Lo único que se dice a mano, en el
+fichero del equipo, es cuál es la principal —la que lleva la barra— y a qué
+resolución y frecuencia va cada monitor.
 
 **El sello se cambia con `❖ + Shift + G`.** Hay quince: el de siempre y otros
 en forma de escudo, candado, llave, chip, red, radar, señal, terminal y varias
@@ -112,6 +118,10 @@ iso/        la lista de apps por grupos y la detección de hardware, que
 
 ## Instalación
 
+No hay ISO ni nada que descargar aparte: se instala EndeavourOS o Arch como
+siempre y desde ahí lo trae el repositorio. Así los paquetes son los del día
+en que lo instales y no los de cuando yo generara una imagen.
+
 En un EndeavourOS recién instalado:
 
 ```bash
@@ -145,7 +155,7 @@ sistema/instalar-grub.sh                # tema del menú de arranque
 sistema/instalar-acceso.sh              # pantalla de inicio de sesión
 sistema/instalar-sesion-hyprland.sh     # la segunda sesión, si la instalaste
 sudo sistema/instalar-instantaneas.sh   # copias de Timeshift (solo btrfs)
-sudo sistema/optimizar.sh               # zram, memoria, energía, GRUB a 2 s
+sudo sistema/optimizar.sh               # zram, memoria, energía, GRUB, apagado
 ```
 
 La segunda sesión es opcional y va aparte: en `sigilo-apps` hay un grupo
@@ -242,10 +252,14 @@ seguridad como `miip`, `puertos`, `escanear`, `hashes` o `jwt`.
 Con el escritorio en reposo, lo de Sigilo (barra, notificaciones, portapapeles,
 picom y los scripts) ocupa unos 250 MB. Lo que más ayudó:
 
-- **zram**: swap comprimida en RAM, la mitad de la memoria. Con 8 GB es la
-  diferencia entre que el equipo se atasque o no.
-- **Energía automática**: perfil equilibrado con cargador y ahorro con
-  batería, sin tocar nada.
+- **zram**: swap comprimida en RAM. La mitad de la memoria hasta 8 GB, un
+  cuarto hasta 32 y 8 GB de ahí para arriba: con 8 GB es la diferencia entre
+  que el equipo se atasque o no, y reservar 16 en uno de 32 no sirve de nada.
+- **Energía**: en un portátil, equilibrado con cargador y ahorro con batería,
+  cambiando solo. En un sobremesa no hay nada que cuidar, así que se queda en
+  rendimiento. Y una píldora en la barra para cambiarlo a mano cuando quieras.
+- **Apagado**: 20 segundos de margen para lo que se atasque, en vez de los 90
+  que trae Arch. Se nota cada vez que apagas.
 - **Nada repetido**: i3 relanza sus `exec_always` en cada Mod+Shift+R. Tenía
   17 copias del portapapeles y del puente de botones comiéndose 700 MB hasta
   que cada uno aprendió a comprobar si ya estaba en marcha.

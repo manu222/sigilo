@@ -26,7 +26,9 @@ pantalla(IZQUIERDA, "2560x1440@240", "0x0")
 pantalla(CENTRO,    "2560x1440@240", "2560x0")
 pantalla(DERECHA,   "1920x1080@144", "5120x360")
 
--- Orden de las pantallas para los escritorios "juntos" (sigilo/escritorios.lua):
--- la principal primero. Cada número de escritorio es el conjunto de las tres.
+-- Cuál es la principal: la que lleva la barra y los escritorios 1…10. El
+-- resto del reparto lo deduce solo sigilo/escritorios.lua, ordenándolas de
+-- izquierda a derecha, así que aquí no hay que enumerarlas. Sin esta línea
+-- la principal sería la de la izquierda.
 sigilo = sigilo or {}
-sigilo.pantallas = { CENTRO, IZQUIERDA, DERECHA }
+sigilo.principal = CENTRO

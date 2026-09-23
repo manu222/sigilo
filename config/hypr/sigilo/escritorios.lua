@@ -4,17 +4,23 @@
 --
 -- Cómo se consigue: Hyprland solo sabe de escritorios por pantalla, así que
 -- cada pantalla tiene su propia decena de escritorios y aquí se mueven
--- juntos. Con las pantallas en el orden de sigilo.pantallas (la principal
--- primero):
+-- juntos:
 --
---     escritorio   principal   segunda   tercera
+--     escritorio   principal   segunda   tercera   …
 --         1            1          11        21
 --         2            2          12        22
 --        …             …           …         …
 --
--- La barra solo enseña 1…10 y junta los iconos de las tres pantallas.
--- Con una sola pantalla (o en un equipo sin fichero en sigilo/equipos/)
--- todo funciona como siempre, un escritorio por número.
+-- El orden de las pantallas no se escribe en ningún sitio: se deduce de lo
+-- que diga Hyprland, de izquierda a derecha. Da igual que el equipo tenga
+-- una, dos o cinco, y si enchufas o quitas una por el camino se recalcula
+-- solo. Lo único que se puede decir a mano es cuál es la principal —la que
+-- lleva la barra y los escritorios 1…10— poniendo «sigilo.principal» en el
+-- fichero del equipo; si no se dice nada, es la de más a la izquierda.
+--
+-- La barra solo enseña 1…10 y junta los iconos de todas las pantallas.
+-- Con una sola pantalla no hay nada que agrupar y todo funciona como
+-- siempre, un escritorio por número.
 --
 -- Las funciones van en la tabla global «sigilo» para que atajos.lua y la
 -- barra (con «hyprctl eval 'sigilo.ir(3)'») puedan usarlas.
@@ -32,15 +38,41 @@ local function coincide(m, sel)
     return m.name == sel
 end
 
--- Posición de un monitor en sigilo.pantallas (1 = principal), o nil
-local function posicion(m)
-    for i, sel in ipairs(S.pantallas or {}) do
-        if m and coincide(m, sel) then return i end
+-- Las pantallas en orden: de izquierda a derecha por dónde están puestas,
+-- y la principal la primera de todas. Se pregunta cada vez en vez de
+-- guardarlo, que sale gratis y así enchufar o quitar una pantalla no deja
+-- nada desparejado.
+local function orden()
+    local ms = hl.get_monitors() or {}
+    table.sort(ms, function(a, b)
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    if S.principal then
+        for i, m in ipairs(ms) do
+            if coincide(m, S.principal) then
+                table.insert(ms, 1, table.remove(ms, i))
+                break
+            end
+        end
+    end
+    return ms
+end
+
+-- Posición de un monitor en ese orden (1 = principal), o nil
+local function posicion(m, ms)
+    if not m then return nil end
+    for i, o in ipairs(ms or orden()) do
+        if o.name == m.name then return i end
     end
     return nil
 end
 
-local function juntos() return S.pantallas ~= nil and #S.pantallas > 1 end
+local function juntos() return #(hl.get_monitors() or {}) > 1 end
+
+-- Se escribe más abajo (hace falta S.id), pero se anuncia aquí porque S.ir
+-- la usa antes: en Lua un «local» solo existe a partir de donde se declara
+local repartir
 
 -- Número de escritorio (1…10) de un id de Hyprland, y al revés
 function S.numero(id) return ((id - 1) % POR_PANTALLA) + 1 end
@@ -67,9 +99,8 @@ local moviendo = false
 -- devolver el foco a su sitio justo después.
 local function igualar_las_demas(n, salvo)
     moviendo = true
-    for _, m in ipairs(hl.get_monitors() or {}) do
-        local pos = posicion(m)
-        if pos and (not salvo or m.name ~= salvo.name) then
+    for pos, m in ipairs(orden()) do
+        if not salvo or m.name ~= salvo.name then
             local ws = m.active_workspace
             if not ws or ws.id < 1 or S.numero(ws.id) ~= n then
                 m:set_workspace({ workspace = S.id(n, pos) })
@@ -82,6 +113,7 @@ end
 -- Ir al escritorio n en todas las pantallas. Pulsar el número del que ya
 -- estás te lleva al anterior (como workspace_auto_back_and_forth en i3).
 function S.ir(n)
+    repartir()          -- por si has enchufado o quitado una pantalla
     if not juntos() then
         hl.dispatch(hl.dsp.focus({ workspace = n }))
         return
@@ -164,9 +196,9 @@ hl.on("workspace.active", function(ws)
     local enfocada = hl.get_active_monitor()
     local ventana = hl.get_active_window()
     local hacia_falta = false
-    for _, m in ipairs(hl.get_monitors() or {}) do
+    for _, m in ipairs(orden()) do
         local otro = m.active_workspace
-        if posicion(m) and otro and otro.id > 0 and S.numero(otro.id) ~= n then
+        if otro and otro.id > 0 and S.numero(otro.id) ~= n then
             hacia_falta = true
         end
     end
@@ -186,11 +218,24 @@ end)
 -- Cada pantalla, con su decena de escritorios. Son persistentes (existen
 -- aunque estén vacíos) para poder enseñarlos en una pantalla sin tener que
 -- llevarle el foco. El 1 de cada una es el que sale al arrancar.
-if juntos() then
-    for pos, sel in ipairs(S.pantallas) do
+--
+-- Esto se hace cuando ya se sabe qué pantallas hay de verdad, no al leer
+-- este fichero: aquí arriba todavía se están aplicando las resoluciones.
+local cuantas = -1
+function repartir()
+    local ms = orden()
+    if #ms == cuantas then return end
+    cuantas = #ms
+    if #ms < 2 then return end
+    for pos, m in ipairs(ms) do
         for n = 1, POR_PANTALLA do
-            hl.workspace_rule({ workspace = tostring(S.id(n, pos)), monitor = sel,
+            hl.workspace_rule({ workspace = tostring(S.id(n, pos)), monitor = m.name,
                                 persistent = true, default = (n == 1) })
         end
     end
 end
+
+hl.on("hyprland.start", repartir)
+-- Y también ahora, por si esto es una recarga de la configuración con la
+-- sesión ya en marcha, que entonces «hyprland.start» no vuelve a saltar
+repartir()
