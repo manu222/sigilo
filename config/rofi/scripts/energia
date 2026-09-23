@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Perfil de energía: el mismo menú para las dos sesiones.
+#
+#   energia              menú para elegir (clic derecho en la píldora)
+#   energia --siguiente  pasa al siguiente perfil (clic en la píldora)
+#   energia --cual       dice cuál está puesto, para quien lo necesite
+#
+# Los perfiles los da power-profiles-daemon, que es el mismo que usan GNOME
+# y KDE. En un portátil el perfil se cambia solo al enchufar y desenchufar
+# (regla de udev que pone sistema/optimizar.sh), así que lo que elijas a
+# mano dura hasta la próxima vez que enchufes o desenchufes.
+set -uo pipefail
+. ~/.config/rofi/scripts/comun.sh
+
+TEMA=~/.config/rofi/sigilo-lista.rasi
+RAPIDO=$(printf '\U000f04c5')     # speedometer
+MEDIO=$(printf '\U000f0f85')      # speedometer-medium
+LENTO=$(printf '\U000f0f86')      # speedometer-slow
+
+command -v powerprofilesctl >/dev/null || {
+    notify-send -a Energía -u critical "Energía" "Falta power-profiles-daemon"; exit 1; }
+
+# Los que ofrece este equipo, en orden de menos a más
+mapfile -t HAY < <(powerprofilesctl list 2>/dev/null |
+                   sed -n 's/^[* ] \([a-z-]*\):/\1/p')
+[ ${#HAY[@]} -eq 0 ] && exit 1
+ACTUAL=$(powerprofilesctl get 2>/dev/null)
+
+icono_de() {
+    case "$1" in
+        performance) printf '%s' "$RAPIDO" ;;
+        balanced)    printf '%s' "$MEDIO" ;;
+        *)           printf '%s' "$LENTO" ;;
+    esac
+}
+color_de() {
+    case "$1" in
+        performance) printf '%s' "$AMBER" ;;
+        balanced)    printf '%s' "$MINT" ;;
+        *)           printf '%s' "$SLATE" ;;
+    esac
+}
+nombre_de() {
+    case "$1" in
+        performance) printf 'Rendimiento' ;;
+        balanced)    printf 'Equilibrado' ;;
+        power-saver) printf 'Ahorro' ;;
+        *)           printf '%s' "$1" ;;
+    esac
+}
+explica() {
+    case "$1" in
+        performance) printf 'Sin frenos. Para juegos, compilar o máquinas virtuales' ;;
+        balanced)    printf 'Sube la frecuencia en cuanto hace falta. El de diario' ;;
+        power-saver) printf 'Lo justo. Alarga la batería y baja los ventiladores' ;;
+        *)           printf ' ' ;;
+    esac
+}
+
+poner() {
+    powerprofilesctl set "$1" 2>/dev/null || return 1
+    notify-send -a Energía -i battery -t 2000 "Energía" "$(nombre_de "$1")"
+}
+
+case "${1-}" in
+    --cual) printf '%s\n' "$ACTUAL" ;;
+
+    --siguiente)
+        for i in "${!HAY[@]}"; do
+            [ "${HAY[$i]}" = "$ACTUAL" ] && poner "${HAY[$(( (i + 1) % ${#HAY[@]} ))]}" && exit 0
+        done
+        poner "${HAY[0]}" ;;
+
+    *)
+        i=$( for p in "${HAY[@]}"; do
+                 marca=""
+                 [ "$p" = "$ACTUAL" ] && marca="   $(icono "✓" "$MINT" 10)"
+                 printf '%s  <b>%s</b>%s\n   <span foreground="%s" size="9000">%s</span>\n' \
+                        "$(icono "$(icono_de "$p")" "$(color_de "$p")" 13)" \
+                        "$(nombre_de "$p")" "$marca" "$MUTE" "$(explica "$p")"
+             done | rofi -dmenu -i -markup-rows -format i -no-custom -theme "$TEMA" \
+                    -p "energía" -eh 2 \
+                    -theme-str 'window { width: 34em; } listview { lines: 3; }' ) || exit 0
+        poner "${HAY[$i]}" ;;
+esac

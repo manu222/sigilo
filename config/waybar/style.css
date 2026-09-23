@@ -50,6 +50,7 @@ tooltip label { color: #e7edea; }
 #backlight,
 #network,
 #sistema,
+#power-profiles-daemon,
 #battery,
 #clock,
 #tray {

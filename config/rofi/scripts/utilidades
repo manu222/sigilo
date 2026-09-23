@@ -20,8 +20,9 @@ i=$( { fila accessories-calculator   "Calculadora"                "❖ + X"
        fila preferences-desktop-wallpaper "Fondos de pantalla"    "❖ + Shift + F"
        fila preferences-desktop-theme "Sello"                     "❖ + Shift + G"
        fila audio-speakers           "Salida y micro de sonido"   "❖ + Shift + O"
+       fila battery                  "Perfil de energía"          "clic en la píldora"
      } | rofi -dmenu -i -markup-rows -show-icons -format i -p "utilidades" -theme "$TEMA" \
-         -theme-str 'window { width: 34em; } listview { lines: 8; } element-icon { size: 1.6em; }') || exit 0
+         -theme-str 'window { width: 34em; } listview { lines: 9; } element-icon { size: 1.6em; }') || exit 0
 case $i in
     0) exec $D/calculadora ;;
     1) exec $D/emojis ;;
@@ -31,4 +32,5 @@ case $i in
     5) exec $D/fondos ;;
     6) exec ~/.config/i3/scripts/sello ;;
     7) exec $D/sonido ;;
+    8) exec $D/energia ;;
 esac
