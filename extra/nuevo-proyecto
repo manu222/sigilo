@@ -47,9 +47,20 @@ esac
 [ -e "$RUTA" ] && { echo "Ya existe: $RUTA"; exit 1; }
 
 NOMBRE=$(basename "$RUTA")
-# CMake no admite cualquier cosa como nombre de destino: se deja en letras,
-# números, guiones y guiones bajos
+
+# Hacen falta dos nombres a partir del que hayas puesto, porque no valen las
+# mismas letras en todos los sitios:
+#
+#   DESTINO  el objetivo de CMake y la carpeta de cabeceras. Admite guiones,
+#            así que «prueba-cmake» se queda tal cual
+#   ESPACIO  el espacio de nombres de C++. Un identificador no admite
+#            guiones ni puede empezar por un número, así que «prueba-cmake»
+#            pasa a ser «prueba_cmake». Sin esto, el código generado no
+#            compila: el compilador lee «prueba - cmake» y se queja de que
+#            «prueba» no existe
 DESTINO=$(printf '%s' "$NOMBRE" | tr -c 'A-Za-z0-9_-' '_')
+ESPACIO=$(printf '%s' "$NOMBRE" | tr -c 'A-Za-z0-9_' '_')
+case "$ESPACIO" in [0-9]*) ESPACIO="_$ESPACIO" ;; esac
 
 [ -d "$(dirname "$RUTA")" ] || echo "Creando $(dirname "$RUTA")"
 mkdir -p "$RUTA/include/$DESTINO" "$RUTA/src"
@@ -95,23 +106,23 @@ cat > "$RUTA/include/$DESTINO/saludo.h" <<CAB
 
 // Una cabecera declara qué existe; el .cpp de al lado dice cómo se hace.
 // Así otros ficheros pueden usar esto sin ver su código por dentro.
-namespace $DESTINO {
+namespace $ESPACIO {
 
 std::string saludo(const std::string& nombre);
 
-}  // namespace $DESTINO
+}  // namespace $ESPACIO
 CAB
 
 cat > "$RUTA/src/saludo.cpp" <<IMPL
 #include "$DESTINO/saludo.h"
 
-namespace $DESTINO {
+namespace $ESPACIO {
 
 std::string saludo(const std::string& nombre) {
     return "Hola, " + nombre + '!';
 }
 
-}  // namespace $DESTINO
+}  // namespace $ESPACIO
 IMPL
 
 cat > "$RUTA/src/main.cpp" <<MAIN
@@ -120,7 +131,7 @@ cat > "$RUTA/src/main.cpp" <<MAIN
 #include "$DESTINO/saludo.h"
 
 int main() {
-    std::cout << $DESTINO::saludo("$NOMBRE") << '\n';
+    std::cout << $ESPACIO::saludo("$NOMBRE") << '\n';
     return 0;
 }
 MAIN
