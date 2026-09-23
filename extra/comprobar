@@ -55,6 +55,16 @@ else
     ojo "sin sesión Hyprland en este equipo (se salta su parte)"
 fi
 python3 -c 'import i3ipc' 2>/dev/null && ok "python i3ipc" || mal "falta python-i3ipc"
+# El menú de wifi ya no pide la clave: se la pide NetworkManager al applet de
+# red, que es quien abre el diálogo. Sin él, una red nueva no se puede
+# conectar desde el menú
+if pgrep -x nm-applet >/dev/null; then
+    ok "applet de red (es quien pide la clave del wifi)"
+elif command -v nm-applet >/dev/null; then
+    ojo "nm-applet instalado pero no está corriendo: una red wifi nueva no podrá pedirte la clave"
+else
+    mal "falta network-manager-applet: sin él no se puede entrar en una red wifi nueva"
+fi
 for pl in calc emoji; do ls /usr/lib/rofi 2>/dev/null | grep -q "$pl" && ok "rofi-$pl" || mal "falta rofi-$pl"; done
 
 paso "Temas"

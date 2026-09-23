@@ -499,6 +499,15 @@ sin duplicados.
 Varias piezas están como están por un motivo que no se ve en el fichero.
 Las dejo anotadas porque me costaron un rato:
 
+**La clave del wifi no la pide Sigilo.** El menú de redes enseña las que hay
+y se conecta, pero cuando hace falta una clave nueva no la pregunta él: deja
+que NetworkManager se la pida al applet de red, que abre su propio diálogo.
+Antes salía un recuadro de rofi con el tema puesto y la clave se le pasaba a
+`nmcli` como argumento — y los argumentos de un proceso los lee cualquier
+usuario del equipo con un `ps` mientras dura la conexión. Así la clave va de
+esa ventana al gestor de red sin pasar por ningún script. La ventana no
+lleva los colores de Sigilo; es el precio.
+
 **Cada barra es de su sesión y no se mezclan.** Polybar es la de i3 y waybar
 la de Hyprland. Si lanzas la de i3 estando en Hyprland arranca igual, por
 XWayland, se planta encima de la otra y sus módulos se pasan el rato
