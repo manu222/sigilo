@@ -2,6 +2,16 @@
 # Arranca Polybar para i3. Vale tanto al iniciar sesion como al recargar i3.
 
 LOG="${XDG_CACHE_HOME:-$HOME/.cache}/polybar.log"
+
+# Esta barra es la de i3. Si se lanza estando en Hyprland arranca igual, por
+# XWayland, se pone encima de la waybar y sus módulos se pasan la vida
+# diciendo que no encuentran a i3, porque no está. Mejor no dejarlo empezar.
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    echo "Estás en Hyprland: esta barra es la de i3."
+    echo "La de esta sesión se lanza con  ~/.config/waybar/lanzar  (o ❖+Shift+R)."
+    exit 0
+fi
+
 echo "=============== $(date '+%F %T') lanzamiento ===============" >> "$LOG"
 
 # ── cerrar la barra anterior, con limite ───────────────────────────────────

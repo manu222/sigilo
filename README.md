@@ -499,6 +499,12 @@ sin duplicados.
 Varias piezas están como están por un motivo que no se ve en el fichero.
 Las dejo anotadas porque me costaron un rato:
 
+**Cada barra es de su sesión y no se mezclan.** Polybar es la de i3 y waybar
+la de Hyprland. Si lanzas la de i3 estando en Hyprland arranca igual, por
+XWayland, se planta encima de la otra y sus módulos se pasan el rato
+diciendo que no encuentran el socket de i3, porque no hay ninguno. Cada
+lanzador mira en qué sesión estás y no empieza si no es la suya.
+
 **Los programas de root necesitan que alguien les abra la puerta.** GParted,
 Timeshift y demás se lanzan con `pkexec`: piden la contraseña y arrancan como
 root. Pero root es otro usuario y el servidor gráfico es tuyo, así que no le

@@ -6,6 +6,14 @@
 # de esa pantalla cambia de un equipo a otro, se mira aquí y se pone en
 # una copia de la configuración antes de arrancar.
 
+# Y al revés que en polybar: esta es la barra de Hyprland y necesita hablar
+# con él. En una sesión de i3 no tiene con quién, así que no se arranca.
+if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    echo "Esto es la barra de Hyprland y no estás en esa sesión."
+    echo "La de i3 se lanza con  ~/.config/polybar/launch.sh"
+    exit 0
+fi
+
 DIR="$HOME/.config/waybar"
 COPIA="${XDG_RUNTIME_DIR:-/tmp}/sigilo-waybar.jsonc"
 LOG="${XDG_CACHE_HOME:-$HOME/.cache}/waybar.log"
