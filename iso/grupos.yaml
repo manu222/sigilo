@@ -174,6 +174,15 @@
     - {name: "Docker", description: "Contenedores y compose", selected: true, packages: [docker, docker-compose, docker-buildx], carpeta: "Desarrollo/Contenedores", terminal: [lazydocker, docker]}
     - {name: "Python", description: "uv y pipx", selected: true, packages: [uv, python-pipx], carpeta: "Desarrollo/Herramientas"}
     - {name: "Node.js", description: "nodejs y npm", selected: true, packages: [nodejs, npm], carpeta: "Desarrollo/Herramientas"}
+    # Compilar y depurar no viene de serie: gcc y make los trae base-devel,
+    # pero el sistema de construcción y el depurador hay que pedirlos. Ninja
+    # en vez de Make porque reconstruye bastante más rápido, que es lo que
+    # se nota al darle a «ejecutar» cincuenta veces seguidas
+    - {name: "C y C++", description: "cmake, ninja y el depurador gdb (gcc ya viene con base-devel)", selected: true, packages: [cmake, ninja, gdb], carpeta: "Desarrollo/Herramientas", terminal: [cmake, gdb]}
+    # jdk-openjdk es la última versión. En Arch pueden convivir varias y se
+    # elige con «archlinux-java set». Maven solo hace falta para proyectos
+    # con dependencias; para empezar, con el JDK sobra
+    - {name: "Java", description: "JDK y Maven", selected: true, packages: [jdk-openjdk, maven], carpeta: "Desarrollo/Herramientas", terminal: [java, mvn]}
     - {name: "Neovim", description: "Editor en terminal", selected: true, packages: [neovim], carpeta: "Desarrollo/Editores", terminal: [nvim]}
     - {name: "SQLite", description: "Visor de bases de datos SQLite", selected: true, packages: [sqlitebrowser], carpeta: "Desarrollo/Herramientas"}
     - {name: "Bruno", description: "Cliente de APIs, sin cuenta", selected: true, packages: ["bruno-bin|bruno"], carpeta: "Desarrollo/Herramientas"}
