@@ -43,7 +43,18 @@ poner() {
     local mpv="no-audio loop hwdec=auto panscan=1.0 image-display-duration=inf load-scripts=no input-ipc-server=$SOCKET"
     echo "=== $(date '+%F %T') $f" >> "$LOG"
     # -p: pausa si una ventana lo tapa entero · '*': todas las pantallas
-    setsid -f mpvpaper -p -o "$mpv" '*' "$f" >>"$LOG" 2>&1
+    #
+    # Va dentro de un envoltorio a propósito. mpvpaper no se entera de que
+    # le piden cerrar cuando el compositor ya se ha ido: se queda colgado y
+    # systemd espera minuto y medio antes de matarlo a la fuerza, que es lo
+    # que alargaba el apagado y el reinicio. El envoltorio sí se entera, y
+    # lo mata sin esperar.
+    setsid -f bash -c '
+        mpvpaper -p -o "$1" "*" "$2" >>"$3" 2>&1 &
+        hijo=$!
+        trap "kill -KILL $hijo 2>/dev/null; exit 0" TERM INT HUP
+        wait $hijo
+    ' fondo "$mpv" "$f" "$LOG"
     printf '%s\n' "$f" > "$ESTADO"
 }
 
