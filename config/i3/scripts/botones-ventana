@@ -96,12 +96,22 @@ def main():
 
 
 if __name__ == "__main__":
-    # si i3 se reinicia, la conexion se cae: volvemos a levantarla
-    while True:
+    # Si i3 se reinicia (❖+Shift+R), la conexión se cae y vuelve enseguida,
+    # así que se reintenta. Pero si has cerrado la sesión para entrar en
+    # Hyprland, i3 ya no vuelve: sin este tope, el guion se quedaba dando
+    # vueltas para siempre dentro de la otra sesión, gastando para nada.
+    # Si estuvo funcionando un rato antes de caerse, era un reinicio y la
+    # cuenta se pone a cero.
+    fallos = 0
+    while fallos < 15:                    # unos 30 segundos de margen
+        empezo = time.time()
         try:
             main()
         except KeyboardInterrupt:
             break
         except Exception as e:
             print("botones-ventana: %s; reintentando" % e, file=sys.stderr)
-            time.sleep(2)
+        fallos = 0 if time.time() - empezo > 20 else fallos + 1
+        time.sleep(2)
+    else:
+        print("botones-ventana: i3 no vuelve, me salgo", file=sys.stderr)

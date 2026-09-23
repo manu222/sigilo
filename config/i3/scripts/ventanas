@@ -217,13 +217,21 @@ if __name__ == "__main__":
     orden = sys.argv[1] if len(sys.argv) > 1 else "vigilar"
     if orden == "vigilar":
         instancia_unica()
-        while True:           # si i3 se reinicia, la conexión se cae: se vuelve a levantar
+        # Si i3 se reinicia, la conexión se cae y vuelve enseguida, así que
+        # se reintenta. Pero si has cerrado la sesión para entrar en
+        # Hyprland, i3 ya no vuelve y sin este tope el guion se quedaba
+        # dando vueltas para siempre dentro de la otra sesión.
+        fallos = 0
+        while fallos < 15:                # unos 30 segundos de margen
+            empezo = time.time()
             try:
                 i3 = i3ipc.Connection()
                 barra_oculta = None
                 vigilar()
             except Exception:
-                time.sleep(2)
+                pass
+            fallos = 0 if time.time() - empezo > 20 else fallos + 1
+            time.sleep(2)
     elif orden == "maximizar":
         arbol = i3.get_tree()
         con = arbol.find_by_window(int(sys.argv[2])) if len(sys.argv) > 2 else arbol.find_focused()
