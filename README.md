@@ -524,6 +524,17 @@ sin duplicados.
 Varias piezas están como están por un motivo que no se ve en el fichero.
 Las dejo anotadas porque me costaron un rato:
 
+**En VS Code hay dos botones de ejecutar y hacen cosas distintas.** El ▷ de
+arriba a la derecha del editor es «Run C/C++ File»: compila *solo el fichero
+que tienes delante*, con un `g++` suelto, sin la carpeta `include` y sin los
+demás `.cpp`. En un proyecto de varios ficheros no funciona nunca, y el
+error que da no dice que hayas pulsado el botón equivocado: dice que no
+encuentra una cabecera, que es lo que hace perder la tarde. El ▷ de la barra
+de abajo, al lado de «Build», es el de CMake y ese sí construye el proyecto
+entero. Por eso `extra/nuevo-proyecto` deja `"C_Cpp.debugShortcut": false`
+en los ajustes del proyecto: quita el de arriba y deja solo los que hacen lo
+que parece. Para ejecutar, F5 o los de abajo.
+
 **Ordenar una lista vacía en bash te inventa un elemento.** `printf '%s\n'
 "${lista[@]}"` con la lista vacía no escribe cero líneas: escribe una, en
 blanco. Si el resultado va a un `mapfile`, acabas con una lista de un
