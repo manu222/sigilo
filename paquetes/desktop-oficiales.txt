@@ -30,6 +30,7 @@ cantarell-fonts
 cava
 chafa
 cliphist
+cmatrix
 cryptsetup
 cups
 cups-browsed
@@ -313,6 +314,7 @@ xfsprogs
 xl2tpd
 xorg-server
 xorg-xdpyinfo
+xorg-xhost
 xorg-xinit
 xorg-xinput
 xorg-xkill
