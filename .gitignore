@@ -7,6 +7,9 @@
 *.sin-animaciones
 *.log
 *.vsix
+# …salvo el del tema ya empaquetado, que se sube a propósito para poder
+# llevárselo a un equipo suelto e instalarlo con doble clic
+!vscode/sigilo-tema-*.vsix
 __pycache__/
 config/**/cache/
 

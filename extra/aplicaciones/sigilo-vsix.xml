@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Declara qué es un fichero .vsix.
+     Hace falta porque, sin esto, el sistema los reconoce como un zip normal
+     (que es lo que son por dentro) y asociarlos al doble clic significaría
+     asociar TODOS los zip. Con un tipo propio, solo se tocan los .vsix.
+     Lo instala instalar.sh en ~/.local/share/mime/packages/ -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/vnd.visualstudio.vsix">
+    <comment>Extensión de VS Code</comment>
+    <comment xml:lang="en">VS Code extension</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.vsix"/>
+  </mime-type>
+</mime-info>

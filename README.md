@@ -431,6 +431,33 @@ paquetes lo rehace una vez y no cien:
 systemctl --user status sigilo-apps-nuevas.path
 ```
 
+### El tema de VS Code, sin depender del repositorio
+
+El tema va empaquetado en `vscode/sigilo-tema-1.0.0.vsix`, listo para
+llevárselo a cualquier sitio. En un equipo con Sigilo instalado no hace
+falta tocarlo — `instalar.sh` ya lo pone —, pero en uno prestado, o en el
+trabajo, basta con copiar ese fichero y **hacerle doble clic**.
+
+En Linux eso no viene de serie: VS Code no registra ningún manejador para
+los `.vsix`. Sigilo declara el tipo de fichero y lo asocia a
+`config/i3/scripts/instalar-vsix`, que lo instala y avisa al terminar. Vale
+para cualquier `.vsix`, no solo para este. Y hay que declarar el tipo aparte
+porque por dentro un `.vsix` es un zip: sin tipo propio, asociarlo al doble
+clic sería asociar todos los zip del equipo.
+
+Desde la terminal es lo mismo de siempre:
+
+```bash
+code --install-extension vscode/sigilo-tema-1.0.0.vsix
+```
+
+Si tocas el tema, hay que volver a empaquetarlo o el `.vsix` que viaja en el
+repositorio se queda viejo. De eso avisa `extra/revisar`:
+
+```bash
+vscode/instalar-tema --solo-vsix
+```
+
 ## Atajos
 
 `❖` es la tecla Super. **`❖ + F1`** abre la chuleta completa, ordenada por

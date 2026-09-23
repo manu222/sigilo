@@ -104,6 +104,17 @@ command -v xdg-mime >/dev/null && for t in png jpeg webp gif bmp tiff avif heic 
     xdg-mime default sigilo-imagenes.desktop "image/$t"
 done
 
+# Doble clic en un .vsix para instalarlo en VS Code. Hay que declarar antes
+# qué es un .vsix: por dentro son zip, y sin un tipo propio asociarlos sería
+# asociar todos los zip del equipo
+if command -v update-mime-database >/dev/null; then
+    install -Dm644 "$REPO/extra/aplicaciones/sigilo-vsix.xml" \
+        "$HOME/.local/share/mime/packages/sigilo-vsix.xml"
+    update-mime-database "$HOME/.local/share/mime" 2>/dev/null
+    command -v xdg-mime >/dev/null && \
+        xdg-mime default sigilo-vsix.desktop application/vnd.visualstudio.vsix
+fi
+
 # Tema de iconos (necesita papirus-icon-theme; si aún no está, se avisa)
 python3 "$REPO/extra/iconos-sigilo.py" 2>/dev/null \
     || echo "Iconos: instala papirus-icon-theme y lanza  python3 $REPO/extra/iconos-sigilo.py"

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Instala una extensión de VS Code a partir de un fichero .vsix.
+#
+#   instalar-vsix tema.vsix
+#
+# Existe para poder hacerlo con doble clic: en Linux, VS Code no registra
+# ningún manejador para los .vsix, así que sin esto hay que acordarse de
+# «code --install-extension» o ir al panel de extensiones.
+#
+# Lo engancha al doble clic extra/aplicaciones/sigilo-vsix.desktop, y quien
+# lo deja como programa por defecto es instalar.sh. Sirve para cualquier
+# .vsix, no solo para el tema de Sigilo.
+
+set -uo pipefail
+F="${1:-}"
+
+bien() { notify-send -a "VS Code" "Extensión de VS Code" "$1"; }
+mal()  { notify-send -a "VS Code" -u critical "Extensión de VS Code" "$1"; exit 1; }
+
+[ -n "$F" ]  || mal "No me has dicho qué fichero instalar."
+[ -f "$F" ]  || mal "No encuentro el fichero:\n$F"
+case "${F,,}" in
+    *.vsix) ;;
+    *) mal "Esto no es una extensión de VS Code:\n$(basename "$F")" ;;
+esac
+
+CODE=$(command -v code || command -v codium) || mal "No tienes VS Code instalado."
+
+nombre=$(basename "$F")
+bien "Instalando $nombre…"
+if salida=$("$CODE" --install-extension "$F" --force 2>&1); then
+    bien "$nombre instalada.\nSi VS Code estaba abierto: Ctrl+Shift+P → «Reload Window»"
+else
+    mal "No se pudo instalar $nombre:\n$(printf '%s' "$salida" | tail -2)"
+fi

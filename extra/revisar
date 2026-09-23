@@ -190,6 +190,21 @@ else
     ok "ningún temporal con nombre fijo"
 fi
 
+# 3. El .vsix del tema de VS Code es un fichero ya empaquetado: si se toca
+#    el tema y no se vuelve a empaquetar, el que viaja en el repositorio se
+#    queda viejo y nadie se entera hasta instalarlo en otro equipo
+vsix=$(ls -1 vscode/sigilo-tema-*.vsix 2>/dev/null | head -1)
+if [ -n "$vsix" ]; then
+    reciente=$(find vscode/sigilo -type f -newer "$vsix" 2>/dev/null | head -3)
+    if [ -n "$reciente" ]; then
+        ojo "el tema de VS Code ha cambiado después de empaquetarse:"
+        printf '%s\n' "$reciente" | sed 's|^|      |'
+        printf '      \e[2mvuelve a empaquetarlo:  vscode/instalar-tema --solo-vsix\e[0m\n'
+    else
+        ok "el .vsix del tema está al día"
+    fi
+fi
+
 echo
 if [ "$FALLOS" -eq 0 ]; then
     printf '\e[1;32mTodo correcto.\e[0m\n'

@@ -1,0 +1,14 @@
+# Doble clic en un .vsix para instalarlo en VS Code.
+# Lo instala instalar.sh, que cambia @CASA@ por tu carpeta personal: los
+# ficheros .desktop no entienden ~ ni $HOME, hay que escribir la ruta entera.
+[Desktop Entry]
+Type=Application
+Name=Instalar en VS Code
+GenericName=Extensión de VS Code
+Comment=Instala esta extensión en VS Code y avisa al terminar
+Exec=@CASA@/.config/i3/scripts/instalar-vsix %f
+Icon=com.visualstudio.code
+Terminal=false
+NoDisplay=true
+Categories=Development;
+MimeType=application/vnd.visualstudio.vsix;
