@@ -109,12 +109,16 @@ def visible(e):
 
 def de_paquete(paq):
     """Ficheros .desktop que instala un paquete."""
+    if not shutil.which("pacman"):
+        return []
     r = subprocess.run(["pacman", "-Qlq", paq], capture_output=True, text=True)
     return [Path(l) for l in r.stdout.split() if l.startswith("/usr/share/applications/") and l.endswith(".desktop")]
 
 
 def instalado(paq):
-    """True si el paquete está instalado."""
+    """True si el paquete está instalado. Sin pacman (otra distro), False."""
+    if not shutil.which("pacman"):
+        return False
     return subprocess.run(["pacman", "-Qq", paq], capture_output=True).returncode == 0
 
 
@@ -237,6 +241,64 @@ def escribir_menu():
     destino.write_text("\n".join(lineas) + "\n")
 
 
+def donde(paquete):
+    """Dice en qué carpeta acabaría un paquete, sin tocar nada.
+
+    Sirve para salir de dudas antes (o después) de instalar algo:
+        extra/organizar-apps --donde wireshark-qt
+    """
+    grupos = yaml.safe_load(GRUPOS.read_text()) if GRUPOS.exists() else []
+
+    # 1. lo que esté decidido a mano en grupos.yaml
+    for g in grupos:
+        for s in (g.get("subgroups") or [g]):
+            carpeta = s.get("carpeta") or g.get("carpeta")
+            if not carpeta:
+                continue
+            if any(paquete in p.split("|") for p in s.get("packages", [])):
+                print(f"{paquete} -> {carpeta}")
+                print("   lo dice iso/grupos.yaml, que manda por encima de todo")
+                return
+            if paquete in (s.get("terminal") or []):
+                print(f"{paquete} -> {carpeta}  (acceso de terminal)")
+                print("   lo dice iso/grupos.yaml")
+                return
+
+    # 2. si no está ahí, manda la categoría que declare la propia app, y para
+    #    eso hay que poder leer su fichero .desktop: o sea, tenerla instalada
+    if not instalado(paquete):
+        print(f"{paquete} no aparece en iso/grupos.yaml y no está instalado.")
+        print("   Sin instalarlo no puedo leer su categoría. Si quieres")
+        print("   elegir tú dónde va, añádelo a iso/grupos.yaml con su «carpeta».")
+        return
+    entradas = [d for d in de_paquete(paquete) if visible(leer_desktop(d))]
+    if not entradas:
+        print(f"{paquete} está instalado pero no trae entrada de menú.")
+        print("   No saldrá en el menú (es una herramienta de terminal). Para")
+        print("   que salga, añádelo a iso/grupos.yaml en la lista «terminal:»")
+        print("   del grupo que le toque: se le hace un acceso que abre kitty")
+        print("   con su chuleta.")
+        return
+    for d in entradas:
+        e = leer_desktop(d)
+        cats = [c for c in e.get("Categories", "").split(";") if c]
+        if d.stem in MOVER:
+            print(f"{paquete} -> {MOVER[d.stem]}")
+            print("   está en la lista MOVER de este script (caso suelto)")
+        else:
+            encaje = next(((k, c) for k, c in POR_CATEGORIA if k in cats), None)
+            if encaje:
+                print(f"{paquete} -> {encaje[1]}")
+                print(f"   por la categoría «{encaje[0]}» que declara la propia app")
+            else:
+                print(f"{paquete} -> Sistema/Otras")
+                print(f"   no declara ninguna categoría de las que reparto (trae: "
+                      f"{', '.join(cats) or 'ninguna'})")
+        # El nombre del .desktop es lo que hay que escribir en MOVER y en
+        # OCULTAR, y no se adivina: muchos se llaman org.algo.LoQueSea
+        print(f"   se llama «{d.stem}» (es el nombre que piden MOVER y OCULTAR)")
+
+
 def main():
     """Crea las carpetas de trabajo, reparte las apps y rehace ~/Aplicaciones y el menú de la barra."""
     carpetas_de_trabajo()
@@ -302,8 +364,15 @@ def main():
     RAIZ.mkdir(exist_ok=True)
     (RAIZ / "LÉEME.txt").write_text(
         "Esta carpeta se genera sola al iniciar sesión (~/dotfiles/extra/organizar-apps).\n"
-        "Son accesos directos: puedes abrirlos, pero no guardes nada aquí.\n"
-        "Para cambiar dónde va una app, edita iso/grupos.yaml en tus dotfiles.\n")
+        "Son accesos directos: puedes abrirlos, pero no guardes nada aquí, y no\n"
+        "muevas nada de sitio: se borra y se rehace entera en cada reparto.\n"
+        "\n"
+        "Para cambiar dónde va una app:\n"
+        "  · saber dónde acabará:  extra/organizar-apps --donde <paquete>\n"
+        "  · moverla de carpeta:   iso/grupos.yaml (campo «carpeta»), o el\n"
+        "    diccionario MOVER de extra/organizar-apps si es un caso suelto\n"
+        "  · que no salga:         el conjunto OCULTAR, en ese mismo fichero\n"
+        "Está contado con calma en el README, en el apartado de Apps.\n")
 
     for origen, carpeta in plan.items():
         dest = RAIZ / carpeta
@@ -328,4 +397,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--donde" in sys.argv:
+        resto = [a for a in sys.argv[2:] if not a.startswith("-")]
+        if not resto:
+            sys.exit("Uso: organizar-apps --donde <paquete>")
+        for paq in resto:
+            donde(paq)
+    else:
+        main()

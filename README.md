@@ -21,8 +21,8 @@ el foco, el escritorio en el que estás) y un lila suave marca lo seleccionado
 - [La segunda sesión: Hyprland](#la-segunda-sesión-hyprland) · qué cambia y qué se mantiene
 - [La paleta](#la-paleta) · los colores y de dónde salen
 - [Qué hay en el repo](#qué-hay-en-el-repo) · para qué sirve cada carpeta
-- [Instalación](#instalación) · desde cero, y [en otra distro](#en-otra-distro-o-con-otro-escritorio)
-- [Apps](#apps) · las que instala y por qué esas
+- [Instalación](#instalación) · desde cero, [desde una consola](#desde-una-consola-sin-entorno-gráfico), [qué sesiones aparecen](#qué-sesiones-aparecen-al-entrar) y [en otra distro](#en-otra-distro-o-con-otro-escritorio)
+- [Apps](#apps) · las que instala, [dónde acaba cada una](#dónde-acaba-cada-app) y [cómo moverla](#mover-una-app-a-otra-carpeta)
 - [Atajos](#atajos) · el teclado entero
 - [Rendimiento](#rendimiento) · qué se toca y cuánto se nota
 - [Cosas que tienen truco](#cosas-que-tienen-truco) · los problemas que costaron y cómo se resolvieron
@@ -203,6 +203,53 @@ que la necesita. Todos comprueban antes lo que van a tocar y guardan copia.
 Windows en un disco de datos). Lee lo que hace antes de lanzarlo: borra un
 disco entero, aunque se niega a tocar el del sistema.
 
+### Desde una consola, sin entorno gráfico
+
+Es el caso de un Arch recién instalado, sin escritorio todavía: entras en un
+tty, y desde ahí sale todo. Los dos scripts están pensados para eso.
+
+`instalar.sh` no necesita pantalla para nada: solo copia ficheros y deja
+apuntadas preferencias. Lo que sí requiere un programa que aún no esté
+(convertir una imagen, hablar con el gestor de archivos) lo comprueba antes
+y se lo salta sin romperse.
+
+`extra/sigilo-apps` elige con casillas en modo texto (`dialog`), así que se
+maneja igual en un tty que en una terminal gráfica. Y monta solo lo que le
+falte al equipo: si no hay `dialog`, `python`, `git` o `base-devel`, los
+instala; si no hay ayudante del AUR, se compila `yay`. En Arch puro no hace
+falta preparar nada antes:
+
+```bash
+sudo pacman -S --needed git
+git clone https://github.com/manu222/sigilo.git ~/dotfiles
+cd ~/dotfiles
+./instalar.sh
+./extra/sigilo-apps        # aquí entran i3, la barra, el servidor gráfico…
+```
+
+Al terminar, reinicia y ya tienes la pantalla de inicio de sesión. El orden
+importa poco, pero así el segundo paso ya encuentra la configuración puesta.
+
+### Qué sesiones aparecen al entrar
+
+En la pantalla de acceso salen todas las que haya instaladas, no solo las de
+Sigilo:
+
+- **i3** · la entrada que trae el propio paquete de i3. Es la sesión de
+  Sigilo: i3 lee `~/.config/i3/config` y ahí está todo, así que no hace
+  falta una entrada aparte
+- **Sigilo (Hyprland)** · la que añade `sistema/instalar-sesion-hyprland.sh`,
+  y es la que hay que elegir
+- **Hyprland** · la que trae el paquete. Se deja a propósito, pero arranca
+  el compositor a pelo, sin esperar a que lightdm suelte la gráfica, y en el
+  sobremesa con NVIDIA eso dejaba la imagen congelada
+
+Para verlas:
+
+```bash
+ls /usr/share/xsessions /usr/share/wayland-sessions
+```
+
 ### En otra distro o con otro escritorio
 
 Sigilo es un escritorio i3 y funciona en cualquier distro basada en Arch
@@ -246,24 +293,99 @@ diccionarios…) y `~/Proyectos`.
 
 ### Dónde acaba cada app
 
-El reparto va por orden, y la primera regla que encaje manda:
+Cuando instalas un programa nuevo, con `sigilo-apps` o con un `pacman -S` a
+secas, el reparto lo coloca solo. Va por orden y manda la primera regla que
+encaje:
 
-1. lo que diga el campo `carpeta` de `iso/grupos.yaml`, que es donde está
-   decidido a mano dónde va cada cosa (`gparted` → `Sistema/Discos`)
-2. si no está ahí, la categoría que declare la propia app en su `.desktop`
-   (`Development` → `Desarrollo/Herramientas`, `Audio` → `Multimedia/Música`…)
-3. y si no declara ninguna que valga, `Sistema/Otras`
+1. **Lo que diga `iso/grupos.yaml`.** Ahí está decidido a mano dónde va cada
+   cosa, con el campo `carpeta` (`gparted` → `Sistema/Discos`). Esto pesa
+   por encima de todo lo demás.
+2. **La categoría que declare la propia app** en su fichero `.desktop`:
+   `Development` → `Desarrollo/Herramientas`, `Audio` → `Multimedia/Música`,
+   `Network` → `Día a día/Internet`… La tabla completa es `POR_CATEGORIA`,
+   al principio de `extra/organizar-apps`.
+3. **Y si no declara ninguna que yo reparta**, `Sistema/Otras`, que es el
+   cajón de sastre.
 
-Así que una app instalada por libre, con un `pacman -S` a secas, cae igual
-en su sitio. Si cae en un sitio que no te convence, se arregla añadiéndola a
-`iso/grupos.yaml` con su `carpeta`, o al diccionario `MOVER` de
-`extra/organizar-apps` si es un caso suelto.
+Conviene saber hasta dónde llega la regla 2, porque promete menos de lo que
+parece: las categorías estándar son gruesas. Sabe que algo es «Security»,
+pero no distingue entre `Seguridad/Red` y `Seguridad/Web` — esas subcarpetas
+son mías y no existen en ningún estándar. Así que una herramienta de
+seguridad instalada por libre acaba en `Seguridad/Otras`, y si la quieres
+más fina hay que decirlo. Lo mismo con las de terminal a secas: el menú se
+arma con ficheros `.desktop`, y una herramienta de consola no tiene ninguno,
+así que no sale hasta que la apuntes.
 
-El reparto se rehace al iniciar sesión, al terminar `sigilo-apps` y cada vez
-que instalas o quitas algo, de eso se encarga una unidad de systemd que
-vigila la base de datos de pacman (`sigilo-apps-nuevas.path`). Espera a que
-pacman suelte el candado, así que en una actualización de cien paquetes se
-rehace una vez y no cien. Para verlo:
+Para salir de dudas con cualquier paquete, antes o después de instalarlo:
+
+```bash
+extra/organizar-apps --donde wireshark-qt
+#  wireshark-qt -> Seguridad/Red
+#     lo dice iso/grupos.yaml, que manda por encima de todo
+```
+
+Dice también cómo se llama su `.desktop`, que es el nombre que hacen falta
+los dos arreglos de más abajo y que no se adivina: muchos son cosas como
+`org.gnome.seahorse.Application`.
+
+### Mover una app a otra carpeta
+
+Hay tres sitios donde tocar, según el caso. **No vale con mover el acceso a
+mano dentro de `~/Aplicaciones`**: esa carpeta se borra y se rehace entera
+en cada reparto, así que cualquier cambio hecho ahí desaparece al rato.
+
+**Si la app es una de las tuyas, o quieres que el cambio viaje a tus otros
+equipos** → `iso/grupos.yaml`, que es el sitio bueno. Se añade el paquete al
+grupo que le toque, y ese grupo ya lleva su `carpeta`:
+
+```yaml
+- {name: "Red", description: "…", packages: [wireshark-qt, tcpdump, nmap, brimstone],
+   carpeta: "Seguridad/Red", terminal: [nmap, tcpdump, nc, brimstone]}
+```
+
+En `packages` van los programas del grupo. En `terminal` van los que no
+traen ventana propia: a esos se les fabrica un acceso que abre kitty con su
+chuleta de uso (`tldr`, y si no hay, su `--help`). Un paquete puede estar en
+las dos listas, o solo en una.
+
+Si te hace falta una carpeta que todavía no existe, la escribes y ya está:
+se crea sola. Para que además tenga icono propio, añádela al diccionario
+`ICONOS_CARPETA` de `extra/organizar-apps`; si no, se queda con el de
+carpeta normal.
+
+**Si es un caso suelto que no pinta en ningún grupo** → el diccionario
+`MOVER` de `extra/organizar-apps`, que es para eso: apps sueltas que la
+categoría automática coloca mal. Va por el nombre del `.desktop`:
+
+```python
+MOVER = {
+    "hp-uiscan": "Sistema/Impresión",
+    "org.flameshot.Flameshot": "Sistema/Utilidades",
+}
+```
+
+**Si lo que quieres es que no salga** → el conjunto `OCULTAR`, en el mismo
+fichero, también por el nombre del `.desktop`. Ahí están las entradas que
+vienen de regalo con otros paquetes y no aportan nada: otros terminales,
+herramientas internas de Qt o de Java, el propio lanzador. No se desinstala
+nada, solo deja de mostrarse.
+
+Toques lo que toques, se aplica con:
+
+```bash
+ordenar-apps          # o  extra/organizar-apps
+```
+
+Y si el cambio fue en `grupos.yaml`, acuérdate de que ese fichero vive en el
+repositorio: un commit y ya lo tienen los dos equipos.
+
+### Cuándo se rehace el reparto
+
+Se rehace él solo en tres momentos: al iniciar sesión, al terminar
+`sigilo-apps`, y cada vez que instalas o quitas algo con pacman o con yay. De lo último se encarga
+una unidad de systemd que vigila la base de datos de pacman. Espera a que
+pacman suelte el candado antes de ponerse, así que una actualización de cien
+paquetes lo rehace una vez y no cien:
 
 ```bash
 systemctl --user status sigilo-apps-nuevas.path
