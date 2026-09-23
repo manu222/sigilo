@@ -143,9 +143,15 @@ Y, si quieres las piezas del sistema, cada una por separado:
 ```bash
 sistema/instalar-grub.sh                # tema del menú de arranque
 sistema/instalar-acceso.sh              # pantalla de inicio de sesión
+sistema/instalar-sesion-hyprland.sh     # la segunda sesión, si la instalaste
 sudo sistema/instalar-instantaneas.sh   # copias de Timeshift (solo btrfs)
 sudo sistema/optimizar.sh               # zram, memoria, energía, GRUB a 2 s
 ```
+
+La segunda sesión es opcional y va aparte: en `sigilo-apps` hay un grupo
+«Sigilo · Hyprland» que trae sus paquetes, y luego
+`instalar-sesion-hyprland.sh` la deja disponible en la pantalla de acceso.
+Para saber si el equipo puede con ella: `iso/detectar-hardware --hyprland`.
 
 Los que van sin `sudo` piden la contraseña ellos mismos solo para el paso
 que la necesita. Todos comprueban antes lo que van a tocar y guardan copia.

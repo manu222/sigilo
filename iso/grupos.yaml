@@ -83,6 +83,8 @@
     - python-i3ipc
     - python-xlib
     - python-yaml
+    # Dibuja los sellos y el banner del lanzador (extra/dibujar-sellos)
+    - python-pillow
     - skippy-xd-git
     - gsimplecal
     - dex
@@ -108,6 +110,40 @@
     - noto-fonts-emoji
     - power-profiles-daemon
     - zram-generator
+
+- name: "Sigilo · Hyprland"
+  description: "La segunda sesión, sobre Wayland: cada pantalla a su frecuencia, VRR, desenfoque y animaciones de verdad. Mismo tema y mismos atajos que i3, que se queda instalado igual. Pide una gráfica que lo aguante: Intel, AMD, o NVIDIA con el driver propietario."
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - hyprland
+    # Las aplicaciones de X11 siguen funcionando dentro de la sesión
+    - xorg-xwayland
+    - waybar
+    - hyprlock
+    - hypridle
+    # Para que los diálogos de abrir y guardar sean los del sistema
+    - xdg-desktop-portal-hyprland
+    # Para que las apps de Qt se dibujen en Wayland y no por XWayland
+    - qt5-wayland
+    - qt6-wayland
+    # Lo usan el menú de aplicaciones, el Alt+Tab y la tarjeta de música para
+    # dibujarse como capas, igual que la barra
+    - gtk-layer-shell
+    # Fondo de pantalla, de imagen o de vídeo (el feh + xwinwrap de Wayland)
+    - mpvpaper
+    - grim
+    - slurp
+    - wl-clipboard
+    # Historial del portapapeles (el greenclip de Wayland)
+    - cliphist
+    # Escribe texto donde está el cursor, para el menú de emojis
+    - wtype
+    # La rejilla con todas las aplicaciones (clic derecho en el botón Apps)
+    - nwg-drawer
+    # Pinta el sello en bloques de colores, para terminales sin imágenes
+    - chafa
 
 - name: "Sigilo · copias del sistema"
   description: "Copia instantánea antes de cada actualización y arranque de copias desde GRUB. Solo sirve con btrfs."

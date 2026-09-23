@@ -3,6 +3,8 @@
 #
 #   detectar-hardware              informe legible
 #   detectar-hardware --paquetes   solo los nombres de paquete, uno por línea
+#   detectar-hardware --hyprland   dice «si» o «no» según si este equipo puede
+#                                  con la segunda sesión (Wayland)
 #
 # No instala nada: lo usan extra/sigilo-apps y el instalador de la ISO.
 #
@@ -90,6 +92,28 @@ while IFS= read -r n; do
     esac
 done <<<"$npus"
 
+# ── ¿aguanta la segunda sesión? ──────────────────────────────────────────
+# Hyprland necesita Wayland de verdad. Con Intel y AMD va de serie; con NVIDIA
+# hace falta el driver propietario (el libre, nouveau, no es de fiar para
+# esto). i3 se instala siempre, así que en el peor caso no se pierde nada.
+WAYLAND=no
+case " ${PAQ[*]} " in
+    *" mesa "*) WAYLAND=si ;;
+esac
+case "$NVIDIA_RAMA" in
+    open|580xx) WAYLAND=si ;;
+    nouveau)    WAYLAND=no ;;
+esac
+# Si ya tenía un driver de NVIDIA puesto de antes, no pasamos por la rama
+case "${ya:-}" in
+    nvidia*) WAYLAND=si ;;
+esac
+if [ "$WAYLAND" = si ]; then
+    nota "Esta gráfica aguanta la sesión de Hyprland (grupo «Sigilo · Hyprland»)"
+else
+    nota "Esta gráfica no es de fiar para Wayland: mejor quedarse solo con i3"
+fi
+
 # ── portátil o sobremesa ─────────────────────────────────────────────────
 if ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
     nota "Portátil: batería $(basename /sys/class/power_supply/BAT* | head -1)"
@@ -99,7 +123,9 @@ fi
 
 # ── salida ───────────────────────────────────────────────────────────────
 mapfile -t PAQ < <(printf '%s\n' "${PAQ[@]}" | awk '!v[$0]++')
-if [ "$MODO" = --paquetes ]; then
+if [ "$MODO" = --hyprland ]; then
+    echo "$WAYLAND"
+elif [ "$MODO" = --paquetes ]; then
     printf '%s\n' "${PAQ[@]}"
 else
     echo "Hardware detectado:"
