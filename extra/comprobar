@@ -114,10 +114,12 @@ for grupo in g:
     paquetes = [p for s in (grupo.get("subgroups") or [grupo]) for p in s.get("packages", [])]
     noestan = [p for p in paquetes if not puesto(p)]
     # Los grupos que no vienen marcados son opcionales (la sesión de
-    # Hyprland, por ejemplo). Si no hay ni uno puesto, es que no lo elegiste
-    # en este equipo y no es ningún fallo. Si hay unos sí y otros no, eso sí
-    # hay que decirlo: se quedó a medias.
-    if grupo.get("selected") is False and len(noestan) == len(paquetes):
+    # Hyprland, por ejemplo). Para saber si lo elegiste en este equipo se
+    # mira SU PRIMER PAQUETE, que es el que le da nombre al grupo: si
+    # «hyprland» no está, da igual que tengas qt6-wayland puesto, porque eso
+    # lo arrastra cualquier otra cosa. Si el primero está y faltan otros, sí
+    # se avisa: eso es una instalación a medias.
+    if grupo.get("selected") is False and paquetes and not puesto(paquetes[0]):
         continue
     (sueltos if grupo.get("selected") is False else faltan).extend(noestan)
 
