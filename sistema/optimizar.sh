@@ -13,7 +13,9 @@
 #   2. Memoria: el kernel usa antes la zram y conserva más la caché de disco.
 #   3. Energía: solo si hay batería, perfil «equilibrado» enchufado y
 #      «ahorro» a pilas. En un sobremesa no se toca nada.
-#   4. GRUB: acorta la espera del menú, con cuidado de no perder entradas.
+#   4. GRUB: si solo hay Linux, acorta la espera a 2 s; si hay más de un
+#      sistema, quita la cuenta atrás para que elijas tú, con la distro ya
+#      marcada. Todo con cuidado de no perder entradas del menú.
 #   5. Limpieza semanal de la caché de pacman (deja las 2 últimas versiones).
 #
 # No toca ningún servicio: impresión, wifi, bluetooth y demás siguen igual.
@@ -114,25 +116,41 @@ if [ ! -f /etc/default/grub ] || [ ! -d /boot/grub ]; then
 else
     contar() { grep -c "^menuentry" /boot/grub/grub.cfg 2>/dev/null || echo 0; }
     ANTES_N=$(contar)
-    # Con más de un sistema en el menú, 2 segundos es muy justo para elegir
-    ESPERA=2
-    [ "$ANTES_N" -gt 1 ] && ESPERA=5
+    # Con un solo sistema, el menú solo estorba: dos segundos y adentro. Con
+    # más de uno, nada de cuenta atrás: se queda esperando a que elijas, que
+    # si no acabas arrancando Linux sin querer cuando ibas a Windows.
+    if [ "$ANTES_N" -gt 1 ]; then
+        ESPERA=-1
+        COMO="sin cuenta atrás: espera a que elijas"
+    else
+        ESPERA=2
+        COMO="2 s"
+    fi
     ACTUAL=$(sed -n 's/^GRUB_TIMEOUT=//p' /etc/default/grub | tr -d '"'"'")
 
     if [ "$ACTUAL" = "$ESPERA" ]; then
-        ok "la espera ya está en $ESPERA s"
+        ok "el menú ya está como toca ($COMO)"
     else
         guardar /etc/default/grub
         cp -a /boot/grub/grub.cfg "/boot/grub/grub.cfg.antes-optimizar-$FECHA"
         sed -i "s/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=$ESPERA/" /etc/default/grub
-        # Que os-prober siga buscando otros sistemas, si ya lo hacía
-        if [ "$ANTES_N" -gt 1 ] && ! grep -q '^GRUB_DISABLE_OS_PROBER=false' /etc/default/grub; then
-            sed -i '/^GRUB_DISABLE_OS_PROBER=/d' /etc/default/grub
-            echo 'GRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub
+        poner() {   # deja «clave=valor» en /etc/default/grub, esté o no
+            sed -i "/^$1=/d" /etc/default/grub
+            echo "$1=$2" >> /etc/default/grub
+        }
+        # Que el menú se vea de verdad: con «hidden» la espera no sirve
+        poner GRUB_TIMEOUT_STYLE menu
+        if [ "$ANTES_N" -gt 1 ]; then
+            # La primera entrada siempre es la distro que estás usando:
+            # grub-mkconfig la pone antes que las que encuentra os-prober
+            poner GRUB_DEFAULT 0
+            # Y que os-prober siga buscando los demás sistemas, que en Arch
+            # viene apagado de serie y al regenerar se perderían
+            poner GRUB_DISABLE_OS_PROBER false
         fi
         grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
         if [ "$(contar)" -ge "$ANTES_N" ]; then
-            ok "espera del menú: ${ACTUAL:-sin poner} s → $ESPERA s ($(contar) entradas, las mismas de antes)"
+            ok "menú: $COMO ($(contar) entradas, las mismas de antes)"
         else
             cp -a "/etc/default/grub.antes-optimizar-$FECHA" /etc/default/grub
             cp -a "/boot/grub/grub.cfg.antes-optimizar-$FECHA" /boot/grub/grub.cfg
@@ -140,7 +158,9 @@ else
             echo "    Suele ser os-prober apagado o sin instalar: sudo pacman -S os-prober"
         fi
     fi
-    [ "$ANTES_N" -gt 1 ] && ok "hay $ANTES_N sistemas en el menú, por eso la espera es de $ESPERA s"
+    if [ "$ANTES_N" -gt 1 ]; then
+        ok "hay $ANTES_N sistemas en el menú, con $(grep -m1 "^menuentry" /boot/grub/grub.cfg | cut -d"'" -f2) marcado de salida"
+    fi
 fi
 
 # ── 5. caché de pacman ───────────────────────────────────────
