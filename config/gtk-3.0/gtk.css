@@ -1,5 +1,25 @@
 @import url("../sigilo/colores-gtk.css");
 
+/* Desplegables largos como una lista, no como un menú de pantalla entera.
+ *
+ * Con muchas entradas —el selector de lenguaje del diálogo de guardar de VS
+ * Code tiene sesenta— GTK abre el desplegable como un menú, y un menú crece
+ * hasta donde llegue la pantalla y pone flechitas para desplazarse. Esta
+ * propiedad le dice que use una lista con su barra de desplazamiento, que es
+ * lo que se espera de un cuadro de selección.
+ *
+ * Es una propiedad de estilo de GTK3 y está marcada como obsoleta: puede que
+ * una versión futura la ignore. Si la ignora, no pasa nada, simplemente se
+ * queda como estaba. */
+* {
+    -GtkComboBox-appears-as-list: 1;
+}
+
+/* Y por si acaso sale en modo lista, que no se estire sin límite */
+combobox window.popup scrolledwindow {
+    max-height: 420px;
+}
+
 /* Aire dentro del terminal: el texto no va pegado al borde. */
 vte-terminal,
 VteTerminal {
