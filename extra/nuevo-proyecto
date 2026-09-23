@@ -13,6 +13,7 @@
 #   nombre/
 #   ├── CMakeLists.txt        cómo se construye
 #   ├── .gitignore            para que build/ no acabe en git
+#   ├── .vscode/              para que F5 construya con CMake y no a mano
 #   ├── include/nombre/       las cabeceras (.h)
 #   │   └── saludo.h
 #   └── src/                  el código (.cpp)
@@ -135,6 +136,55 @@ int main() {
     return 0;
 }
 MAIN
+
+# ── Ajustes de VS Code ───────────────────────────────────────────────────
+# Sin esto, al darle a F5 el editor ofrece su tarea de «compilar el fichero
+# activo», que compila un solo .cpp suelto, sin la carpeta include y sin los
+# demás ficheros. En un proyecto de varios ficheros eso no compila nunca, y
+# el error que sale no dice que hayas elegido mal: dice que no encuentra una
+# cabecera. Dejando aquí la configuración, F5 construye con CMake y ya está.
+mkdir -p "$RUTA/.vscode"
+
+cat > "$RUTA/.vscode/settings.json" <<'AJUSTES'
+{
+    // Configura el proyecto al abrirlo, sin tener que pedirlo
+    "cmake.configureOnOpen": true,
+    // Y que el análisis del editor lea de ahí dónde están las cabeceras y
+    // con qué opciones se compila cada fichero. Es lo que quita los
+    // subrayados rojos en #include que sí existen
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
+}
+AJUSTES
+
+cat > "$RUTA/.vscode/launch.json" <<'LANZAR'
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // F5: construye con CMake y lanza el depurador sobre lo que salga.
+            // «cmake.launchTargetPath» es el ejecutable que CMake acaba de
+            // construir, sea cual sea su nombre, así que esto no hay que
+            // tocarlo aunque el proyecto cambie de nombre
+            "name": "Depurar",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Que gdb enseñe los vector y los string legibles",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}
+LANZAR
 
 command -v git >/dev/null && git -C "$RUTA" init -q 2>/dev/null
 
