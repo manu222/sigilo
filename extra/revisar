@@ -180,9 +180,15 @@ fi
 
 # 2. Ficheros temporales con nombre fijo. Cualquiera puede dejar antes un
 #    enlace con ese nombre y hacer que al escribir te cargues otro fichero
+# Igual que arriba: solo las líneas que hacen algo. Los comentarios y la
+# documentación de uso de los propios scripts nombran rutas de /tmp como
+# ejemplo, y eso no es un temporal de verdad
 con_tmp=$(grep -rnE '["> ]/tmp/[A-Za-z0-9_.-]+' --exclude-dir=.git \
           --exclude-dir=__pycache__ --exclude='*.md' . 2>/dev/null \
-          | grep -vE 'mktemp|^\./paquetes|skippy-xd' | sort)
+          | grep -vE 'mktemp|^\./paquetes|skippy-xd' \
+          | awk -F: '{ linea=$0; sub(/^[^:]*:[0-9]*:/, "", linea)
+                       if (linea !~ /^[[:space:]]*(#|\/\/|\*|--)/) print }' \
+          | sort)
 if [ -n "$con_tmp" ]; then
     ojo "$(printf '%s\n' "$con_tmp" | wc -l) ruta(s) fijas en /tmp (mejor mktemp):"
     printf '%s\n' "$con_tmp" | cut -d: -f1,2 | sed 's|^\./|      |'
