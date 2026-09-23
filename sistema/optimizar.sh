@@ -11,8 +11,9 @@
 # Qué hace:
 #   1. zram: swap comprimida en RAM, del tamaño que le toque a este equipo.
 #   2. Memoria: el kernel usa antes la zram y conserva más la caché de disco.
-#   3. Energía: solo si hay batería, perfil «equilibrado» enchufado y
-#      «ahorro» a pilas. En un sobremesa no se toca nada.
+#   3. Energía: en un portátil, «equilibrado» enchufado y «ahorro» a pilas,
+#      cambiando solo. En un sobremesa, «rendimiento» fijo: no hay batería
+#      que cuidar, así que no tiene sentido frenarlo.
 #   4. GRUB: si solo hay Linux, acorta la espera a 2 s; si hay más de un
 #      sistema, quita la cuenta atrás para que elijas tú, con la distro ya
 #      marcada. Todo con cuidado de no perder entradas del menú.
@@ -101,7 +102,31 @@ else
         udevadm control --reload
         ok "quitadas las reglas de batería, que aquí no sirven"
     fi
-    ok "sin batería: el perfil de energía se deja como esté ($(powerprofilesctl get 2>/dev/null || echo "sin power-profiles-daemon"))"
+    # Sin batería que cuidar no hay razón para frenarlo. El perfil no se
+    # guarda solo entre arranques (power-profiles-daemon empieza siempre en
+    # equilibrado), así que se pone un servicio que lo deja en rendimiento
+    # al entrar. Para volver atrás:
+    #   sudo systemctl disable --now sigilo-rendimiento.service
+    if command -v powerprofilesctl >/dev/null && powerprofilesctl list 2>/dev/null | grep -q performance; then
+        cat > /etc/systemd/system/sigilo-rendimiento.service <<'CONF'
+[Unit]
+Description=Perfil de energía en rendimiento (equipo sin batería)
+After=power-profiles-daemon.service
+Wants=power-profiles-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/powerprofilesctl set performance
+
+[Install]
+WantedBy=graphical.target
+CONF
+        systemctl daemon-reload
+        systemctl enable --now sigilo-rendimiento.service >/dev/null 2>&1
+        ok "sin batería: perfil en $(powerprofilesctl get), y se queda así en cada arranque"
+    else
+        ok "sin batería, pero este equipo no ofrece el perfil de rendimiento ($(powerprofilesctl get 2>/dev/null || echo "sin power-profiles-daemon"))"
+    fi
 fi
 
 # ── 4. GRUB ──────────────────────────────────────────────────
