@@ -18,6 +18,8 @@
 #      sistema, quita la cuenta atrás para que elijas tú, con la distro ya
 #      marcada. Todo con cuidado de no perder entradas del menú.
 #   5. Limpieza semanal de la caché de pacman (deja las 2 últimas versiones).
+#   6. Apagado: 20 segundos de margen para lo que se atasque, en vez de los
+#      90 que trae Arch de serie.
 #
 # No toca ningún servicio: impresión, wifi, bluetooth y demás siguen igual.
 
@@ -202,6 +204,30 @@ fi
 paso "Caché de pacman"
 systemctl enable --now paccache.timer >/dev/null 2>&1
 ok "limpieza semanal activada ($(du -sh /var/cache/pacman/pkg | cut -f1) ahora mismo)"
+
+# ── 6. apagado ───────────────────────────────────────────────────
+# Cuando apagas, systemd le pide por las buenas a cada cosa que se cierre y,
+# si no contesta, espera antes de matarla a la fuerza. Arch da noventa
+# segundos, que es una eternidad mirando una pantalla de texto: la mayoría
+# de distribuciones usan entre diez y treinta. Con veinte, un programa
+# atascado cuesta veinte segundos en vez de minuto y medio.
+#
+# Se pone como fichero aparte, no tocando system.conf, para que una
+# actualización no lo pise y para poder quitarlo borrando el fichero.
+paso "Apagado"
+for donde in system user; do
+    guardar "/etc/systemd/$donde.conf.d/90-sigilo-apagado.conf"
+    install -d "/etc/systemd/$donde.conf.d"
+    cat > "/etc/systemd/$donde.conf.d/90-sigilo-apagado.conf" <<'CONF'
+# Cuánto espera systemd a que algo se cierre por las buenas antes de
+# matarlo. Lo pone sistema/optimizar.sh. Para volver a lo de Arch, borra
+# este fichero y lanza: sudo systemctl daemon-reexec
+[Manager]
+DefaultTimeoutStopSec=20s
+CONF
+done
+systemctl daemon-reexec
+ok "margen de apagado: $(systemctl show -p DefaultTimeoutStopUSec --value)"
 
 paso "Listo"
 echo "  Reinicia cuando puedas para que cojan los cambios de memoria."
