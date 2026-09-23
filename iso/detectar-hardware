@@ -122,11 +122,18 @@ else
 fi
 
 # ── salida ───────────────────────────────────────────────────────────────
-mapfile -t PAQ < <(printf '%s\n' "${PAQ[@]}" | awk '!v[$0]++')
+# El mismo cuidado que en sigilo-apps: si la lista está vacía, «printf» sin
+# argumentos escribe igualmente una línea en blanco y «mapfile» la guarda
+# como si fuera un paquete. En un equipo que no necesite ningún driver
+# aparte, eso metía un paquete de nombre vacío en la lista
+[ ${#PAQ[@]} -gt 0 ] && mapfile -t PAQ < <(printf '%s\n' "${PAQ[@]}" | awk '!v[$0]++')
 if [ "$MODO" = --hyprland ]; then
     echo "$WAYLAND"
 elif [ "$MODO" = --paquetes ]; then
-    printf '%s\n' "${PAQ[@]}"
+    # Y aquí igual: con la lista vacía hay que no imprimir nada, porque
+    # quien lee esta salida la mete en un array y se encontraría un paquete
+    # de nombre vacío
+    [ ${#PAQ[@]} -gt 0 ] && printf '%s\n' "${PAQ[@]}"
 else
     echo "Hardware detectado:"
     printf '  · %s\n' "${NOTAS[@]}"

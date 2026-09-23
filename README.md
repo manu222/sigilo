@@ -493,6 +493,16 @@ sin duplicados.
 Varias piezas están como están por un motivo que no se ve en el fichero.
 Las dejo anotadas porque me costaron un rato:
 
+**Ordenar una lista vacía en bash te inventa un elemento.** `printf '%s\n'
+"${lista[@]}"` con la lista vacía no escribe cero líneas: escribe una, en
+blanco. Si el resultado va a un `mapfile`, acabas con una lista de un
+elemento que es la cadena vacía. Eso hacía que `sigilo-apps` dijera «AUR: 1»
+sin haber elegido ninguno, y que la detección de hardware colara un paquete
+sin nombre en equipos que no necesitan drivers aparte. No rompía nada porque
+todo lo de después se lo tragaba en silencio, y así llevaba desde el
+principio. Ahora esas listas se ordenan solo si tienen algo, y los nombres
+vacíos se descartan antes de usarlos.
+
 **El fondo de la pantalla de acceso vive fuera de tu carpeta, y esa carpeta
 es tuya a propósito.** La pantalla de inicio de sesión no puede leer
 `/home`, así que la copia va a `/var/lib/sigilo`, que este equipo crea a tu

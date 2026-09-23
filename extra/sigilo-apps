@@ -131,6 +131,8 @@ read -rp $'\n  ¿Añado también esos drivers y variantes? [S/n] ' r
 # Resolver alternativas «a|b» y separar repos oficiales / AUR
 oficiales=() aur=() faltan=() pipx_=()
 for p in "${paquetes[@]}"; do
+    # Un nombre vacío no es un paquete: venga de donde venga, fuera
+    [ -n "$p" ] || continue
     if [[ $p == pipx:* ]]; then pipx_+=("${p#pipx:}"); continue; fi
     elegido=""
     for alt in ${p//|/ }; do
@@ -141,8 +143,12 @@ for p in "${paquetes[@]}"; do
 done
 # pipx hace falta para las herramientas «pipx:»
 [ ${#pipx_[@]} -gt 0 ] && ! command -v pipx >/dev/null && oficiales+=(python-pipx)
-mapfile -t oficiales < <(printf '%s\n' "${oficiales[@]}" | sort -u)
-mapfile -t aur < <(printf '%s\n' "${aur[@]}" | sort -u)
+# Ojo con ordenar una lista que puede estar vacía: «printf» sin argumentos
+# escribe igualmente una línea en blanco, y «mapfile» la guarda como si fuera
+# un paquete. Así salía «AUR: 1» sin haber elegido ninguno, y el resto del
+# script se tragaba ese elemento vacío sin quejarse
+[ ${#oficiales[@]} -gt 0 ] && mapfile -t oficiales < <(printf '%s\n' "${oficiales[@]}" | sort -u)
+[ ${#aur[@]} -gt 0 ] && mapfile -t aur < <(printf '%s\n' "${aur[@]}" | sort -u)
 
 echo -e "\n\e[1;36m── Resumen ──\e[0m"
 echo "  Repositorios oficiales: ${#oficiales[@]}"
@@ -181,11 +187,16 @@ if [ "$REVISAR_AUR" = si ] && [ ${#aur[@]} -gt 0 ]; then
         echo "  ficheros, y si trae un script que se ejecuta al instalarse:"
         echo
         for a in "${nuevos[@]}"; do
+            [ -n "$a" ] || continue
             f="$PKGB/$a.PKGBUILD"
             curl -sS --max-time 15 \
                 "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=$a" -o "$f" 2>/dev/null
-            if [ ! -s "$f" ]; then
-                printf '  \e[33m!\e[0m %-28s no he podido bajar su PKGBUILD\n' "$a"
+            # El AUR responde con una página web cuando el paquete no existe
+            # con ese nombre, así que hay que mirar qué ha llegado: si no, se
+            # enseñan como «orígenes» los enlaces del menú de esa página
+            if [ ! -s "$f" ] || grep -qiE '^[[:space:]]*<(!doctype|html)' "$f"; then
+                rm -f "$f"
+                printf '  \e[33m!\e[0m %-28s no he podido bajar su PKGBUILD (¿se llama así en el AUR?)\n' "$a"
                 continue
             fi
             # De dónde descarga: los dominios que aparezcan en source=()
