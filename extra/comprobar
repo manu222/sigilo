@@ -96,21 +96,38 @@ systemctl is-active -q cronie && ok "cronie (copias)" || mal "cronie parado"
 systemctl is-active -q grub-btrfsd && ok "grub-btrfsd" || ojo "grub-btrfsd parado"
 
 paso "Apps de la lista (iso/grupos.yaml)"
-python3 - "$(dirname "$0")/../iso/grupos.yaml" <<'PY'
+python3 - "$(dirname "$0")/../iso/grupos.yaml" <<'PY' || FALLOS=$((FALLOS+1))
 import sys, yaml, subprocess, shutil, os
 os.environ["PATH"] = os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", "")
 g = yaml.safe_load(open(sys.argv[1]))
 inst = set(subprocess.run(["pacman", "-Qq"], capture_output=True, text=True).stdout.split())
-faltan = []
+
+
+def puesto(p):
+    if p.startswith("pipx:"):
+        return bool(shutil.which(p[5:].replace("-cli", "")) or shutil.which(p[5:]))
+    return any(a in inst for a in p.split("|"))
+
+
+faltan, sueltos = [], []
 for grupo in g:
-    for s in (grupo.get("subgroups") or [grupo]):
-        for p in s.get("packages", []):
-            if p.startswith("pipx:"):
-                if not shutil.which(p[5:].replace("-cli", "")) and not shutil.which(p[5:]):
-                    faltan.append(p)
-            elif not any(a in inst for a in p.split("|")):
-                faltan.append(p)
-print("  \033[32m✓\033[0m todas instaladas" if not faltan else "  \033[31m✗\033[0m faltan: " + " ".join(faltan))
+    paquetes = [p for s in (grupo.get("subgroups") or [grupo]) for p in s.get("packages", [])]
+    noestan = [p for p in paquetes if not puesto(p)]
+    # Los grupos que no vienen marcados son opcionales (la sesión de
+    # Hyprland, por ejemplo). Si no hay ni uno puesto, es que no lo elegiste
+    # en este equipo y no es ningún fallo. Si hay unos sí y otros no, eso sí
+    # hay que decirlo: se quedó a medias.
+    if grupo.get("selected") is False and len(noestan) == len(paquetes):
+        continue
+    (sueltos if grupo.get("selected") is False else faltan).extend(noestan)
+
+if faltan:
+    print("  \033[31m✗\033[0m faltan: " + " ".join(faltan))
+elif sueltos:
+    print("  \033[33m!\033[0m un grupo opcional está a medias: " + " ".join(sueltos))
+else:
+    print("  \033[32m✓\033[0m todas instaladas")
+sys.exit(1 if faltan else 0)
 PY
 
 paso "Duplicados y restos"
