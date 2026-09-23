@@ -11,7 +11,6 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")" && pwd)"
 ORIGEN="$REPO/config"
 DESTINO="$HOME/.config"
-RESPALDO="$HOME/.config-respaldo-$(date +%Y%m%d-%H%M%S)"
 
 # Apunte de lo que se instaló la última vez. Hace falta para saber qué
 # ficheros sobran: si un script desaparece del repositorio, sin esta lista se
@@ -23,6 +22,21 @@ LISTA="$ESTADO/instalado.txt"
 # se llenaba solo: guardar once no protege más que guardar cinco.
 RESPALDOS=5
 
+# Si no hay lista es que este equipo no tenía Sigilo todavía
+[ -f "$LISTA" ] && primera_vez=no || primera_vez=si
+
+# La copia de la primera instalación es especial: es la única que tiene tu
+# configuración de antes de conocer Sigilo, y es de donde tira desinstalar.sh
+# para devolvértela. Por eso lleva nombre propio y la rotación no la toca.
+# Si ya existe, esta no es la primera vez por mucho que falte la lista
+ORIGINAL="$HOME/.config-antes-de-sigilo"
+if [ "$primera_vez" = si ] && [ ! -e "$ORIGINAL" ]; then
+    RESPALDO="$ORIGINAL"
+else
+    primera_vez=no
+    RESPALDO="$HOME/.config-respaldo-$(date +%Y%m%d-%H%M%S)"
+fi
+
 [ -d "$ORIGEN" ] || { echo "No encuentro $ORIGEN"; exit 1; }
 
 echo "Se va a instalar la configuración en $DESTINO"
@@ -31,8 +45,6 @@ read -rp "¿Seguimos? [s/N] " r
 [[ "$r" =~ ^[sSyY]$ ]] || exit 0
 
 mkdir -p "$RESPALDO" "$ESTADO"
-# Si no hay lista es que este equipo no tenía Sigilo todavía
-[ -f "$LISTA" ] && primera_vez=no || primera_vez=si
 : > "$LISTA.nuevo"
 while IFS= read -r -d '' ruta; do
     rel="${ruta#$ORIGEN/}"
@@ -123,7 +135,9 @@ if rmdir "$RESPALDO" 2>/dev/null && [ "$primera_vez" = no ]; then
     echo "Sin respaldo: lo que tenías ya era igual que el repositorio."
 fi
 
-# Y de los respaldos viejos solo se guardan los últimos.
+# Y de los respaldos viejos solo se guardan los últimos. La copia original
+# (~/.config-antes-de-sigilo) no entra aquí: no lleva «respaldo» en el nombre
+# a propósito, para que esta línea no pueda llevársela por delante.
 sobran=$(ls -1d "$HOME"/.config-respaldo-* 2>/dev/null | sort -r | tail -n +$((RESPALDOS + 1)))
 if [ -n "$sobran" ]; then
     echo "$sobran" | while IFS= read -r d; do rm -rf "$d"; done

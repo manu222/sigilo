@@ -21,7 +21,7 @@ el foco, el escritorio en el que estás) y un lila suave marca lo seleccionado
 - [La segunda sesión: Hyprland](#la-segunda-sesión-hyprland) · qué cambia y qué se mantiene
 - [La paleta](#la-paleta) · los colores y de dónde salen
 - [Qué hay en el repo](#qué-hay-en-el-repo) · para qué sirve cada carpeta
-- [Instalación](#instalación) · desde cero, [desde una consola](#desde-una-consola-sin-entorno-gráfico), [qué sesiones aparecen](#qué-sesiones-aparecen-al-entrar) y [en otra distro](#en-otra-distro-o-con-otro-escritorio)
+- [Instalación](#instalación) · desde cero, [desde una consola](#desde-una-consola-sin-entorno-gráfico), [qué sesiones aparecen](#qué-sesiones-aparecen-al-entrar), [en otra distro](#en-otra-distro-o-con-otro-escritorio) y [cómo quitarlo](#quitarlo-y-volver-a-lo-de-antes)
 - [Apps](#apps) · las que instala, [dónde acaba cada una](#dónde-acaba-cada-app) y [cómo moverla](#mover-una-app-a-otra-carpeta)
 - [Atajos](#atajos) · el teclado entero
 - [Rendimiento](#rendimiento) · qué se toca y cuánto se nota
@@ -131,6 +131,10 @@ iso/        la lista de apps por grupos y la detección de hardware, que
 paquetes/   lo que tiene instalado cada equipo, solo para consultar. Lo
             escribe ./sincronizar, un fichero por máquina
 ```
+
+En la raíz están los tres que se lanzan a mano: `instalar.sh` para ponerlo,
+`sincronizar` para llevar los cambios de `~/.config` al repositorio, y
+`desinstalar.sh` para quitarlo y recuperar lo que hubiera antes.
 
 Lo de `extra/` que se lanza a mano de vez en cuando, y que si no se cuenta
 aquí no lo encuentra nadie:
@@ -249,6 +253,36 @@ Para verlas:
 ```bash
 ls /usr/share/xsessions /usr/share/wayland-sessions
 ```
+
+### Quitarlo y volver a lo de antes
+
+Si lo has instalado para probarlo y no te convence, se va entero:
+
+```bash
+cd ~/dotfiles
+./desinstalar.sh --ensayo     # enseña el plan completo y no toca nada
+./desinstalar.sh              # lo hace, después de enseñártelo y preguntar
+```
+
+No adivina nada, y por eso puede ser exacto. La primera vez que lanzaste
+`instalar.sh`, guardó en `~/.config-antes-de-sigilo` todo lo que iba a pisar
+y anotó en `~/.local/state/sigilo/instalado.txt` cada fichero que dejaba
+puesto. Con esas dos cosas sabe qué es suyo y qué era tuyo, así que quita lo
+uno y te devuelve lo otro tal cual estaba. Esa copia original está a salvo
+de la rotación de respaldos a propósito: es la única irreemplazable.
+
+Tampoco borra a las bravas: lo de Sigilo lo aparta a
+`~/.config-sigilo-retirado-<fecha>` por si acaso, y de las piezas del
+sistema tira de las copias que dejó cada script al instalarse — el GRUB, la
+pantalla de acceso, la sesión de Hyprland y lo de `optimizar.sh`. Esa parte
+pide la contraseña; si no puedes dártela, hace lo de tu carpeta y te avisa
+de lo otro.
+
+Lo que no toca, a propósito: **los programas instalados**, que los puso
+pacman y ahí se quedan (si quieres limpiarlos, en `paquetes/` está la lista
+de lo que había); la red, la impresora y todo lo que no pusiera Sigilo; y
+las instantáneas de Timeshift y `reciclar-disco.sh`, que van por su cuenta y
+desandarlas es más delicado que ponerlas.
 
 ### En otra distro o con otro escritorio
 
