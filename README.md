@@ -1,9 +1,14 @@
 # Sigilo
 
 Mi escritorio: EndeavourOS con i3, en un portátil Acer Nitro de 2018 (i7-8750H,
-GTX 1050, 8 GB de RAM). Tema propio sacado de la paleta de mi CV y llevado a
-todas las piezas: barra, menús, terminal, notificaciones, apps GTK, iconos,
-GRUB y pantalla de inicio de sesión.
+GTX 1050, 8 GB de RAM) y en un sobremesa con tres pantallas. Tema propio
+sacado de la paleta de mi CV y llevado a todas las piezas: barra, menús,
+terminal, notificaciones, apps GTK, iconos, GRUB y pantalla de inicio de
+sesión.
+
+En el sobremesa hay además una segunda sesión con Hyprland, con el mismo
+aspecto y los mismos atajos. i3 es la base y va en cualquier equipo; Hyprland
+está donde la gráfica lo aguanta.
 
 La regla que ordena todo: **el color solo aparece donde significa algo**. El
 resto es una escala de grises fríos. El menta marca lo activo (la ventana con
@@ -29,6 +34,52 @@ el foco, el escritorio en el que estás) y un lila suave marca lo seleccionado
 | Visor | imv | Supr manda la foto a la papelera y pasa a la siguiente; U la recupera |
 | IA local | Ollama | ❖+I para preguntar; el robot de la barra dice si hay un modelo cargado |
 | Copias | Timeshift | Una copia antes de cada actualización, arrancables desde GRUB |
+
+## La segunda sesión: Hyprland
+
+i3 sigue siendo la base y funciona en cualquier equipo, incluido el Nitro. En
+el sobremesa hay además una segunda sesión con Hyprland, que se elige en la
+pantalla de acceso. Mismo tema, mismos atajos y los mismos menús de rofi: la
+idea no es otro escritorio, es el mismo aprovechando lo que X11 no puede dar.
+
+Lo que gano con ella, en concreto:
+
+- **Cada pantalla a su frecuencia.** Dos de 240 Hz y una de 144, cada una a lo
+  suyo. En X11 acaban arrastrándose entre ellas.
+- **VRR a pantalla completa**, que es para lo que compré los monitores.
+- **Desenfoque y animaciones de verdad**, sin picom haciendo equilibrios.
+- **Sin tearing**, sin tener que perseguir opciones de NVIDIA.
+
+Qué cambia por dentro:
+
+| En i3 | En Hyprland | |
+|---|---|---|
+| Polybar | Waybar | Mismas píldoras, mismos colores; los escritorios los pinta un demonio propio |
+| picom | va dentro del compositor | Sombras, esquinas, desenfoque y opacidad, con los mismos valores |
+| jgmenu | `sigilo/menu-apps` | Escrito para esto; las carpetas se abren al pasar el ratón |
+| skippy-xd | `hypr/scripts/alternador` | Alt+Tab con la lista de todas las ventanas y una foto del escritorio de cada una |
+| feh + xwinwrap | mpvpaper | Fondo de imagen o de vídeo |
+| greenclip | cliphist | Historial del portapapeles |
+| i3lock | hyprlock | Mismo sello en el centro, misma hora debajo |
+| scrot | grim + slurp | El mismo guion de capturas sabe en cuál está |
+| xss-lock | hypridle | Bloqueo y apagado de pantalla por inactividad |
+
+**Los escritorios son el conjunto de las tres pantallas.** Como en GNOME o KDE:
+el escritorio 3 es el 3 de las tres a la vez, y cambian juntas. Por dentro son
+tres escritorios de Hyprland (el 3, el 13 y el 23) que se mueven a la par;
+está en `hypr/sigilo/escritorios.lua`.
+
+**El sello se cambia con `❖ + Shift + G`.** Hay quince: el de siempre y otros
+en forma de escudo, candado, llave, chip, red, radar, señal, terminal y varias
+figuras geométricas, cada uno con su color. Al elegir uno cambia en todos los
+sitios donde sale: el terminal al abrirlo, la pantalla de bloqueo, el banner
+del lanzador y el símbolo de la esquina de los menús.
+
+La configuración está en Lua (Hyprland 0.56 en adelante), partida por temas en
+`config/hypr/sigilo/`: pantallas, escritorios, aspecto, entrada, atajos,
+reglas y arranque. Cada fichero se carga por separado, así que un error en uno
+no se lleva por delante a los demás. Si una gráfica no traga con alguna parte,
+`~/.config/hypr/omitir` con el nombre del módulo la deja fuera.
 
 ## La paleta
 
@@ -168,8 +219,13 @@ lee el config de i3 y `sigilo-shell.sh`, así que no se queda desfasada. Dentro,
 | `❖ + P` | Historial del portapapeles |
 | `❖ + Shift + W` / `B` / `F` | Wifi / Bluetooth / Fondos |
 | `❖ + Shift + P` | Pausar el fondo animado |
+| `❖ + Shift + G` | Cambiar el sello |
 | `❖ + Shift + E` | Menú de sesión |
 | `❖ + botón central` | Menú de la ventana |
+
+En Hyprland son los mismos, con dos diferencias: `❖ + Shift + Tab` no hace
+nada (era skippy-xd, que es de X11) y `Alt + Tab` es un conmutador propio, con
+todas las ventanas por uso reciente y una foto del escritorio de cada una.
 
 En la terminal, `comandos` enseña los atajos de shell: saltar entre carpetas
 con `z`, `actualizar`, `limpiar`, alias de git, y herramientas de red y
@@ -238,6 +294,62 @@ cuenta y solo pone la versión con CUDA en gráficas más nuevas.
 **pipx y el PATH.** Lo que instala pipx va a `~/.local/bin`, que en Arch no
 está en el PATH. `sigilo-shell.sh` lo añade para la terminal y `~/.xprofile`
 para el escritorio.
+
+**lightdm no suelta la gráfica a tiempo.** Al entrar en Hyprland desde el
+saludador, la pantalla se quedaba congelada con `Cannot commit when a
+page-flip is awaiting`. El Xorg de lightdm sigue agarrado a la tarjeta
+mientras Hyprland ya está arrancando. La sesión que instala
+`sistema/instalar-sesion-hyprland.sh` espera a que ese Xorg muera antes de
+arrancar nada.
+
+**Waybar no sabe hablarle a la configuración en Lua.** Su módulo de
+escritorios manda las órdenes con la sintaxis vieja (`dispatch workspace 3`) y
+con la configuración en Lua eso ya no existe, así que el clic no hacía nada.
+Por eso cada escritorio es un módulo propio con su
+`hyprctl eval 'sigilo.ir(N)'`, y quien los pinta es un demonio que escucha los
+eventos de Hyprland y avisa a la barra con una señal.
+
+**Rofi empareja las comillas hasta el final de la línea.** Si le pasas dos
+reglas en un `-theme-str` de una sola línea, junta la primera comilla de una
+con la última de la otra y el menú sale destrozado. Hay que separar las reglas
+con salto de línea.
+
+**`less` no da por imprimibles los iconos.** Los de Nerd Font viven en la zona
+de uso privado de Unicode, y `less` pinta como `<U+E5FF>` todo lo que no
+considera texto. Por eso `ls` se veía bien y `lt`, que pagina, salía con
+cuadraditos. Se arregla con `LESSUTFCHARDEF`, no tocando la fuente.
+
+**GTK dice cómo se llama la ventana después de abrirla.** Las reglas de
+Hyprland se miran una sola vez, al abrir, así que cuando llegaba el nombre ya
+era tarde y el menú de apps salía en medio de la pantalla. La solución no es
+una regla: es dibujarlo como una capa (gtk-layer-shell), igual que la barra.
+
+**En Wayland un programa no puede preguntar dónde está el ratón.** Por eso el
+menú de apps salía siempre en la pantalla de la izquierda. Hay que
+preguntárselo a Hyprland, que sí lo sabe, y emparejar la pantalla por su
+esquina, que es lo único que entienden los dos.
+
+**Hyprland no distingue un diálogo de una ventana normal.** En i3 los flotaba
+una regla general por `window_role` y `window_type`; en Wayland eso no existe,
+así que hay que nombrar uno a uno los que salen a diario: el de abrir y
+guardar ficheros (que lo pinta el portal, no la aplicación), el que pide la
+contraseña de administrador y el de las llaves.
+
+**El fondo animado se anunciaba como música.** mpvpaper es mpv, y mpv habla
+MPRIS, así que la píldora de música enseñaba el nombre del fichero del fondo
+como si fuera la canción. Se arranca con `load-scripts=no`.
+
+**El Alt+Tab necesita el teclado para él solo.** Es la única forma de
+enterarse de cuándo sueltas Alt. Al cerrarlo con Esc, el compositor no siempre
+se lo devolvía a nadie y la ventana de debajo se quedaba sin recibir lo que
+escribías, así que ahora se apunta cuál tenía el foco y se le devuelve.
+
+**No hay vista de todos los escritorios.** En i3 eso era skippy-xd y en
+Hyprland sería el plugin hyprexpo, que ya no está en el repositorio oficial de
+plugins: solo quedan copias de terceros. Meter código ajeno dentro del
+compositor y recompilarlo en cada actualización, a cambio de una animación, no
+compensa cuando el Alt+Tab ya enseña una foto del escritorio de cada ventana.
+Si algún día vuelve al repositorio oficial, se mira otra vez.
 
 ## Mantenimiento
 
