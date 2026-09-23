@@ -149,6 +149,12 @@ cat > "$RUTA/.vscode/settings.json" <<'AJUSTES'
 {
     // Configura el proyecto al abrirlo, sin tener que pedirlo
     "cmake.configureOnOpen": true,
+    // Quita el botón ▷ de arriba a la derecha del editor. Parece el de
+    // «ejecutar el proyecto» y no lo es: compila solo el fichero que tengas
+    // delante, sin la carpeta include y sin los demás .cpp, así que en un
+    // proyecto de varios ficheros nunca funciona. Para ejecutar están F5 y
+    // los botones de CMake de la barra de abajo
+    "C_Cpp.debugShortcut": false,
     // Y que el análisis del editor lea de ahí dónde están las cabeceras y
     // con qué opciones se compila cada fichero. Es lo que quita los
     // subrayados rojos en #include que sí existen
