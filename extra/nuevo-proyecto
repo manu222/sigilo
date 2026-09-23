@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Crea un proyecto de C++ con su estructura hecha.
 #
-#   extra/nuevo-proyecto calculadora          lo crea en la carpeta actual
-#   extra/nuevo-proyecto ~/Proyectos/juego    o donde le digas
+#   extra/nuevo-proyecto calculadora     -> ~/Proyectos/ProyectosC++/calculadora
+#   extra/nuevo-proyecto ./juego         -> donde estés, si le das una ruta
+#   extra/nuevo-proyecto /tmp/pruebas/x  -> o una ruta entera
+#
+# Un nombre a secas va a la carpeta de proyectos de C++, que se crea sola la
+# primera vez. Para llevarlos a otro sitio: SIGILO_PROYECTOS_CPP=~/otra-ruta
 #
 # Deja esto:
 #
@@ -27,8 +31,19 @@
 
 set -uo pipefail
 
-RUTA="${1:-}"
-[ -n "$RUTA" ] || { echo "Uso: nuevo-proyecto <nombre o ruta>"; exit 1; }
+ARG="${1:-}"
+[ -n "$ARG" ] || { echo "Uso: nuevo-proyecto <nombre o ruta>"; exit 1; }
+
+# Dónde van los proyectos de C++ cuando solo se da un nombre
+BASE="${SIGILO_PROYECTOS_CPP:-$HOME/Proyectos/ProyectosC++}"
+
+# Si lleva una barra o empieza por ~, es una ruta y se respeta tal cual. Si
+# no, es solo un nombre y se guarda en la carpeta de siempre
+case "$ARG" in
+    */*|'~'*) RUTA="${ARG/#\~/$HOME}" ;;
+    *)        RUTA="$BASE/$ARG" ;;
+esac
+
 [ -e "$RUTA" ] && { echo "Ya existe: $RUTA"; exit 1; }
 
 NOMBRE=$(basename "$RUTA")
@@ -36,6 +51,7 @@ NOMBRE=$(basename "$RUTA")
 # números, guiones y guiones bajos
 DESTINO=$(printf '%s' "$NOMBRE" | tr -c 'A-Za-z0-9_-' '_')
 
+[ -d "$(dirname "$RUTA")" ] || echo "Creando $(dirname "$RUTA")"
 mkdir -p "$RUTA/include/$DESTINO" "$RUTA/src"
 
 cat > "$RUTA/CMakeLists.txt" <<CMAKE

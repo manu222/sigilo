@@ -146,8 +146,9 @@ organizar-apps    reparte las apps por categorías en ~/Aplicaciones y en el
 comprobar         revisa el equipo montado: programas, servicios, temas
 revisar           revisa el código del repositorio antes de un commit
 nuevo-proyecto    monta un proyecto de C++ con su CMakeLists, include/ y
-                  src/ (para Java no hace falta: el Extension Pack for Java
-                  ya trae «Java: Create Java Project» con Maven)
+                  src/, dentro de ~/Proyectos/ProyectosC++. Para Java no
+                  hace falta: el Extension Pack for Java ya trae «Java:
+                  Create Java Project» con los arquetipos de Maven
 dibujar-sellos    vuelve a dibujar los quince sellos con PIL
 dibujar-banner    rehace el banner del lanzador con el sello puesto
 tintar-sello      recolorea un sello con otra paleta
