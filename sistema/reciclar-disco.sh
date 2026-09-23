@@ -21,7 +21,11 @@ trap 'echo -e "\n\e[31m✗ Se paró en la línea $LINENO. No se ha seguido adela
 DISCO="${1:-/dev/sda}"
 ETIQUETA="datos"
 PUNTO="/datos"
-USUARIO="${SUDO_USER:-manu}"
+USUARIO="${SUDO_USER:-}"
+# Antes ponía «manu» si no había SUDO_USER. Eso solo acierta en mi equipo:
+# lanzado desde una shell de root (su -, una consola de rescate) le dejaría
+# los ficheros a un usuario que a lo mejor no existe, o a otra persona que
+# se llamara igual. Mejor parar y decirlo
 
 ok()    { echo -e "  \e[32m✓\e[0m $*"; }
 aviso() { echo -e "  \e[33m!\e[0m $*"; }
@@ -32,6 +36,7 @@ pregunta() { local r; read -rp "  $1 [s/N] " r; [[ "$r" =~ ^[sS]$ ]]; }
 # ───────────────────────── 1. Comprobaciones ─────────────────────────
 paso "Comprobaciones"
 [[ $EUID -eq 0 ]] || fallo "Hay que lanzarlo con sudo."
+[[ -n "$USUARIO" ]] || fallo "Lánzalo con sudo desde tu sesión, no desde una shell de root: así sé de quién son los ficheros."
 [[ -b "$DISCO" ]] || fallo "$DISCO no existe."
 [[ "$(lsblk -dno TYPE "$DISCO")" == disk ]] || fallo "$DISCO no es un disco entero."
 ok "$DISCO existe y es un disco"
@@ -158,7 +163,11 @@ if systemctl cat ollama.service >/dev/null 2>&1; then
       cp -a "$ANTES/." "$PUNTO/ollama/"
       ok "Copiado lo que había en $ANTES (el original se queda; bórralo cuando compruebes que va)"
     fi
-    chown -R "$DUENO:" "$PUNTO/ollama" 2>/dev/null || true
+    # -h para que el cambio de dueño se quede en el enlace y no salte a lo
+    # que apunte: este disco ya es tuyo unas líneas más arriba, y sin -h un
+    # enlace puesto ahí haría que root le cambiara el dueño a un fichero del
+    # sistema
+    chown -Rh "$DUENO:" "$PUNTO/ollama" 2>/dev/null || true
     mkdir -p /etc/systemd/system/ollama.service.d
     printf '[Service]\nEnvironment="OLLAMA_MODELS=%s/ollama"\n' "$PUNTO" \
       > /etc/systemd/system/ollama.service.d/modelos.conf

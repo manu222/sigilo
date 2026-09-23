@@ -16,7 +16,11 @@
 set -Eeuo pipefail
 trap 'echo -e "\n\e[31m✗ Se paró en la línea $LINENO.\e[0m"' ERR
 
-USUARIO="${SUDO_USER:-manu}"
+USUARIO="${SUDO_USER:-}"
+# Antes ponía «manu» si no había SUDO_USER. Eso solo acierta en mi equipo:
+# lanzado desde una shell de root (su -, una consola de rescate) le dejaría
+# los ficheros a un usuario que a lo mejor no existe, o a otra persona que
+# se llamara igual. Mejor parar y decirlo
 FECHA=$(date +%Y%m%d-%H%M%S)
 ok()    { echo -e "  \e[32m✓\e[0m $*"; }
 aviso() { echo -e "  \e[33m!\e[0m $*"; }
@@ -26,6 +30,7 @@ paso()  { echo -e "\n\e[1;36m── $* ──\e[0m"; }
 # ───────────────────────── Comprobaciones ─────────────────────────
 paso "Comprobaciones"
 [[ $EUID -eq 0 ]] || fallo "Hay que lanzarlo con sudo."
+[[ -n "$USUARIO" ]] || fallo "Lánzalo con sudo desde tu sesión, no desde una shell de root: así sé de quién son los ficheros."
 [[ "$(findmnt -no FSTYPE /)" == btrfs ]] || fallo "/ no está en btrfs."
 SUBVOL=$(findmnt -no OPTIONS / | tr ',' '\n' | sed -n 's/^subvol=//p')
 [[ "$SUBVOL" == "/@" ]] || fallo "/ está montado desde «$SUBVOL», y Timeshift necesita «/@»."

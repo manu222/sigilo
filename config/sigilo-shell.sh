@@ -208,7 +208,17 @@ miip() {
     echo -e "\e[38;2;143;127;176mlocal\e[0m"
     command ip -4 -br addr | awk '$1!="lo"{print "  "$1"\t"$3}'
     echo -e "\e[38;2;143;127;176mpública\e[0m"
-    echo "  $(curl -s --max-time 4 https://ifconfig.me || echo 'sin conexión')"
+    # Por DNS antes que por web: a un servicio tipo ifconfig.me le dejas tu IP
+    # anotada en su registro cada vez que preguntas. El resolvedor de OpenDNS
+    # responde con la IP desde la que le hablas y no hay petición HTTP de por
+    # medio. Si no hay dig o no contesta, se tira del método de siempre
+    local ip=""
+    if command -v dig >/dev/null; then
+        ip=$(dig +short +time=2 +tries=1 myip.opendns.com @resolver1.opendns.com 2>/dev/null \
+             | grep -m1 -E '^[0-9.]+$')
+    fi
+    [ -n "$ip" ] || ip=$(curl -s --max-time 4 https://ifconfig.me 2>/dev/null)
+    echo "  ${ip:-sin conexión}"
 }
 
 escanear() {

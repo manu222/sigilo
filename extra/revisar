@@ -155,6 +155,36 @@ for f in "${FICHEROS[@]}"; do
 done
 [ "$sin_permiso" -eq 0 ] && ok "todos los scripts conservan el permiso de ejecución"
 
+paso "Costumbres"
+# Esto no son errores y no tumban el commit: son dos vicios que ya han dado
+# problemas y que es mejor ver antes de que se multipliquen.
+
+# 1. Rutas con el nombre de un usuario dentro. Funcionan en el equipo donde
+#    se escribieron y en ninguno más, y en un repositorio público además
+#    enseñan cómo te llamas
+con_casa=$(grep -rlE '/home/[a-z][a-z0-9_-]*/' --exclude-dir=.git \
+           --exclude-dir=__pycache__ --exclude='*.md' . 2>/dev/null \
+           | grep -v '^./paquetes' | sort)
+if [ -n "$con_casa" ]; then
+    ojo "$(printf '%s\n' "$con_casa" | wc -l) fichero(s) con rutas /home/<usuario> fijas:"
+    printf '%s\n' "$con_casa" | sed 's|^\./|      |'
+    printf '      \e[2muse ${env:HOME} en polybar, $HOME o ~ en los scripts\e[0m\n'
+else
+    ok "ninguna ruta /home/<usuario> escrita a mano"
+fi
+
+# 2. Ficheros temporales con nombre fijo. Cualquiera puede dejar antes un
+#    enlace con ese nombre y hacer que al escribir te cargues otro fichero
+con_tmp=$(grep -rnE '["> ]/tmp/[A-Za-z0-9_.-]+' --exclude-dir=.git \
+          --exclude-dir=__pycache__ --exclude='*.md' . 2>/dev/null \
+          | grep -vE 'mktemp|^\./paquetes|skippy-xd' | sort)
+if [ -n "$con_tmp" ]; then
+    ojo "$(printf '%s\n' "$con_tmp" | wc -l) ruta(s) fijas en /tmp (mejor mktemp):"
+    printf '%s\n' "$con_tmp" | cut -d: -f1,2 | sed 's|^\./|      |'
+else
+    ok "ningún temporal con nombre fijo"
+fi
+
 echo
 if [ "$FALLOS" -eq 0 ]; then
     printf '\e[1;32mTodo correcto.\e[0m\n'

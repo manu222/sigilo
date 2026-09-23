@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Revisa que todas las piezas de Sigilo estén en su sitio y funcionando.
 #   ~/dotfiles/extra/comprobar
-# No cambia nada. Escribe un informe en pantalla y en ~/.cache/sigilo-comprobar.log
+# No cambia ninguna configuración. Escribe el informe en pantalla y en
+# ~/.cache/sigilo-comprobar.log, y manda una notificación de prueba.
 
 LOG=~/.cache/sigilo-comprobar.log
 exec > >(tee "$LOG") 2>&1
+# Carpeta temporal propia en vez de nombres fijos en /tmp. Con un nombre
+# fijo, cualquiera puede dejar ahí antes un enlace apuntando a un fichero
+# tuyo, y la redirección de más abajo se lo cargaría. mktemp da un nombre
+# que nadie puede adivinar, y el trap la borra pase lo que pase
+TMPD=$(mktemp -d); trap 'rm -rf "$TMPD"' EXIT
 C=~/.config
 ok()   { printf '  \e[32m✓\e[0m %s\n' "$*"; }
 mal()  { printf '  \e[31m✗\e[0m %s\n' "$*"; FALLOS=$((FALLOS+1)); }
@@ -65,7 +71,7 @@ fc-list | grep -qi "Noto Color Emoji" && ok "emojis" || ojo "falta noto-fonts-em
 fc-list | grep -qi "Inter" && ok "fuente Inter" || ojo "falta inter-font (apps GTK)"
 
 paso "Configuraciones"
-i3 -C -c $C/i3/config >/tmp/i3c.txt 2>&1 && ok "i3: config válida" || { mal "i3: errores en el config"; sed 's/^/      /' /tmp/i3c.txt | head -20; }
+i3 -C -c $C/i3/config >"$TMPD/i3c.txt" 2>&1 && ok "i3: config válida" || { mal "i3: errores en el config"; sed 's/^/      /' "$TMPD/i3c.txt" | head -20; }
 for f in $C/i3/scripts/* $C/rofi/scripts/* $C/polybar/scripts/* $C/polybar/launch.sh \
          $C/waybar/scripts/* $C/hypr/scripts/* $C/sigilo/menu-apps; do
     [ -f "$f" ] || continue
@@ -76,11 +82,11 @@ for f in $C/i3/scripts/* $C/rofi/scripts/* $C/polybar/scripts/* $C/polybar/launc
     [ -x "$f" ] || mal "${f#$C/}: no es ejecutable"
 done | grep -v '✓' ; echo "  (scripts revisados)"
 for t in $C/rofi/*.rasi; do
-    rofi -theme "$t" -dump-theme >/dev/null 2>/tmp/rofit.txt && ok "rofi: ${t##*/}" || { mal "rofi: ${t##*/}"; head -3 /tmp/rofit.txt | sed 's/^/      /'; }
+    rofi -theme "$t" -dump-theme >/dev/null 2>"$TMPD/rofit.txt" && ok "rofi: ${t##*/}" || { mal "rofi: ${t##*/}"; head -3 "$TMPD/rofit.txt" | sed 's/^/      /'; }
 done
 notify-send -a Sigilo "Comprobación" "Si ves esto, las notificaciones van" && ok "notificación de prueba enviada (debería verse arriba a la derecha)" || mal "notify-send falló"
 starship print-config >/dev/null 2>&1 && ok "starship" || mal "starship: config con errores"
-fastfetch -c $C/fastfetch/config.jsonc --pipe >/dev/null 2>/tmp/ff.txt && ! grep -qi error /tmp/ff.txt && ok "fastfetch" || { mal "fastfetch"; head -3 /tmp/ff.txt | sed 's/^/      /'; }
+fastfetch -c $C/fastfetch/config.jsonc --pipe >/dev/null 2>"$TMPD/ff.txt" && ! grep -qi error "$TMPD/ff.txt" && ok "fastfetch" || { mal "fastfetch"; head -3 "$TMPD/ff.txt" | sed 's/^/      /'; }
 
 paso "Procesos en marcha"
 if [ "$SESION" = hyprland ]; then

@@ -54,6 +54,8 @@ else
 fi
 [ -f "$FONDO" ] || para "No encuentro la imagen de fondo: $FONDO"
 TMP_FONDO=""
+# Si el script se corta a medias, que no se quede la copia del fondo en /tmp
+trap 'rm -f "$TMP_FONDO"' EXIT
 case "${FONDO,,}" in
     *.mp4|*.webm|*.mkv|*.mov|*.gif)
         CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/fondos-miniaturas"

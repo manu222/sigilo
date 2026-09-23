@@ -77,9 +77,17 @@ vm.swappiness = 150
 vm.page-cluster = 0
 # Conserva más tiempo en caché las carpetas y ficheros usados
 vm.vfs_cache_pressure = 50
+
+# Estos dos ya vienen activados en Arch, pero se dejan escritos para que no
+# dependa de que mañana cambie el valor por defecto. Impiden el truco de
+# dejar un enlace simbólico con nombre conocido en /tmp para que otro
+# programa, al escribir ahí, se cargue un fichero tuyo sin querer.
+fs.protected_symlinks = 1
+fs.protected_hardlinks = 1
 CONF
 sysctl -q --system
 ok "swappiness $(sysctl -n vm.swappiness), cache_pressure $(sysctl -n vm.vfs_cache_pressure)"
+ok "enlaces protegidos en /tmp: symlinks $(sysctl -n fs.protected_symlinks), hardlinks $(sysctl -n fs.protected_hardlinks)"
 
 # ── 3. energía ───────────────────────────────────────────────
 paso "Energía"
