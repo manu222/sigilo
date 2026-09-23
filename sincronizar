@@ -74,8 +74,14 @@ done
 
 # ── accesos de aplicaciones propios (visor de imágenes…) ─────────────────
 mkdir -p "$REPO/extra/aplicaciones"
-cp -a "$HOME"/.local/share/applications/sigilo-*.desktop "$REPO/extra/aplicaciones/" 2>/dev/null \
-    && printf '  %-34s ok\n' "aplicaciones (.desktop)"
+# Se vuelve a poner la marca @CASA@ al guardarlos: instalar.sh la cambia por
+# la carpeta de cada usuario, y si se subiera la ruta ya sustituida el
+# repositorio se quedaría con la de este equipo
+for d in "$HOME"/.local/share/applications/sigilo-*.desktop; do
+    [ -e "$d" ] || continue
+    sed "s|$HOME|@CASA@|g" "$d" > "$REPO/extra/aplicaciones/$(basename "$d")" \
+        && printf '  %-34s ok\n' "$(basename "$d")"
+done
 
 # ── lista de paquetes ─────────────────────────────────────────────────────
 # Cada equipo apunta los suyos en su propio fichero (paquetes/<equipo>-*.txt).

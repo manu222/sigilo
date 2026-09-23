@@ -1,11 +1,12 @@
 # Visor de imágenes de Sigilo (imv con las teclas de borrar y deshacer).
-# Lo instala instalar.sh y se deja como programa por defecto para imágenes.
+# Lo instala instalar.sh, que cambia @CASA@ por tu carpeta personal: los
+# ficheros .desktop no entienden ~ ni $HOME, hay que escribir la ruta entera.
 [Desktop Entry]
 Type=Application
 Name=Imágenes
 GenericName=Visor de imágenes
 Comment=Ver las imágenes de una carpeta y mandar a la papelera las que sobren
-Exec=/home/manu/.config/i3/scripts/ver-imagenes %f
+Exec=@CASA@/.config/i3/scripts/ver-imagenes %f
 Icon=image-viewer
 Terminal=false
 Categories=Graphics;Viewer;

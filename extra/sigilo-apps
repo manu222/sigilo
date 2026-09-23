@@ -21,6 +21,14 @@ for p in dialog python git; do command -v $p >/dev/null || faltan+=("$p"); done
 pacman -Qq base-devel >/dev/null 2>&1 || faltan+=(base-devel)
 [ ${#faltan[@]} -gt 0 ] && sudo pacman -S --needed --noconfirm "${faltan[@]}"
 
+# ¿Enseñar los PKGBUILD del AUR antes de compilarlos? Un PKGBUILD es un
+# script que se ejecuta con tu usuario al compilar y cuyo resultado instala
+# pacman como root, y el AUR no tiene revisión previa: publica quien quiera,
+# y un paquete abandonado que cambia de manos es la forma habitual de colar
+# algo. Se revisan una sola vez, antes de empezar, para que el resto de la
+# instalación siga sin pararse. Con REVISAR_AUR=no se salta.
+REVISAR_AUR="${REVISAR_AUR:-si}"
+
 # Ayudante del AUR: yay (EndeavourOS) o paru (CachyOS, Garuda). Si no hay
 # ninguno, como en Arch recién instalado, se instala yay desde el AUR.
 if command -v yay >/dev/null; then
@@ -158,6 +166,43 @@ restaurar() {
     rm -f "$DIALOGRC"
 }
 trap restaurar EXIT
+
+# ── Revisión de lo que viene del AUR ─────────────────────────────────────
+# Se miran solo los que no tienes ya instalados: los que van a compilarse
+# por primera vez son los que importan.
+if [ "$REVISAR_AUR" = si ] && [ ${#aur[@]} -gt 0 ]; then
+    nuevos=()
+    for a in "${aur[@]}"; do pacman -Qq "$a" >/dev/null 2>&1 || nuevos+=("$a"); done
+    if [ ${#nuevos[@]} -gt 0 ]; then
+        PKGB="${XDG_CACHE_HOME:-$HOME/.cache}/sigilo-pkgbuilds"
+        rm -rf "$PKGB"; mkdir -p "$PKGB"
+        echo -e "\n\e[1;36m── Lo que se va a compilar del AUR ──\e[0m"
+        echo "  Son ${#nuevos[@]} paquete(s) nuevos. Esto es de dónde saca cada uno sus"
+        echo "  ficheros, y si trae un script que se ejecuta al instalarse:"
+        echo
+        for a in "${nuevos[@]}"; do
+            f="$PKGB/$a.PKGBUILD"
+            curl -sS --max-time 15 \
+                "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=$a" -o "$f" 2>/dev/null
+            if [ ! -s "$f" ]; then
+                printf '  \e[33m!\e[0m %-28s no he podido bajar su PKGBUILD\n' "$a"
+                continue
+            fi
+            # De dónde descarga: los dominios que aparezcan en source=()
+            orig=$(grep -oE 'https?://[^"'"'"' )]+' "$f" \
+                   | sed -E 's|https?://||; s|/.*||' | sort -u | paste -sd' ' -)
+            printf '  \e[32m·\e[0m %-28s %s\n' "$a" "${orig:-sin descargas}"
+            grep -qE '^[[:space:]]*install=' "$f" \
+                && printf '    \e[33m!\e[0m trae script de instalación (se ejecuta como root)\n'
+        done
+        echo
+        echo "  Los PKGBUILD enteros están en $PKGB"
+        read -rp "  ¿Los miras antes de seguir? [s/N] " r
+        [[ "$r" =~ ^[sSyY]$ ]] && ${PAGER:-less} "$PKGB"/*.PKGBUILD
+        read -rp "  ¿Sigo con la instalación? [S/n] " r
+        [[ "$r" =~ ^[nN]$ ]] && { echo "  Dejado a medias. No se ha instalado nada del AUR."; aur=(); }
+    fi
+fi
 
 # Del AUR, de uno en uno: si uno falla (una descarga cortada, un conflicto),
 # los demás se instalan igual y al final se dice cuáles fallaron.

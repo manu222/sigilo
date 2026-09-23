@@ -91,7 +91,11 @@ grep -qs '.local/bin' "$HOME/.xprofile" || \
 
 # Accesos propios: el visor de imágenes como programa por defecto
 mkdir -p "$HOME/.local/share/applications"
-cp -a "$REPO"/extra/aplicaciones/*.desktop "$HOME/.local/share/applications/" 2>/dev/null
+for d in "$REPO"/extra/aplicaciones/*.desktop; do
+    [ -e "$d" ] || continue
+    # Un .desktop no expande ~ ni $HOME: la ruta va entera, y se pone aquí
+    sed "s|@CASA@|$HOME|g" "$d" > "$HOME/.local/share/applications/$(basename "$d")"
+done
 command -v xdg-mime >/dev/null && for t in png jpeg webp gif bmp tiff avif heic svg+xml; do
     xdg-mime default sigilo-imagenes.desktop "image/$t"
 done

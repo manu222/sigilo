@@ -30,4 +30,4 @@ if [ -n "$cable" ]; then
 fi
 [ -z "$contenido" ] && contenido="%{F#e0777d}%{T4}$SIN%{T-}%{F-}"
 
-echo "%{A1:/home/manu/.config/rofi/scripts/wifi:}%{A3:/home/manu/.config/i3/scripts/terminal --titulo Redes --tam 90x26 -- nmtui:}%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} $contenido %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A} "
+echo "%{A1:$HOME/.config/rofi/scripts/wifi:}%{A3:$HOME/.config/i3/scripts/terminal --titulo Redes --tam 90x26 -- nmtui:}%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} $contenido %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A} "

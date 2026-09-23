@@ -46,7 +46,7 @@ mainbox {
 
 /* ── banner + buscador ─────────────────────────────────────────────── */
 inputbar {
-    background-image: url("/home/manu/.config/rofi/banner.png", width);
+    background-image: url("~/.config/rofi/banner.png", width);
     padding:  3.4em 2.2em 2.2em 2.2em;
     spacing:  0.7em;
     children: [ "prompt", "entry" ];

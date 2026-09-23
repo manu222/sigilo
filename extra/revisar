@@ -162,9 +162,14 @@ paso "Costumbres"
 # 1. Rutas con el nombre de un usuario dentro. Funcionan en el equipo donde
 #    se escribieron y en ninguno más, y en un repositorio público además
 #    enseñan cómo te llamas
-con_casa=$(grep -rlE '/home/[a-z][a-z0-9_-]*/' --exclude-dir=.git \
+# Se miran solo las líneas que hacen algo: los ficheros de ejemplo que
+# vienen con algunos programas traen rutas de su autor en comentarios
+con_casa=$(grep -rnE '/home/[a-z][a-z0-9_-]*/' --exclude-dir=.git \
            --exclude-dir=__pycache__ --exclude='*.md' . 2>/dev/null \
-           | grep -v '^./paquetes' | sort)
+           | grep -v '^./paquetes' \
+           | awk -F: '{ linea=$0; sub(/^[^:]*:[0-9]*:/, "", linea)
+                        if (linea !~ /^[[:space:]]*(#|\/\/|\*|--)/) print $1 }' \
+           | sort -u)
 if [ -n "$con_casa" ]; then
     ojo "$(printf '%s\n' "$con_casa" | wc -l) fichero(s) con rutas /home/<usuario> fijas:"
     printf '%s\n' "$con_casa" | sed 's|^\./|      |'

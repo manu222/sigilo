@@ -23,7 +23,7 @@ ps=$(curl -s --max-time 1 $API/api/ps) || exit 0
 I=󰚩
 IZQ=
 DER=
-ABRIR="%{A1:/home/manu/.config/i3/scripts/ia:}%{A3:/home/manu/.config/polybar/scripts/ollama.sh descargar:}"
+ABRIR="%{A1:$HOME/.config/i3/scripts/ia:}%{A3:$HOME/.config/polybar/scripts/ollama.sh descargar:}"
 
 nombre=$(printf '%s' "$ps" | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$nombre" ]; then

@@ -203,6 +203,12 @@ Para saber si el equipo puede con ella: `iso/detectar-hardware --hyprland`.
 Los que van sin `sudo` piden la contraseña ellos mismos solo para el paso
 que la necesita. Todos comprueban antes lo que van a tocar y guardan copia.
 
+El fondo de la pantalla de acceso se pone al lanzar `instalar-acceso.sh` y
+se queda ahí: no sigue al del escritorio. Antes sí lo hacía, pero para eso
+la carpeta donde vive tenía que ser escribible por tu usuario, y esa imagen
+la abre el programa del inicio de sesión antes de que nadie haya puesto su
+contraseña. Para cambiarlo, se relanza el script con la imagen que quieras.
+
 `reciclar-disco.sh` es de un caso concreto (convertir el disco que dejó
 Windows en un disco de datos). Lee lo que hace antes de lanzarlo: borra un
 disco entero, aunque se niega a tocar el del sistema.
@@ -314,6 +320,12 @@ ciberseguridad, día a día e IA local, cada app con su casilla.
   repositorios oficiales de golpe y el AUR de uno en uno, para que un
   paquete que falle no tumbe al resto. Mientras instala, el equipo no se
   bloquea ni se suspende, así que puedes irte.
+- Antes de empezar, si hay paquetes del AUR nuevos, los enseña: de dónde
+  descarga cada uno y cuáles traen un script que se ejecuta como root al
+  instalarse. Un PKGBUILD es un script, el AUR no tiene revisión previa y
+  publica quien quiera, así que conviene mirarlo una vez. Se pregunta una
+  sola vez y al principio; luego ya no vuelve a parar. Con `REVISAR_AUR=no
+  extra/sigilo-apps` se salta.
 - `iso/detectar-hardware` elige los drivers: la rama de NVIDIA según la
   generación de la gráfica, el microcódigo, la NPU si hay, y si es portátil.
 - `extra/organizar-apps` (o `ordenar-apps`) monta `~/Aplicaciones` con

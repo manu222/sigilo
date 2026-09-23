@@ -24,7 +24,7 @@ esac
 
 IZQ=
 DER=
-M=/home/manu/.config/rofi/scripts/energia
+M=$HOME/.config/rofi/scripts/energia
 PULSAR="%{A1:$M --siguiente:}%{A3:$M:}"
 
 echo "$PULSAR%{B-}%{F#15201c}%{T3}$IZQ%{T-}%{B#15201c}%{F-} %{F$C}%{T4}$I%{T-}%{F-} %{B-}%{F#15201c}%{T3}$DER%{T-}%{F-}%{A}%{A} "

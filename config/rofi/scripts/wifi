@@ -67,7 +67,16 @@ else
             -theme-str 'listview { lines: 0; } window { width: 32em; }' \
             -p "clave" </dev/null)
     if [ -n "$clave" ]; then
-        salida=$(nmcli device wifi connect "$ssid" password "$clave" 2>&1)
+        # La clave va por la entrada estándar, no como argumento. Los
+        # argumentos de un proceso están en /proc y los lee cualquier usuario
+        # del equipo con un «ps» mientras dure la conexión; con --ask, nmcli
+        # la pide y se lee de ahí, y no aparece en ningún sitio.
+        salida=$(printf '%s\n' "$clave" | nmcli --ask device wifi connect "$ssid" 2>&1)
+        # Si esta versión de nmcli no se deja, se hace como siempre: es peor,
+        # pero antes que quedarte sin poder conectarte.
+        if ! printf '%s' "$salida" | grep -qi "successfully"; then
+            salida=$(nmcli device wifi connect "$ssid" password "$clave" 2>&1)
+        fi
     else
         salida=$(nmcli device wifi connect "$ssid" 2>&1)
     fi

@@ -87,10 +87,14 @@ x.XCloseDisplay(ctypes.c_void_p(d))
 PY
 }
 
-# Copia del fondo para la pantalla de inicio de sesión. Esa pantalla no
-# puede leer tu carpeta personal, así que se deja una copia en
-# /var/lib/sigilo (la crea sistema/instalar-acceso.sh). Si la carpeta no
-# existe todavía, no hace nada.
+# Copia del fondo para la pantalla de inicio de sesión, en /var/lib/sigilo.
+#
+# Hoy esa carpeta es de root y esta función no hace nada: la pantalla de
+# acceso lee ese fichero antes de que nadie se haya identificado, y no
+# conviene que pueda cambiarlo cualquier programa que corra con tu usuario.
+# Se queda escrita porque si algún día la carpeta vuelve a ser escribible,
+# esto sigue funcionando solo. Para cambiar ese fondo:
+#     ~/dotfiles/sistema/instalar-acceso.sh
 actualizar_acceso() {
     local src="$1" dest=/var/lib/sigilo/acceso.jpg
     [ -w "$(dirname "$dest")" ] || return 0
