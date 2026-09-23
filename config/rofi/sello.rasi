@@ -1,3 +1,3 @@
 /* Lo escribe ~/.config/i3/scripts/sello al cambiar de sello.
    Se lee al final de sigilo-lista.rasi y sigilo-galeria.rasi. */
-textbox-sello { content: ""; text-color: #d7bff0; }
+textbox-sello { content: "✦"; text-color: #e3c08a; }

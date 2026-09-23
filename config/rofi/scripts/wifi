@@ -59,29 +59,27 @@ if nmcli -t -f NAME connection show --active | grep -qxF "$ssid"; then
     exit 0
 fi
 
-# Red guardada: se levanta con la clave que ya tiene. Red nueva: la clave no
-# se la pedimos nosotros.
-#
-# Antes salía un recuadro de rofi y la clave se le pasaba a nmcli como
-# argumento, y los argumentos de un proceso los lee cualquier usuario del
-# equipo con un «ps» mientras dure la conexión. Ahora simplemente no se le
-# pasa: NetworkManager ve que le falta y se la pide al applet de red, que
-# abre su propio diálogo. La clave va de esa ventana al gestor de red sin
-# pasar por aquí, así que no hay nada que se pueda espiar. El precio es que
-# esa ventana no lleva los colores de Sigilo, y compensa.
+# Red guardada: se levanta sin pedir clave. Red nueva: se pide.
 if nmcli -t -f NAME connection show | grep -qxF "$ssid"; then
     salida=$(nmcli connection up id "$ssid" 2>&1)
 else
-    salida=$(nmcli device wifi connect "$ssid" 2>&1)
-fi
-
-# Si no hay applet de red corriendo, nadie puede preguntar la clave y
-# NetworkManager se queja de que le faltan los secretos. Se avisa de eso en
-# vez de dejar un «no se pudo conectar» que no dice nada.
-if printf '%s' "$salida" | grep -qiE "secrets were required|no se proporcionaron"; then
-    notify-send -u critical "Wifi" \
-        "Nadie ha pedido la clave: falta el applet de red.\nsudo pacman -S --needed network-manager-applet  y  nm-applet &"
-    exit 1
+    clave=$(rofi -dmenu -password -theme "$TEMA" \
+            -theme-str 'listview { lines: 0; } window { width: 32em; }' \
+            -p "clave" </dev/null)
+    if [ -n "$clave" ]; then
+        # La clave va por la entrada estándar, no como argumento. Los
+        # argumentos de un proceso están en /proc y los lee cualquier usuario
+        # del equipo con un «ps» mientras dure la conexión; con --ask, nmcli
+        # la pide y se lee de ahí, y no aparece en ningún sitio.
+        salida=$(printf '%s\n' "$clave" | nmcli --ask device wifi connect "$ssid" 2>&1)
+        # Si esta versión de nmcli no se deja, se hace como siempre: es peor,
+        # pero antes que quedarte sin poder conectarte.
+        if ! printf '%s' "$salida" | grep -qi "successfully"; then
+            salida=$(nmcli device wifi connect "$ssid" password "$clave" 2>&1)
+        fi
+    else
+        salida=$(nmcli device wifi connect "$ssid" 2>&1)
+    fi
 fi
 
 if printf '%s' "$salida" | grep -qi "successfully"; then
