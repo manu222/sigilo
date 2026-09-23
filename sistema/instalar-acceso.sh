@@ -11,15 +11,13 @@
 #
 # Guarda copia de la configuracion anterior y al final dice como deshacerlo.
 #
-# El fondo va en /var/lib/sigilo/acceso.jpg, una carpeta fuera de /home que
-# la pantalla de acceso sí puede leer.
+# El fondo va en /var/lib/sigilo/acceso.jpg, una carpeta tuya fuera de /home
+# que la pantalla de acceso sí puede leer. Cada vez que cambias el fondo del
+# escritorio, el script «fondo» actualiza también esta copia, así que al
+# cerrar sesión ves el mismo fondo que tenías.
 #
-# Esa carpeta es de root a propósito, y solo escribe aquí este script. Antes
-# era tuya, para que el script «fondo» pudiera ir actualizando la copia cada
-# vez que cambiabas el fondo del escritorio; la comodidad estaba bien, pero
-# significaba que un fichero que puede cambiar cualquier programa tuyo se lo
-# come el greeter antes de que nadie haya puesto su contraseña. Para cambiar
-# el fondo de la pantalla de acceso, relanza este script.
+# Que la carpeta sea tuya y no de root es una decisión tomada a sabiendas:
+# está contada en el README, en «Cosas que tienen truco».
 
 set -euo pipefail
 AQUI="$(cd "$(dirname "$0")" && pwd)"
@@ -58,12 +56,12 @@ else
     [ -z "$FONDO" ] && FONDO=$(grep -oP "feh --bg-fill '?\K[^']+" "$HOME/.fehbg" 2>/dev/null | head -1)
 fi
 [ -f "$FONDO" ] || para "No encuentro la imagen de fondo: $FONDO"
-TMP_FONDO=""; TMP_ACCESO=""
-# Si el script se corta a medias, que no se queden las copias en /tmp
-# Con ${x:-} porque el script puede salirse antes de que estas existan, y
-# «set -u» se quejaría desde dentro del propio trap. El «true» del final deja
-# el código de salida tal y como venía
-trap 'rm -f "${TMP_FONDO:-}"; [ "${TMP_ACCESO:-}" != "${FONDO:-}" ] && rm -f "${TMP_ACCESO:-}"; true' EXIT
+TMP_FONDO=""
+# Si el script se corta a medias, que no se quede la copia del fondo en /tmp.
+# Con ${x:-} porque puede salirse antes de que exista, y «set -u» se quejaría
+# desde dentro del propio trap. El «true» del final deja el código de salida
+# tal y como venía
+trap 'rm -f "${TMP_FONDO:-}"; true' EXIT
 case "${FONDO,,}" in
     *.mp4|*.webm|*.mkv|*.mov|*.gif)
         CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/fondos-miniaturas"
@@ -94,16 +92,13 @@ fi
 
 # 5. instalar
 ACCESO=/var/lib/sigilo
-sudo install -d -o root -g root -m 755 "$ACCESO"
-# La imagen se prepara con tu usuario y la deja root en su sitio: así la
-# carpeta no tiene que ser escribible por nadie más que root
+sudo install -d -o "$USER" -g "$USER" -m 755 "$ACCESO"
 if command -v magick >/dev/null; then
-    TMP_ACCESO=$(mktemp --suffix=.jpg)
-    magick "$FONDO" -resize 1920x1080^ -gravity center -extent 1920x1080 -quality 90 "$TMP_ACCESO"
+    magick "$FONDO" -resize 1920x1080^ -gravity center -extent 1920x1080 -quality 90 "$ACCESO/acceso.jpg"
 else
-    TMP_ACCESO="$FONDO"
+    cp "$FONDO" "$ACCESO/acceso.jpg"
 fi
-sudo install -m 644 -o root -g root "$TMP_ACCESO" "$ACCESO/acceso.jpg"
+chmod 644 "$ACCESO/acceso.jpg"
 sudo install -Dm644 "$SELLO" "$FONDOS/sigilo-sello.png"
 sed "s|@FONDO@|$ACCESO/acceso.jpg|" "$CONF" | sudo tee "$DEST" >/dev/null
 sudo chmod 644 "$DEST"

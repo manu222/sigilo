@@ -203,12 +203,6 @@ Para saber si el equipo puede con ella: `iso/detectar-hardware --hyprland`.
 Los que van sin `sudo` piden la contraseña ellos mismos solo para el paso
 que la necesita. Todos comprueban antes lo que van a tocar y guardan copia.
 
-El fondo de la pantalla de acceso se pone al lanzar `instalar-acceso.sh` y
-se queda ahí: no sigue al del escritorio. Antes sí lo hacía, pero para eso
-la carpeta donde vive tenía que ser escribible por tu usuario, y esa imagen
-la abre el programa del inicio de sesión antes de que nadie haya puesto su
-contraseña. Para cambiarlo, se relanza el script con la imagen que quieras.
-
 `reciclar-disco.sh` es de un caso concreto (convertir el disco que dejó
 Windows en un disco de datos). Lee lo que hace antes de lanzarlo: borra un
 disco entero, aunque se niega a tocar el del sistema.
@@ -498,6 +492,20 @@ sin duplicados.
 
 Varias piezas están como están por un motivo que no se ve en el fichero.
 Las dejo anotadas porque me costaron un rato:
+
+**El fondo de la pantalla de acceso vive fuera de tu carpeta, y esa carpeta
+es tuya a propósito.** La pantalla de inicio de sesión no puede leer
+`/home`, así que la copia va a `/var/lib/sigilo`, que este equipo crea a tu
+nombre para que el script `fondo` pueda ir actualizándola cada vez que
+cambias el fondo del escritorio. Así, al cerrar sesión, ves el mismo que
+tenías. El precio de esa comodidad es que un programa cualquiera corriendo
+con tu usuario podría cambiar esa imagen, y quien la abre es el saludador,
+antes de que nadie se haya identificado. Para aprovecharlo haría falta un
+fallo en el decodificador de imágenes, y quien pudiera intentarlo ya estaría
+dentro de tu cuenta. Es una decisión tomada a sabiendas: si algún día
+prefieres cerrarlo, la carpeta se crea con `-o root -g root` en
+`sistema/instalar-acceso.sh` y el fondo pasa a cambiarse relanzando ese
+script.
 
 **La clave del wifi no la pide Sigilo.** El menú de redes enseña las que hay
 y se conecta, pero cuando hace falta una clave nueva no la pregunta él: deja
