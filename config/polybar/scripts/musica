@@ -2,25 +2,35 @@
 """Píldora de música para la barra.
 
 Mientras suena algo (Spotify, el navegador, VLC, mpv… cualquier cosa que
-hable MPRIS), enseña unas barritas que se mueven con el sonido y el título
-de la canción. En pausa, las barras se paran y el título se apaga. Si no hay
-nada abierto, la píldora desaparece.
+hable MPRIS), enseña una onda que se mueve con el sonido y el título de la
+canción. En pausa, la onda se para y el título se apaga. Si no hay nada
+abierto, la píldora desaparece.
 
   clic           pausa / sigue
   rueda          canción siguiente / anterior
   clic derecho   salta a la ventana del reproductor
 
-Las barras salen de cava (config en ~/.config/cava/barra), que solo se
+El sonido sale de cava (config en ~/.config/cava/barra), que solo se
 arranca mientras hay música. Además deja su ancho aproximado en
 ~/.cache/sigilo-musica.ancho para que los escritorios de la barra sepan
 cuánto sitio les queda.
 """
-import os, select, subprocess, sys, time
+import math, os, select, subprocess, sys, time
 
-BLOQUES = "▁▂▃▄▅▆▇█"
 MAX_TITULO = 20
-# Degradado de menta a lila, una por barra
+# Degradado de menta a lila, repartido a lo largo de la onda
 COLORES = ["#34d399", "#4fd0a8", "#6bc9b8", "#86c0c8", "#9fb5d4", "#b3a9dc", "#c1a3e0", "#c8aae5"]
+# La onda se dibuja con caracteres braille: cada uno son dos columnas de
+# puntos por cuatro de alto, así que con diez caracteres salen veinte puntos
+# de ancho, que ya se lee como una línea. Es la misma que en waybar.
+# OJO: JetBrainsMono no trae braille; la fuente de repuesto está declarada
+# en config.ini (font-4), porque polybar no busca ninguna por su cuenta.
+CELDAS = 10
+COLUMNAS = CELDAS * 2
+FILAS = 4
+BRAILLE = 0x2800
+IZQUIERDA = (0x01, 0x02, 0x04, 0x40)     # bits de los puntos, de arriba abajo
+DERECHA = (0x08, 0x10, 0x20, 0x80)
 PILDORA, IZQ, DER = "#15201c", "", ""
 ANCHO = os.path.expanduser("~/.cache/sigilo-musica.ancho")
 CAVA_CONF = os.path.expanduser("~/.config/cava/barra")
@@ -80,8 +90,33 @@ def pildora(nombre, contenido):
             f"{contenido} %{{B-}}%{{F{PILDORA}}}%{{T3}}{DER}%{{T-}}%{{F-}}%{{A}}%{{A}}%{{A}}%{{A}} ")
 
 
-def barras(valores):
-    return "".join(f"%{{F{COLORES[i % 8]}}}{BLOQUES[min(max(v, 0), 7)]}" for i, v in enumerate(valores)) + "%{F-}"
+def onda(valores, fase):
+    """La onda de la píldora: una línea que se ondula siempre en el mismo
+    sitio y a la que la música le sube y le baja la altura en cada tramo.
+
+    A cada punto de la línea le toca una banda de cava (las ocho, repartidas
+    e interpoladas para que no haya escalones), y la onda entera se infla con
+    los graves, que es lo que marca el ritmo. El vaivén lo pone el seno, que
+    va avanzando con «fase»."""
+    graves = (valores[0] + valores[1]) / 14.0
+    celdas = []
+    for c in range(CELDAS):
+        marca = 0
+        for lado, bits in ((0, IZQUIERDA), (1, DERECHA)):
+            t = (c * 2 + lado) / (COLUMNAS - 1)
+            p = t * (len(valores) - 1)
+            a = int(p)
+            b = min(len(valores) - 1, a + 1)
+            nivel = (valores[a] + (valores[b] - valores[a]) * (p - a)) / 7.0
+            # los extremos se van apagando para que no acabe de golpe
+            borde = math.sin(math.pi * t) ** 0.35
+            altura = (math.sin(t * math.pi * 2.5 - fase) * 0.7 +
+                      math.sin(t * math.pi * 4.5 + fase * 1.6) * 0.3)
+            fila = round(1.6 - altura * (0.08 + (nivel * 0.4 + graves * 0.9) * 2.8) * borde)
+            marca |= bits[min(max(fila, 0), FILAS - 1)]
+        celdas.append(chr(BRAILLE + marca))
+    return "".join("%%{F%s}%s" % (COLORES[i * len(COLORES) // CELDAS], ch)
+                   for i, ch in enumerate(celdas)) + "%{F-}"
 
 
 def apuntar_ancho(px):
@@ -99,8 +134,15 @@ def main():
     ultimo_repaso = 0
     info = None
     valores = [0] * 8
+    fase = 0.0
+    ultimo_marco = time.time()
     while True:
         ahora = time.time()
+        # La onda avanza por tiempo, no por fotograma, para que se mueva igual
+        # de rápido dé cava lo que dé; y con lo fuerte que suene, un poco más
+        paso = min(0.2, ahora - ultimo_marco)
+        ultimo_marco = ahora
+        fase += paso * (2.2 + 3.0 * (sum(valores) / (7.0 * len(valores))))
         if ahora - ultimo_repaso > 1:            # el reproductor se mira una vez por segundo
             info = reproductor()
             ultimo_repaso = ahora
@@ -126,13 +168,13 @@ def main():
                     valores = [int(x) for x in linea.strip().strip(";").split(";")][:8]
                 except ValueError:
                     pass
-            contenido = f"{barras(valores)}  %{{F#c9d3ce}}{texto}%{{F-}}"
+            contenido = f"{onda(valores, fase)}  %{{F#c9d3ce}}{texto}%{{F-}}"
         else:
             contenido = f"%{{F#70837c}}%{{T4}}\U000f03e4%{{T-}}  {texto}%{{F-}}"
             time.sleep(0.5)
         print(pildora(nombre, contenido), flush=True)
-        # 8 barras + separación + texto, a 8 px por carácter, más las tapas
-        apuntar_ancho(8 * (8 + 3 + len(texto)) + 60)
+        # la onda + separación + texto, a 8 px por carácter, más las tapas
+        apuntar_ancho(8 * (CELDAS + 3 + len(texto)) + 60)
 
 
 if __name__ == "__main__":

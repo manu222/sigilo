@@ -6,7 +6,10 @@
  * ============================================================================ */
 
 * {
-    font-family: "JetBrainsMono Nerd Font", monospace;
+    /* Adwaita Mono va de repuesto a propósito: JetBrainsMono no trae los
+       caracteres braille con los que se dibuja la onda de la música. Aquí
+       fontconfig buscaría una por su cuenta, pero mejor decir cuál */
+    font-family: "JetBrainsMono Nerd Font", "Adwaita Mono", monospace;
     font-size: 14px;
     min-height: 0;
     border: none;
