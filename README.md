@@ -145,6 +145,9 @@ organizar-apps    reparte las apps por categorías en ~/Aplicaciones y en el
                   menú de la barra. Se lanza solo al entrar en la sesión
 comprobar         revisa el equipo montado: programas, servicios, temas
 revisar           revisa el código del repositorio antes de un commit
+nuevo-proyecto    monta un proyecto de C++ con su CMakeLists, include/ y
+                  src/ (para Java no hace falta: el Extension Pack for Java
+                  ya trae «Java: Create Java Project» con Maven)
 dibujar-sellos    vuelve a dibujar los quince sellos con PIL
 dibujar-banner    rehace el banner del lanzador con el sello puesto
 tintar-sello      recolorea un sello con otra paleta

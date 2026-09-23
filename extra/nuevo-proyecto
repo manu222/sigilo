@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Crea un proyecto de C++ con su estructura hecha.
+#
+#   extra/nuevo-proyecto calculadora          lo crea en la carpeta actual
+#   extra/nuevo-proyecto ~/Proyectos/juego    o donde le digas
+#
+# Deja esto:
+#
+#   nombre/
+#   ├── CMakeLists.txt        cómo se construye
+#   ├── .gitignore            para que build/ no acabe en git
+#   ├── include/nombre/       las cabeceras (.h)
+#   │   └── saludo.h
+#   └── src/                  el código (.cpp)
+#       ├── main.cpp
+#       └── saludo.cpp
+#
+# Viene con un .h y su .cpp ya enganchados, para que se vea cómo se reparte
+# el código en varios ficheros sin tener que buscarlo.
+#
+# Por qué existe esto y no se usa «CMake: Quick Start» de VS Code: aquel deja
+# solo un CMakeLists y un main.cpp en la raíz, y esta estructura es la que
+# usa todo el mundo en cuanto el proyecto pasa de un fichero.
+#
+# Para Java no hay script: el Extension Pack for Java ya trae «Java: Create
+# Java Project», que monta la estructura de Maven con sus arquetipos.
+
+set -uo pipefail
+
+RUTA="${1:-}"
+[ -n "$RUTA" ] || { echo "Uso: nuevo-proyecto <nombre o ruta>"; exit 1; }
+[ -e "$RUTA" ] && { echo "Ya existe: $RUTA"; exit 1; }
+
+NOMBRE=$(basename "$RUTA")
+# CMake no admite cualquier cosa como nombre de destino: se deja en letras,
+# números, guiones y guiones bajos
+DESTINO=$(printf '%s' "$NOMBRE" | tr -c 'A-Za-z0-9_-' '_')
+
+mkdir -p "$RUTA/include/$DESTINO" "$RUTA/src"
+
+cat > "$RUTA/CMakeLists.txt" <<CMAKE
+cmake_minimum_required(VERSION 3.20)
+project($DESTINO LANGUAGES CXX)
+
+# C++20 y sin dejar que el compilador se invente extensiones propias: así el
+# código compila igual aquí que en cualquier otro sitio
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Deja un compile_commands.json en build/ con la orden exacta de cada
+# fichero. Es lo que lee el editor para saber dónde están tus cabeceras;
+# sin esto, VS Code subraya en rojo los #include que sí existen
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+add_executable($DESTINO
+    src/main.cpp
+    src/saludo.cpp
+)
+
+# Con esto, en el código se escribe #include "$DESTINO/saludo.h" y CMake ya
+# sabe que eso vive en include/
+target_include_directories($DESTINO PRIVATE include)
+
+# Avisos de sobra. La mayoría de los errores tontos de C++ los caza el
+# compilador si se le deja hablar
+target_compile_options($DESTINO PRIVATE -Wall -Wextra -Wpedantic)
+CMAKE
+
+cat > "$RUTA/.gitignore" <<'GIT'
+# Todo lo que genera cmake al construir: se rehace solo, no va en git
+build/
+GIT
+
+cat > "$RUTA/include/$DESTINO/saludo.h" <<CAB
+#pragma once
+
+#include <string>
+
+// Una cabecera declara qué existe; el .cpp de al lado dice cómo se hace.
+// Así otros ficheros pueden usar esto sin ver su código por dentro.
+namespace $DESTINO {
+
+std::string saludo(const std::string& nombre);
+
+}  // namespace $DESTINO
+CAB
+
+cat > "$RUTA/src/saludo.cpp" <<IMPL
+#include "$DESTINO/saludo.h"
+
+namespace $DESTINO {
+
+std::string saludo(const std::string& nombre) {
+    return "Hola, " + nombre + '!';
+}
+
+}  // namespace $DESTINO
+IMPL
+
+cat > "$RUTA/src/main.cpp" <<MAIN
+#include <iostream>
+
+#include "$DESTINO/saludo.h"
+
+int main() {
+    std::cout << $DESTINO::saludo("$NOMBRE") << '\n';
+    return 0;
+}
+MAIN
+
+command -v git >/dev/null && git -C "$RUTA" init -q 2>/dev/null
+
+echo "Proyecto $NOMBRE creado en $RUTA"
+echo
+echo "  code \"$RUTA\""
+echo
+echo "Al abrirlo, CMake Tools lo detecta solo y pide elegir compilador (GCC)."
+echo "Construir y ejecutar están en la barra de abajo. A mano sería:"
+echo "  cmake -S \"$RUTA\" -B \"$RUTA/build\" -G Ninja && cmake --build \"$RUTA/build\" && \"$RUTA/build/$DESTINO\""

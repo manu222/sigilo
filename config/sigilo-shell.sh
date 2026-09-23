@@ -314,6 +314,8 @@ fi
 # Atajos a los scripts de ~/dotfiles/extra para no tener que recordar rutas
 alias apps='~/dotfiles/extra/sigilo-apps'
 alias ordenar-apps='~/dotfiles/extra/organizar-apps'
+# Proyecto de C++ con su estructura hecha:  proyecto-cpp calculadora
+alias proyecto-cpp='~/dotfiles/extra/nuevo-proyecto'
 alias comprobar='~/dotfiles/extra/comprobar'
 alias rendimiento='sudo -v && ~/dotfiles/extra/medir-rendimiento'
 alias dotfiles='cd ~/dotfiles && ./sincronizar && git status -sb'
