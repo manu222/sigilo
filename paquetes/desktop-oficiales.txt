@@ -28,6 +28,8 @@ btop
 btrfs-progs
 cantarell-fonts
 cava
+chafa
+cliphist
 cryptsetup
 cups
 cups-browsed
@@ -97,6 +99,7 @@ glances
 gnome-keyring
 gobuster
 gparted
+grim
 grub
 grub-btrfs
 gsfonts
@@ -119,6 +122,10 @@ hplip
 hwdetect
 hwinfo
 hydra
+hypridle
+hyprland
+hyprlock
+hyprpm
 i3-wm
 i3blocks
 i3status
@@ -194,6 +201,7 @@ nvidia-open
 nvidia-open-lts
 nvidia-settings
 nvidia-utils
+nwg-drawer
 nwg-look
 obs-studio
 obsidian
@@ -245,6 +253,7 @@ sane
 scrot
 seahorse
 sg3_utils
+slurp
 smartmontools
 sof-firmware
 spotify-launcher
@@ -267,6 +276,7 @@ ttf-bitstream-vera
 ttf-dejavu
 ttf-jetbrains-mono-nerd
 ttf-liberation
+ttf-nerd-fonts-symbols
 ttf-opensans
 tumbler
 unrar
@@ -278,6 +288,7 @@ uv
 virt-manager
 vlc
 volatility3
+waybar
 welcome
 wget
 which
@@ -285,9 +296,12 @@ whois
 wireless-regdb
 wireplumber
 wireshark-qt
+wl-clipboard
+wtype
 xarchiver
 xbindkeys
 xclip
+xdg-desktop-portal-hyprland
 xdg-user-dirs
 xdg-user-dirs-gtk
 xdg-utils

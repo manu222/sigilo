@@ -1,9 +1,3 @@
-/* ─────────────────────────────────────────────────────────────
- * El sello que sale en la esquina de los menús.
- *
- * Este fichero lo reescribe ~/.config/i3/scripts/sello cada vez que se
- * cambia de sello (❖+Shift+G), para que el símbolo y su color vayan con
- * el que tengas puesto. Lo que hay aquí es el de partida, el clásico.
- * Los temas lo leen al final del todo, que en rofi es lo que manda.
- * ───────────────────────────────────────────────────────────── */
-textbox-sello { content: "❖"; text-color: #3ee8a8; }
+/* Lo escribe ~/.config/i3/scripts/sello al cambiar de sello.
+   Se lee al final de sigilo-lista.rasi y sigilo-galeria.rasi. */
+textbox-sello { content: ""; text-color: #d7bff0; }
