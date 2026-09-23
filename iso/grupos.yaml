@@ -83,8 +83,10 @@
     - python-i3ipc
     - python-xlib
     - python-yaml
-    # Dibuja los sellos y el banner del lanzador (extra/dibujar-sellos)
+    # Dibujan los sellos: pillow las figuras y el banner del lanzador, chafa
+    # la versión en bloques para los terminales que no pintan imágenes
     - python-pillow
+    - chafa
     - skippy-xd-git
     - gsimplecal
     - dex
@@ -142,8 +144,6 @@
     - wtype
     # La rejilla con todas las aplicaciones (clic derecho en el botón Apps)
     - nwg-drawer
-    # Pinta el sello en bloques de colores, para terminales sin imágenes
-    - chafa
 
 - name: "Sigilo · copias del sistema"
   description: "Copia instantánea antes de cada actualización y arranque de copias desde GRUB. Solo sirve con btrfs."
